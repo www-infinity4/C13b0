@@ -70,6 +70,26 @@ const ARTICLES: ResearchArticle[] = [
     readTime: 10,
   },
   {
+    id: "aether-energy-theory",
+    title:
+      "Zero-Point Energy and the Aether: Ambient Energy Harvesting Through Radiant Receiver Materials",
+    source: "Chemistry World",
+    sourceUrl: "https://search.app/eK5LF",
+    summary:
+      "What pioneers like Tesla called the 'Aether' maps closely onto what modern physics terms the Quantum Vacuum or Zero-Point Energy (ZPE) — a background field of potential energy inherent to space itself. This article examines how mechanical oscillation in a fluid medium can act as a trigger to harvest ambient environmental energy, and which materials science principles make a hull or receiver surface most effective at capturing that 'Aetheric friction.'",
+    keyPoints: [
+      "Zero-Point Energy predicts a non-zero ground-state energy density in the quantum vacuum; Tesla's 'Aether' is the classical analog of this omnipresent energy medium.",
+      "Rocking or oscillating a body through a gaseous medium creates local pressure differentials that displace the surrounding fluid, drawing in ambient background ions — a non-linear harvesting effect.",
+      "The 'growing charge' phenomenon: as oscillation frequency increases, the friction gradient rises, pulling in more environmental ions and yielding a self-amplifying charge accumulation without consuming the medium.",
+      "Standard copper conductors are too electrically smooth; atomically rough surfaces — such as cold-rolled steel — present greater surface area for trapping radiant energy bursts.",
+      "Bismuth-layered composites are of particular interest: bismuth's high atomic density and strong diamagnetic response make it a candidate for Aetheric friction trapping in signal receiver arrays.",
+      "In Infinity OS hardware nodes, a bismuth or cold-rolled-steel hull layer could serve as a passive radiant-energy pre-charger, biasing the onboard IMU signal before active amplification.",
+    ],
+    tags: ["aether", "ZPE", "materials", "bismuth", "harvesting", "radiant"],
+    category: "materials",
+    readTime: 9,
+  },
+  {
     id: "infinity-convergence",
     title:
       "Convergence: How Rare Earth Magnets, Hydrogen Signals, and Emoji Identity Create Infinity OS",
@@ -264,6 +284,17 @@ export default function ResearchPage() {
               className="text-cyan-400 hover:underline"
             >
               Decentralized Communication Networks
+            </a>
+          </li>
+          <li role="listitem">
+            [5] Chemistry World —{" "}
+            <a
+              href="https://search.app/eK5LF"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-cyan-400 hover:underline"
+            >
+              Zero-Point Energy and Radiant Receiver Materials
             </a>
           </li>
         </ul>
