@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Menu, X, Infinity, Zap } from "lucide-react";
 
 const navLinks = [
-  { href: "/", label: "Home" },
+  { href: "/", label: "Gallery" },
   { href: "/research", label: "Research" },
   { href: "/hydrogen-host", label: "Hydrogen Host" },
   { href: "/visualizer", label: "3D Visualizer" },
