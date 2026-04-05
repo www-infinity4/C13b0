@@ -51,7 +51,7 @@ interface MIDIAccess extends EventTarget {
   onstatechange: ((e: MIDIConnectionEvent) => void) | null;
 }
 
-interface NavigatorWithMIDI extends Navigator {
+interface NavigatorWithMIDI {
   requestMIDIAccess(): Promise<MIDIAccess>;
 }
 
@@ -193,7 +193,7 @@ export class MidiListener {
    * Returns false if MIDI is unavailable or permission is denied.
    */
   async start(): Promise<boolean> {
-    const nav = navigator as NavigatorWithMIDI;
+    const nav = navigator as unknown as NavigatorWithMIDI;
     if (typeof nav.requestMIDIAccess !== 'function') {
       console.warn('[TokenEngine/MidiListener] Web MIDI API not available in this browser.');
       return false;
