@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# cartoon-engine build output
+dist/
+
+# user-generated tile output (not sample-output/ — that is committed)
+/output/

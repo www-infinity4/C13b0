@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["esnext"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "strict": true,
+    "outDir": "dist/cartoon-engine",
+    "rootDir": ".",
+    "esModuleInterop": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "include": [
+    "cartoon-engine/**/*.ts",
+    "src/token-engine/patterns.ts"
+  ],
+  "exclude": ["node_modules", "cartoon-engine/__tests__/**"]
+}
