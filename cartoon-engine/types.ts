@@ -3,6 +3,11 @@
  *
  * Blueprint-first: all artifacts are deterministic YAML/JSON, never raw video.
  * One 30-second tile = 4 shots at 24 fps = 720 total frames.
+ *
+ * Extended with:
+ *  - PhysicsMap  : deterministic Cartesian coordinate engine
+ *  - CharacterDNA: hard-coded visual constants (hex codes, geometry)
+ *  - FrameHashes : 4-hash tamper-evident verification chain
  */
 
 /** Top-level tile container. */
@@ -118,3 +123,106 @@ export interface EDLFile {
   total_frames: number;
   entries: EDLEntry[];
 }
+
+// ---------------------------------------------------------------------------
+// Physics — Cartesian coordinate engine
+// ---------------------------------------------------------------------------
+
+/** A normalised 2-D position on screen (0..1 on each axis). */
+export interface Vector2D {
+  x: number;
+  y: number;
+}
+
+/** Calculated motion between two positions at a given velocity. */
+export interface MotionVector {
+  /** Change in X (target.x − initial.x). */
+  delta_x: number;
+  /** Change in Y (target.y − initial.y). */
+  delta_y: number;
+  /** Euclidean distance in normalised units. */
+  distance: number;
+  /** Wall-clock time (seconds) to reach target at the given velocity. */
+  travel_time_s: number;
+  /** Number of animation frames to reach target at fps. */
+  frames_to_target: number;
+  /** Per-frame position vectors from frame 0 to frames_to_target. */
+  frame_sequence: Vector2D[];
+}
+
+/**
+ * PhysicsMap — the Cartesian engine for a single character movement.
+ *
+ * The generator calculates all derived fields; callers only supply
+ * `character_id`, `initial_position`, `target_position`, `velocity_units_per_s`,
+ * and `fps`.
+ */
+export interface PhysicsMap {
+  character_id: string;
+  initial_position: Vector2D;
+  target_position: Vector2D;
+  /** Speed in normalised units per second (e.g. 0.2 = crosses 20 % of screen/s). */
+  velocity_units_per_s: number;
+  fps: number;
+  /** Fully calculated — do not set by hand. */
+  motion: MotionVector;
+}
+
+// ---------------------------------------------------------------------------
+// CharacterDNA — hard-coded visual constants (no AI guessing)
+// ---------------------------------------------------------------------------
+
+/**
+ * CharacterDNA — the immutable visual fingerprint for a character.
+ * Every field must be present; the `prompt_descriptor` string is
+ * auto-injected into every generated frame prompt.
+ */
+export interface CharacterDNA {
+  character_id: string;
+  archetype: string;
+  /** Full ComfyUI-ready prompt descriptor, auto-appended to every frame. */
+  prompt_descriptor: string;
+  /** Primary coat / body colour as CSS hex. */
+  coat_hex: string;
+  /**
+   * Geometric description of the hat antenna in plain text:
+   * radius, height, finish, taper angle, telescoping sections.
+   */
+  hat_antenna_geometry: string;
+  glove_hex: string;
+  outline_hex: string;
+  shading_mode: string;
+}
+
+// ---------------------------------------------------------------------------
+// 4-Hash verification chain
+// ---------------------------------------------------------------------------
+
+/**
+ * FrameHashes — tamper-evident verification chain for a tile.
+ *
+ * Hash 1 (story)    : SHA-256 of the story / premise JSON.
+ * Hash 2 (geometry) : SHA-256 of the PhysicsMap JSON array.
+ * Hash 3 (dna)      : SHA-256 of the CharacterDNA JSON.
+ * Hash 4 (master)   : SHA-256 of ( story_hash + geometry_hash + dna_hash ).
+ *
+ * A tile is "pure" if and only if masterHash matches the content hashes.
+ */
+export interface FrameHashes {
+  story_hash: string;
+  geometry_hash: string;
+  dna_hash: string;
+  master_hash: string;
+}
+
+/**
+ * Full verification envelope emitted alongside the tile blueprint.
+ * Store this as `tile_XXXX.verify.json`.
+ */
+export interface VerificationEnvelope {
+  tile_id: string;
+  hashes: FrameHashes;
+  algorithm: 'sha256';
+  generated_at: string;
+}
+
