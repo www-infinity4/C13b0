@@ -1,0 +1,11 @@
+{
+  "tile_id": "tile_0001",
+  "hashes": {
+    "story_hash": "b307abcaca8752062d80d77b425de15d9a6c98db928cf44baf087c2a3a478aac",
+    "geometry_hash": "89da2b24db2cd621dbf4dafe2803ee6dba7b1b96ace5fc715d5f48d5949472e8",
+    "dna_hash": "fd28a5c1f56944eb1f0f21404039f9b274319ee28b95ee08266eb262a287713a",
+    "master_hash": "ec419f9c0e4c115cb37111a6a61daacb21c3c0acba6812b46c7ccb478f8c9731"
+  },
+  "algorithm": "sha256",
+  "generated_at": "2026-04-05T18:47:37.627Z"
+}

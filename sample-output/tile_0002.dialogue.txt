@@ -1,0 +1,8 @@
+# tile_0002 — Dialogue
+# Premise: Investor Gadget rescues a bystander in the parking lot
+
+SHOT_02
+INVESTOR GADGET: Don't worry — Gadget's on the case!
+
+SHOT_03
+INVESTOR GADGET: Antenna: extend. Problem: solved.

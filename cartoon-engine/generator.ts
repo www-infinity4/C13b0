@@ -51,7 +51,11 @@ export const CONSISTENCY_CHECKSUM =
   'STYLE:2Dcel|OUTLINE:black_clean|SHADING:2tone|CHAR:mouse_round_ears_long_tail|PROP:swiss_wedge_holes';
 
 /** Default example character archetype. */
-export const DEFAULT_CHARACTER: Character = MOUSE_CHARACTER;
+export const DEFAULT_CHARACTER: Character = {
+  id: 'mouse_01',
+  archetype: 'character.mouse.cartoon.v1',
+  consistency_checksum: CONSISTENCY_CHECKSUM,
+};
 
 /** Default example prop archetype. */
 export const DEFAULT_PROP: Prop = {
@@ -252,17 +256,32 @@ export function generateTileBlueprint(
   return { blueprint, physics_maps, verification };
 }
 
-/** Generate dialogue text for a tile. */
-export function generateDialogue(tileId: string, premise: string): string {
+/** Generate dialogue text for a tile, using character-appropriate lines. */
+export function generateDialogue(tileId: string, premise: string, characterId = 'mouse_01'): string {
+  const charLabel = characterId.toUpperCase().replace(/_/g, ' ').trim();
+
+  const lines: Record<string, [string, string]> = {
+    investor_gadget: [
+      'Don\'t worry — Gadget\'s on the case!',
+      'Antenna: extend. Problem: solved.',
+    ],
+    mouse_01: [
+      'Oh wow… CHEESE!',
+      'Just one tiny bite. No one will notice.',
+    ],
+  };
+
+  const [line1, line2] = lines[characterId] ?? lines['mouse_01'];
+
   return [
     `# ${tileId} — Dialogue`,
     `# Premise: ${premise}`,
     '',
     'SHOT_02',
-    'MOUSE_01: Oh wow… CHEESE!',
+    `${charLabel}: ${line1}`,
     '',
     'SHOT_03',
-    'MOUSE_01: Just one tiny bite. No one will notice.',
+    `${charLabel}: ${line2}`,
     '',
   ].join('\n');
 }

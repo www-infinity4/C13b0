@@ -1,0 +1,20 @@
+{
+  "tile_id": "tile_0002",
+  "fps": 24,
+  "segments": [
+    {
+      "segment": "shot_02",
+      "shot_id": "shot_02",
+      "frame_start": 72,
+      "frame_end": 287,
+      "visemes": []
+    },
+    {
+      "segment": "shot_03",
+      "shot_id": "shot_03",
+      "frame_start": 288,
+      "frame_end": 503,
+      "visemes": []
+    }
+  ]
+}

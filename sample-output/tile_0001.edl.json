@@ -1,0 +1,35 @@
+{
+  "tile_id": "tile_0001",
+  "fps": 24,
+  "total_frames": 720,
+  "entries": [
+    {
+      "index": 1,
+      "shot_id": "shot_01",
+      "frame_start": 0,
+      "frame_end": 71,
+      "duration_frames": 72
+    },
+    {
+      "index": 2,
+      "shot_id": "shot_02",
+      "frame_start": 72,
+      "frame_end": 287,
+      "duration_frames": 216
+    },
+    {
+      "index": 3,
+      "shot_id": "shot_03",
+      "frame_start": 288,
+      "frame_end": 503,
+      "duration_frames": 216
+    },
+    {
+      "index": 4,
+      "shot_id": "shot_04",
+      "frame_start": 504,
+      "frame_end": 719,
+      "duration_frames": 216
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+# tile_0001 — Dialogue
+# Premise: A hungry mouse discovers a giant cheese wedge in the kitchen
+
+SHOT_02
+MOUSE 01: Oh wow… CHEESE!
+
+SHOT_03
+MOUSE 01: Just one tiny bite. No one will notice.

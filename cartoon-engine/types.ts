@@ -134,6 +134,26 @@ export interface Vector2D {
   y: number;
 }
 
+/**
+ * A normalised 3-D position (0..1 on each axis).
+ * X = horizontal, Y = vertical, Z = depth (0 = near, 1 = far).
+ * Used when DimensionMode is MESH_3D.
+ */
+export interface Vector3D extends Vector2D {
+  z: number;
+}
+
+/**
+ * DimensionMode — controls whether the engine operates in flat 2-D or 3-D space.
+ *
+ * FLAT_2D : Standard cel animation.  All positions are (x, y) only.
+ * MESH_3D : Adds a Z-depth axis — used for 3-D camera paths, parallax
+ *           layers, and character depth within a scene.
+ *           The output blueprint gains a `z` field on every position vector.
+ *           Downstream tools (e.g. ComfyUI depth-map nodes) can consume it.
+ */
+export type DimensionMode = 'FLAT_2D' | 'MESH_3D';
+
 /** Calculated motion between two positions at a given velocity. */
 export interface MotionVector {
   /** Change in X (target.x − initial.x). */
@@ -166,6 +186,39 @@ export interface PhysicsMap {
   fps: number;
   /** Fully calculated — do not set by hand. */
   motion: MotionVector;
+}
+
+/** Calculated motion between two 3-D positions at a given velocity. */
+export interface MotionVector3D {
+  delta_x: number;
+  delta_y: number;
+  delta_z: number;
+  distance: number;
+  travel_time_s: number;
+  frames_to_target: number;
+  frame_sequence: Vector3D[];
+}
+
+/**
+ * PhysicsMap3D — the 3-D extension of PhysicsMap.
+ *
+ * Adds a Z-axis to every coordinate so the engine can represent:
+ *  - Camera dolly / truck moves (Z changes over time)
+ *  - Character depth within a scene (foreground ↔ background)
+ *  - Parallax layer movement
+ *  - 3-D spline camera paths
+ *
+ * The Z axis is normalised 0..1 (0 = near/foreground, 1 = far/background).
+ * DimensionMode must be set to MESH_3D when using this type.
+ */
+export interface PhysicsMap3D {
+  character_id: string;
+  dimension_mode: DimensionMode;
+  initial_position: Vector3D;
+  target_position: Vector3D;
+  velocity_units_per_s: number;
+  fps: number;
+  motion: MotionVector3D;
 }
 
 // ---------------------------------------------------------------------------

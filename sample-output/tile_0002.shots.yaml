@@ -1,0 +1,108 @@
+tile:
+  id: tile_0002
+  fps: 24
+  duration_s: 30
+  total_frames: 720
+style:
+  family: 2d_cel_shaded_flat
+  render_notes: Clean black outlines, 2-tone shading, limited gradients, TV cartoon palette.
+characters:
+  - id: investor_gadget
+    archetype: character.investor_gadget.cartoon.v1
+    consistency_checksum: >-
+      2D hand-drawn cel-shaded animation, sharp angular chin, gray trench coat (#808080) with metallic buttons, fedora
+      with retractable antenna (cylindrical, chrome, 45-degree taper), yellow gloves (#FFD700), black outline 2px,
+      2-tone cel shading, consistent silhouette across all frames.
+props:
+  - id: cheese_01
+    archetype: prop.cheese_wedge_holes.v1
+shots:
+  - id: shot_01
+    camera:
+      framing: wide
+      angle: eye_level
+    background: Sunny kitchen — warm yellows, tiled floor
+    blocking:
+      start:
+        x: 0.8
+        'y': 0.5
+      end:
+        x: 0.5
+        'y': 0.5
+    action: 'Establishing: Investor Gadget rescues a bystander in the parking lot. Character enters frame and spots prop.'
+    lipsync: null
+    duration_s: 3
+    frame_count: 72
+    consistency: >-
+      2D hand-drawn cel-shaded animation, sharp angular chin, gray trench coat (#808080) with metallic buttons, fedora
+      with retractable antenna (cylindrical, chrome, 45-degree taper), yellow gloves (#FFD700), black outline 2px,
+      2-tone cel shading, consistent silhouette across all frames.
+  - id: shot_02
+    camera:
+      framing: medium
+      angle: eye_level
+    background: Kitchen counter close-up, cheese wedge centre
+    blocking:
+      start:
+        x: 0.5
+        'y': 0.5
+      end:
+        x: 0.5
+        'y': 0.5
+    action: Character reacts with surprise, eyes widen.
+    lipsync:
+      enabled: true
+      viseme_track: tile_0002.visemes.json
+      segment: shot_02
+    duration_s: 9
+    frame_count: 216
+    consistency: >-
+      2D hand-drawn cel-shaded animation, sharp angular chin, gray trench coat (#808080) with metallic buttons, fedora
+      with retractable antenna (cylindrical, chrome, 45-degree taper), yellow gloves (#FFD700), black outline 2px,
+      2-tone cel shading, consistent silhouette across all frames.
+  - id: shot_03
+    camera:
+      framing: medium_close
+      angle: slight_low
+    background: Kitchen counter, same as shot_02 — match cut
+    blocking:
+      start:
+        x: 0.5
+        'y': 0.5
+      end:
+        x: 0.45
+        'y': 0.5
+    action: Character delivers second dialogue line, leans forward.
+    lipsync:
+      enabled: true
+      viseme_track: tile_0002.visemes.json
+      segment: shot_03
+    duration_s: 9
+    frame_count: 216
+    consistency: >-
+      2D hand-drawn cel-shaded animation, sharp angular chin, gray trench coat (#808080) with metallic buttons, fedora
+      with retractable antenna (cylindrical, chrome, 45-degree taper), yellow gloves (#FFD700), black outline 2px,
+      2-tone cel shading, consistent silhouette across all frames.
+  - id: shot_04
+    camera:
+      framing: wide
+      angle: eye_level
+    background: Kitchen, full view — continuous from shot_01
+    blocking:
+      start:
+        x: 0.5
+        'y': 0.5
+      end:
+        x: 0.6
+        'y': 0.5
+    action: Action beat / gag. Character takes a bite; crumbs fall. Ends on HOOK POSE facing camera-right.
+    lipsync: null
+    duration_s: 9
+    frame_count: 216
+    consistency: >-
+      2D hand-drawn cel-shaded animation, sharp angular chin, gray trench coat (#808080) with metallic buttons, fedora
+      with retractable antenna (cylindrical, chrome, 45-degree taper), yellow gloves (#FFD700), black outline 2px,
+      2-tone cel shading, consistent silhouette across all frames.
+stitching:
+  end_hook_frame: shot_04:last_frame
+  next_tile_start_matches: true

@@ -16,6 +16,9 @@
     "declarationMap": true,
     "sourceMap": true
   },
-  "include": ["cartoon-engine/**/*.ts"],
+  "include": [
+    "cartoon-engine/**/*.ts",
+    "src/token-engine/patterns.ts"
+  ],
   "exclude": ["node_modules", "cartoon-engine/__tests__/**"]
 }

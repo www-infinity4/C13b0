@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "generate": "ts-node -P tsconfig.engine.json cartoon-engine/cli.ts",
+    "generate:gadget": "ts-node -P tsconfig.engine.json cartoon-engine/cli.ts --character investor_gadget"
   },
   "dependencies": {
     "lucide-react": "^0.577.0",
@@ -27,6 +31,7 @@
     "js-yaml": "^4.1.1",
     "tailwindcss": "^4",
     "ts-jest": "^29.4.9",
+    "ts-node": "^10.9.2",
     "typescript": "^5"
   }
 }
