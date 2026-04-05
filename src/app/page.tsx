@@ -57,7 +57,7 @@ function readTileCard(tileId: string, dir: string): TileCard | null {
     comfyNodes,
     shots: edl.entries.map((e) => ({
       id: e.shot_id,
-      duration_s: e.duration_frames / edl.fps,
+      durationS: e.duration_frames / edl.fps,
       frameCount: e.duration_frames,
       frameStart: e.frame_start,
     })),

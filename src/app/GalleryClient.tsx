@@ -13,7 +13,7 @@ export interface TileCard {
   comfyNodes: number;
   shots: Array<{
     id: string;
-    duration_s: number;
+    durationS: number;
     frameCount: number;
     frameStart: number;
   }>;
@@ -71,7 +71,7 @@ function TileCardView({ card, index }: { card: TileCard; index: number }) {
           >
             {s.id}{" "}
             <span className="text-purple-500/60">
-              {s.duration_s}s · {s.frameCount}f
+              {s.durationS}s · {s.frameCount}f
             </span>
           </span>
         ))}
