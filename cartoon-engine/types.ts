@@ -279,3 +279,39 @@ export interface VerificationEnvelope {
   generated_at: string;
 }
 
+// ---------------------------------------------------------------------------
+// ComfyUI workflow graph types
+// ---------------------------------------------------------------------------
+
+/**
+ * A reference to another node's output in a ComfyUI workflow graph.
+ * Format: [node_id, output_slot_index]
+ * e.g. ["3", 0] means "output slot 0 of node '3'".
+ */
+export type ComfyUINodeRef = [string, number];
+
+/** Any valid input value for a ComfyUI node input. */
+export type ComfyUIInputValue = string | number | boolean | ComfyUINodeRef;
+
+/**
+ * A single node in a ComfyUI workflow graph.
+ *
+ * `class_type` is the ComfyUI node class name (e.g. "KSampler").
+ * `inputs` maps input names to primitive values or node-output references.
+ * `_meta` is an optional display name shown in the ComfyUI editor.
+ */
+export interface ComfyUINode {
+  class_type: string;
+  inputs: Record<string, ComfyUIInputValue>;
+  _meta?: { title: string };
+}
+
+/**
+ * A ComfyUI API-format workflow: a flat graph of nodes keyed by string IDs.
+ *
+ * This format (workflow_api.json) is the headless API format accepted by
+ * ComfyUI's `/prompt` endpoint and compatible video generation nodes such as
+ * Wan 2.2, LTX-Video, and AnimateDiff.
+ */
+export type ComfyUIWorkflow = Record<string, ComfyUINode>;
+

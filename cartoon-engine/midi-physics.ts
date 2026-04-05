@@ -154,3 +154,119 @@ export function gadgetArmExtension(
     fps,
   };
 }
+
+// ---------------------------------------------------------------------------
+// MIDI velocity → dynamic camera parameters
+// ---------------------------------------------------------------------------
+
+/**
+ * CameraParams — dynamic camera descriptors driven by MIDI velocity.
+ *
+ * These string values are designed to be appended directly to a frame prompt.
+ * High velocity → dramatic, kinetic camera treatment.
+ * Low velocity  → stable, composed camera treatment.
+ */
+export interface CameraParams {
+  /** Overall camera style descriptor for the frame prompt. */
+  camera_style: string;
+  /** Focal length description (wide angle / telephoto). */
+  focal_length: string;
+  /** Camera movement descriptor. */
+  movement: string;
+  /**
+   * Shake intensity (0 = perfectly stable, 1 = maximum handheld shake).
+   * Computed linearly from velocity; useful for downstream compositing tools.
+   */
+  shake_intensity: number;
+  /**
+   * Zoom speed multiplier (1 = no zoom, >1 = fast zoom in, <1 = slow zoom).
+   * High velocity maps to a faster zoom to match the kinetic energy.
+   */
+  zoom_speed: number;
+  /** Combined prompt fragment, ready to append to any shot prompt. */
+  prompt_fragment: string;
+}
+
+/**
+ * midiVelocityToCameraParams
+ *
+ * Maps a MIDI velocity value (0–127) to a CameraParams descriptor set.
+ *
+ * The mapping models the intuitive connection between musical intensity and
+ * cinematic energy:
+ *
+ *   velocity   1– 31  (pianissimo) → locked-off tripod, telephoto, static
+ *   velocity  32– 63  (mezzo-piano) → gentle push-in, moderate focal length
+ *   velocity  64– 95  (mezzo-forte) → tracking shot, standard 50mm feel
+ *   velocity  96–115  (forte)       → handheld, wide angle, slight shake
+ *   velocity 116–127  (fortissimo)  → extreme handheld shake, crash zoom
+ *
+ * @param velocity  MIDI velocity (0–127).  0 is treated as 1 (note-off guard).
+ * @returns         CameraParams descriptor set.
+ */
+export function midiVelocityToCameraParams(velocity: number): CameraParams {
+  const v = Math.max(1, Math.min(MIDI_MAX, velocity));
+
+  // Shake intensity: 0.0 → 1.0 mapped from velocity range
+  const shakeIntensity = Math.round(((v - 1) / (MIDI_MAX - 1)) * 1_000) / 1_000;
+  // Zoom speed: 1.0 (no zoom) at low velocity, up to 3.0 at max velocity
+  const zoomSpeed = Math.round((1.0 + ((v - 1) / (MIDI_MAX - 1)) * 2.0) * 1_000) / 1_000;
+
+  if (v <= 31) {
+    // Pianissimo — perfectly still, composed, telephoto isolation
+    return {
+      camera_style:     'locked-off tripod shot',
+      focal_length:     'telephoto 200mm, compressed depth of field',
+      movement:         'static, no movement',
+      shake_intensity:  shakeIntensity,
+      zoom_speed:       zoomSpeed,
+      prompt_fragment:  'locked-off tripod, telephoto 200mm, perfectly stable, static camera',
+    };
+  }
+
+  if (v <= 63) {
+    // Mezzo-piano — slow, deliberate push
+    return {
+      camera_style:     'slow push-in on tripod',
+      focal_length:     'standard 85mm, slight bokeh',
+      movement:         'gentle slow push toward subject',
+      shake_intensity:  shakeIntensity,
+      zoom_speed:       zoomSpeed,
+      prompt_fragment:  'slow deliberate push-in, 85mm lens, minimal camera movement, composed framing',
+    };
+  }
+
+  if (v <= 95) {
+    // Mezzo-forte — tracking / shoulder-mount energy
+    return {
+      camera_style:     'shoulder-mounted tracking shot',
+      focal_length:     'standard 50mm',
+      movement:         'tracking with subject, slight natural sway',
+      shake_intensity:  shakeIntensity,
+      zoom_speed:       zoomSpeed,
+      prompt_fragment:  'shoulder-mount camera, tracking shot, 50mm lens, natural sway, dynamic composition',
+    };
+  }
+
+  if (v <= 115) {
+    // Forte — handheld energy, wide angle
+    return {
+      camera_style:     'handheld camera, urgent movement',
+      focal_length:     'wide angle 28mm, slight distortion',
+      movement:         'fast handheld, urgent push-in',
+      shake_intensity:  shakeIntensity,
+      zoom_speed:       zoomSpeed,
+      prompt_fragment:  'handheld camera shake, wide-angle 28mm, fast zoom-in, urgent kinetic energy, news-doc style',
+    };
+  }
+
+  // Fortissimo — maximum kinetic chaos, crash zoom
+  return {
+    camera_style:     'extreme handheld, crash zoom',
+    focal_length:     'ultra-wide 16mm, strong distortion',
+    movement:         'crash zoom in, violent handheld shake',
+    shake_intensity:  shakeIntensity,
+    zoom_speed:       zoomSpeed,
+    prompt_fragment:  'extreme handheld camera shake, crash zoom, ultra-wide 16mm fisheye distortion, maximum kinetic energy, action movie style',
+  };
+}

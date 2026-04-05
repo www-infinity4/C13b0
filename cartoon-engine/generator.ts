@@ -23,15 +23,21 @@ import {
   EDLFile,
   EDLEntry,
   PhysicsMap,
+  PhysicsMap3D,
   VerificationEnvelope,
+  DimensionMode,
+  ComfyUIWorkflow,
+  ComfyUINode,
 } from './types';
 import { getDNA } from './characters';
 import { buildPhysicsMap } from './physics';
 import { buildVerificationEnvelope } from './verify';
+import { buildPhysicsMap3D, PhysicsMap3DInput } from './physics3d';
 
 export { characterStyles } from './characters';
-export { buildPhysicsMap, positionAtFrame, parkingLotRescuePhysics } from './physics';
+export { buildPhysicsMap, positionAtFrame, parkingLotRescuePhysics, smoothMotionBezier, motionToleranceCheck } from './physics';
 export { buildVerificationEnvelope, verifyEnvelope } from './verify';
+export { buildPhysicsMap3D, positionAtFrame3D, gadgetCameraDolly, euclidean3D } from './physics3d';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -333,4 +339,303 @@ export function generateEDL(
   }
 
   return { tile_id: tileId, fps, total_frames, entries };
+}
+
+// ---------------------------------------------------------------------------
+// ComfyUI workflow emitter
+// ---------------------------------------------------------------------------
+
+/**
+ * emitComfyUIWorkflow
+ *
+ * Converts a TileBlueprint into a ComfyUI API-format workflow (workflow_api.json).
+ * The output can be posted directly to the ComfyUI `/prompt` endpoint or saved
+ * as a JSON file and loaded into the ComfyUI editor.
+ *
+ * Graph layout per tile (25 nodes total for a 4-shot tile):
+ *   Node 1   : CheckpointLoaderSimple (shared model)
+ *   Nodes 2–7  : Shot 1 — positive CLIP, negative CLIP, latent, KSampler, VAEDecode, SaveImage
+ *   Nodes 8–13 : Shot 2 — same pattern
+ *   Nodes 14–19: Shot 3
+ *   Nodes 20–25: Shot 4
+ *
+ * Seeds are deterministic: same tileId + shotId → same seed every run.
+ *
+ * @param tileId     Tile identifier.
+ * @param blueprint  The tile blueprint to convert.
+ * @param options    Optional overrides for checkpoint, steps, CFG, negative prompt.
+ */
+export function emitComfyUIWorkflow(
+  tileId: string,
+  blueprint: TileBlueprint,
+  options: {
+    checkpoint?: string;
+    steps?: number;
+    cfg?: number;
+    negativePrompt?: string;
+  } = {}
+): ComfyUIWorkflow {
+  const {
+    checkpoint    = 'v1-5-pruned-emaonly.safetensors',
+    steps         = 20,
+    cfg           = 7.0,
+    negativePrompt = 'ugly, blurry, low quality, deformed, watermark',
+  } = options;
+
+  const workflow: ComfyUIWorkflow = {};
+
+  // Node 1: shared checkpoint loader
+  workflow['1'] = {
+    class_type: 'CheckpointLoaderSimple',
+    inputs: { ckpt_name: checkpoint },
+    _meta: { title: 'Load Checkpoint' },
+  };
+
+  blueprint.shots.forEach((shot, i) => {
+    const base   = 2 + i * 6;
+    const posId  = String(base);
+    const negId  = String(base + 1);
+    const latId  = String(base + 2);
+    const kId    = String(base + 3);
+    const vaeId  = String(base + 4);
+    const saveId = String(base + 5);
+
+    const characterId = blueprint.characters[0]?.id ?? 'mouse_01';
+    const prompt = buildFramePrompt(characterId, [
+      shot.action,
+      shot.background,
+      `${shot.camera.framing} shot`,
+      `${shot.camera.angle} angle`,
+      blueprint.style.render_notes,
+    ].join(', '));
+
+    const ref = (id: string, slot: number): [string, number] => [id, slot];
+
+    const posNode: ComfyUINode = {
+      class_type: 'CLIPTextEncode',
+      inputs: { text: prompt, clip: ref('1', 1) },
+      _meta: { title: `Positive — ${shot.id}` },
+    };
+    const negNode: ComfyUINode = {
+      class_type: 'CLIPTextEncode',
+      inputs: { text: negativePrompt, clip: ref('1', 1) },
+      _meta: { title: `Negative — ${shot.id}` },
+    };
+    const latNode: ComfyUINode = {
+      class_type: 'EmptyLatentImage',
+      inputs: { width: 768, height: 432, batch_size: 1 },
+      _meta: { title: `Latent — ${shot.id}` },
+    };
+    const kNode: ComfyUINode = {
+      class_type: 'KSampler',
+      inputs: {
+        seed:          deterministicSeed(tileId, shot.id),
+        steps,
+        cfg,
+        sampler_name:  'euler_ancestral',
+        scheduler:     'karras',
+        denoise:       1.0,
+        model:         ref('1',   0),
+        positive:      ref(posId, 0),
+        negative:      ref(negId, 0),
+        latent_image:  ref(latId, 0),
+      },
+      _meta: { title: `KSampler — ${shot.id}` },
+    };
+    const vaeNode: ComfyUINode = {
+      class_type: 'VAEDecode',
+      inputs: { samples: ref(kId, 0), vae: ref('1', 2) },
+      _meta: { title: `VAEDecode — ${shot.id}` },
+    };
+    const saveNode: ComfyUINode = {
+      class_type: 'SaveImage',
+      inputs: {
+        filename_prefix: `${tileId}_${shot.id}`,
+        images:          ref(vaeId, 0),
+      },
+      _meta: { title: `Save — ${shot.id}` },
+    };
+
+    workflow[posId]  = posNode;
+    workflow[negId]  = negNode;
+    workflow[latId]  = latNode;
+    workflow[kId]    = kNode;
+    workflow[vaeId]  = vaeNode;
+    workflow[saveId] = saveNode;
+  });
+
+  return workflow;
+}
+
+/**
+ * Deterministic integer seed derived from tile + shot IDs.
+ * Identical inputs always produce the same 32-bit unsigned integer.
+ */
+function deterministicSeed(tileId: string, shotId: string): number {
+  const str = `${tileId}:${shotId}`;
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (Math.imul(31, h) + str.charCodeAt(i)) >>> 0;
+  }
+  return h;
+}
+
+// ---------------------------------------------------------------------------
+// ASCII storyboard preview
+// ---------------------------------------------------------------------------
+
+const BOARD_INNER_W = 48; // characters between │ borders
+const BOARD_INNER_H = 5;  // rows of character space per shot
+
+/**
+ * renderStoryboardCLI
+ *
+ * Renders an ASCII art storyboard for all shots in a tile blueprint.
+ * Each shot becomes a bordered frame showing:
+ *   - Shot ID, camera framing/angle, and lip-sync marker
+ *   - Character position "[C]" with a movement arrow to the end blocking
+ *   - Normalised start/end coordinates and frame/time count
+ *   - Action description
+ *
+ * The output is a plain string — print it to stdout or write it to a file.
+ *
+ * @param tileId     Tile identifier (shown in the header).
+ * @param blueprint  The tile blueprint to render.
+ * @returns          Multi-line ASCII string.
+ */
+export function renderStoryboardCLI(
+  tileId: string,
+  blueprint: TileBlueprint
+): string {
+  const lines: string[] = [
+    '',
+    `${tileId}  ·  ASCII Storyboard Preview`,
+    '═'.repeat(BOARD_INNER_W + 4),
+    '',
+  ];
+
+  for (const shot of blueprint.shots) {
+    const { camera, blocking, action, duration_s, frame_count, lipsync } = shot;
+    const lipsyncMark = lipsync?.enabled ? ' ♫' : '';
+
+    // ── Header ─────────────────────────────────────────────────────────────
+    const headerContent = ` ${shot.id.toUpperCase()} · ${camera.framing} / ${camera.angle}${lipsyncMark} `;
+    const headerFill    = '─'.repeat(Math.max(0, BOARD_INNER_W + 2 - headerContent.length));
+    lines.push(`┌─${headerContent}${headerFill}┐`);
+
+    // ── Character grid ──────────────────────────────────────────────────────
+    const grid: string[][] = Array.from({ length: BOARD_INNER_H }, () =>
+      Array(BOARD_INNER_W).fill(' ')
+    );
+
+    const startCol = Math.min(
+      Math.round(blocking.start.x * (BOARD_INNER_W - 3)),
+      BOARD_INNER_W - 3
+    );
+    const endCol  = Math.min(
+      Math.round(blocking.end.x * (BOARD_INNER_W - 3)),
+      BOARD_INNER_W - 1
+    );
+    const charRow = Math.min(
+      Math.round(blocking.start.y * (BOARD_INNER_H - 1)),
+      BOARD_INNER_H - 1
+    );
+
+    // Draw movement arrow when there is significant horizontal displacement
+    const dxCols = endCol - startCol;
+    if (Math.abs(dxCols) > 3) {
+      const arrowHead  = dxCols > 0 ? '►' : '◄';
+      const arrowStart = dxCols > 0 ? startCol + 3 : endCol + 1;
+      const arrowEnd   = dxCols > 0 ? endCol - 1   : startCol - 1;
+      for (let c = Math.min(arrowStart, arrowEnd);
+               c <= Math.max(arrowStart, arrowEnd) && c < BOARD_INNER_W;
+               c++) {
+        if (c >= 0) grid[charRow][c] = '─';
+      }
+      const headCol = Math.max(0, Math.min(BOARD_INNER_W - 1, endCol));
+      grid[charRow][headCol] = arrowHead;
+    }
+
+    // Draw character marker (painted last so it is never overwritten)
+    if (startCol >= 0 && startCol + 2 < BOARD_INNER_W) {
+      grid[charRow][startCol]     = '[';
+      grid[charRow][startCol + 1] = 'C';
+      grid[charRow][startCol + 2] = ']';
+    }
+
+    for (const row of grid) {
+      lines.push(`│ ${row.join('')} │`);
+    }
+
+    // ── Footer ──────────────────────────────────────────────────────────────
+    const startStr  = `(${blocking.start.x.toFixed(2)},${blocking.start.y.toFixed(2)})`;
+    const endStr    = `(${blocking.end.x.toFixed(2)},${blocking.end.y.toFixed(2)})`;
+    const footerContent = ` ${startStr} → ${endStr} · ${frame_count}f · ${duration_s}s `;
+    const footerFill    = '─'.repeat(Math.max(0, BOARD_INNER_W + 2 - footerContent.length));
+    lines.push(`└${footerContent}${footerFill}┘`);
+
+    // ── Action text ─────────────────────────────────────────────────────────
+    const maxLen    = BOARD_INNER_W + 2;
+    const actionStr = action.length > maxLen ? action.slice(0, maxLen - 1) + '…' : action;
+    lines.push(`  → ${actionStr}`);
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// 3-D dimension toggle
+// ---------------------------------------------------------------------------
+
+/**
+ * GeneratedTile3D — a GeneratedTile with an additional 3-D physics layer.
+ *
+ * When dimension_mode is MESH_3D, physics_maps_3d contains one PhysicsMap3D
+ * per character, derived from the original 2-D maps by adding a Z coordinate.
+ * When dimension_mode is FLAT_2D, physics_maps_3d is an empty array.
+ *
+ * The original physics_maps (2-D) are always preserved for backward
+ * compatibility with downstream consumers that only understand 2-D.
+ */
+export interface GeneratedTile3D extends GeneratedTile {
+  dimension_mode: DimensionMode;
+  physics_maps_3d: PhysicsMap3D[];
+}
+
+/**
+ * toggleDimensionMode
+ *
+ * Switches a GeneratedTile between FLAT_2D and MESH_3D modes.
+ *
+ * In MESH_3D mode each 2-D PhysicsMap is upgraded to a PhysicsMap3D by
+ * adding a constant Z coordinate (defaultZ) to both start and target.
+ * The resulting motion path lies in a horizontal plane at that depth.
+ *
+ * In FLAT_2D mode no 3-D maps are produced (physics_maps_3d is empty).
+ *
+ * @param tile      A tile produced by generateTileBlueprint.
+ * @param mode      Target DimensionMode: 'FLAT_2D' or 'MESH_3D'.
+ * @param defaultZ  Default depth (0 = foreground, 1 = background). Default 0.5.
+ */
+export function toggleDimensionMode(
+  tile: GeneratedTile,
+  mode: DimensionMode,
+  defaultZ = 0.5
+): GeneratedTile3D {
+  const physics_maps_3d: PhysicsMap3D[] =
+    mode === 'MESH_3D'
+      ? tile.physics_maps.map((map) => {
+          const input: PhysicsMap3DInput = {
+            character_id:        map.character_id,
+            initial_position:    { ...map.initial_position, z: defaultZ },
+            target_position:     { ...map.target_position,  z: defaultZ },
+            velocity_units_per_s: map.velocity_units_per_s,
+            fps:                 map.fps,
+          };
+          return buildPhysicsMap3D(input);
+        })
+      : [];
+
+  return { ...tile, dimension_mode: mode, physics_maps_3d };
 }
