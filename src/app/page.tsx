@@ -5,6 +5,13 @@ import GameTokens from "@/components/GameTokens";
 
 const FEATURE_CARDS = [
   {
+    icon: "👑",
+    title: "Crown Index",
+    desc: "Repository-first map of all 100 www-infinity4 projects, organized into connected portfolio realms.",
+    href: "/crown-index",
+    color: "from-violet-600/25 to-amber-500/20 border-amber-400/30",
+  },
+  {
     icon: "🌐",
     title: "Hydrogen Host",
     desc: "Emoji-based 8-block device identifiers for free P2P communication. No phone numbers, no subscriptions.",
@@ -27,7 +34,7 @@ const FEATURE_CARDS = [
   },
   {
     icon: "🕹️",
-    title: "∞ Game",
+    title: "Infinity Game",
     desc: "Watch & Earn tokens, level up through stages (♣️♦️♥️♠️), collect stars and unlock new features.",
     href: "/game",
     color: "from-yellow-600/20 to-orange-600/20 border-yellow-500/30",
@@ -40,7 +47,7 @@ const TECH_STACK = [
   { icon: "📡", label: "Emitter/Receiver", sub: "Signal nodes" },
   { icon: "🌍", label: "Decentralized", sub: "No middlemen" },
   { icon: "🆓", label: "Free Forever", sub: "Open source" },
-  { icon: "∞", label: "Infinity OS", sub: "Crown Protocol" },
+  { icon: "👑", label: "Infinity OS", sub: "Crown Protocol" },
 ];
 
 export default function HomePage() {
@@ -89,12 +96,19 @@ export default function HomePage() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Link
+              href="/crown-index"
+              className="flex items-center gap-2 px-8 py-4 rounded-xl bg-gradient-to-r from-violet-600 to-amber-500 text-white font-bold text-lg hover:from-violet-500 hover:to-amber-400 transition-all glow-pulse"
+              aria-label="Open the Crown Index repository catalog"
+            >
+              Open Crown Index
+              <ArrowRight className="w-5 h-5" aria-hidden="true" />
+            </Link>
+            <Link
               href="/hydrogen-host"
-              className="flex items-center gap-2 px-8 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-cyan-600 text-white font-bold text-lg hover:from-purple-500 hover:to-cyan-500 transition-all glow-pulse"
+              className="flex items-center gap-2 px-8 py-4 rounded-xl border border-purple-500/40 text-purple-200 font-semibold hover:bg-purple-900/30 transition-all"
               aria-label="Get your free emoji identifier"
             >
               Get Your Free ID
-              <ArrowRight className="w-5 h-5" aria-hidden="true" />
             </Link>
             <Link
               href="/research"
@@ -147,7 +161,7 @@ export default function HomePage() {
         >
           What is Infinity OS?
         </h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {FEATURE_CARDS.map((card) => (
             <Link
               key={card.href}
