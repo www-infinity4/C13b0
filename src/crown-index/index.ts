@@ -1,3 +1,9 @@
+import {
+  repositoryInventory,
+  repositoryInventoryCount,
+  repositoryRealmGroups,
+} from './repository-inventory';
+
 export type CrownType =
   | 'website' | 'repository' | 'research' | 'tool' | 'world'
   | 'star-coin' | 'avatar-coin' | 'trading-card' | 'creator';
@@ -26,6 +32,10 @@ export type CrownRecord = {
   verified: boolean;
   owner?: string;
   edition?: string;
+  realm?: string;
+  realmId?: string;
+  priority?: 'core' | 'active' | 'preserve';
+  inventoryOrder?: number;
 };
 
 export type CrownRankMode =
@@ -47,7 +57,9 @@ function tokenSet(value: string): Set<string> {
 function relevance(query: string, record: CrownRecord): number {
   const q = tokenSet(query);
   if (!q.size) return 0.5;
-  const haystack = tokenSet([record.title, record.summary, ...record.tags].join(' '));
+  const haystack = tokenSet(
+    [record.title, record.summary, record.realm ?? '', ...record.tags].join(' ')
+  );
   let matches = 0;
   q.forEach(token => { if (haystack.has(token)) matches += 1; });
   return clamp(matches / q.size);
@@ -101,23 +113,79 @@ export function searchCrown(
   query: string,
   records: CrownRecord[],
   mode: CrownRankMode = 'best',
-  type: CrownType | 'all' = 'all'
+  type: CrownType | 'all' = 'all',
+  realm: string | 'all' = 'all'
 ): RankedCrownRecord[] {
   return records
     .filter(record => type === 'all' || record.type === type)
+    .filter(record => realm === 'all' || record.realmId === realm)
     .map(record => rankCrownRecord(query, record, mode))
     .filter(record => !query.trim() || record.score > 0.08)
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => {
+      if (!query.trim()) {
+        const aRepository = a.type === 'repository' ? 0 : 1;
+        const bRepository = b.type === 'repository' ? 0 : 1;
+        if (aRepository !== bRepository) return aRepository - bRepository;
+        if (a.type === 'repository' && b.type === 'repository') {
+          return (a.inventoryOrder ?? Number.MAX_SAFE_INTEGER)
+            - (b.inventoryOrder ?? Number.MAX_SAFE_INTEGER);
+        }
+      }
+      return b.score - a.score;
+    });
 }
 
-export const crownSeeds: CrownRecord[] = [
+const starQuestRealms = new Set([
+  'core-infinity-platform',
+  'games-emulation-and-3d-worlds',
+  'coins-tokens-and-economy',
+]);
+
+export const repositoryCrownRecords: CrownRecord[] = repositoryInventory.map(
+  (repository, inventoryOrder) => ({
+    id: `repository:${repository.fullName}`,
+    type: 'repository',
+    title: repository.name,
+    summary: repository.summary,
+    tags: [
+      'repository',
+      repository.name,
+      repository.fullName,
+      repository.realm,
+      repository.realmId,
+      repository.priority,
+    ],
+    sources: [{
+      label: 'Live GitHub repository',
+      url: repository.url,
+      authority: 1,
+      local: true,
+    }],
+    freshness: .9,
+    originality: repository.priority === 'core' ? .9 : .78,
+    provenance: 1,
+    security: .55,
+    community: .45,
+    starQuest: starQuestRealms.has(repository.realmId),
+    buildable: true,
+    verified: true,
+    owner: 'www-infinity4',
+    realm: repository.realm,
+    realmId: repository.realmId,
+    priority: repository.priority,
+    inventoryOrder,
+  })
+);
+
+export const conceptSeeds: CrownRecord[] = [
   {
     id: 'crown:c13b0', type: 'repository', title: 'C13b0 Machine',
     summary: 'Next.js machine combining deterministic generation, token input, visualizers, research, and Crown Index.',
     tags: ['c13b0','machine','generator','search','crown index'],
     sources: [{ label: 'Local repository', authority: 1, local: true }],
     freshness: .95, originality: .94, provenance: 1, security: .82, community: .55,
-    starQuest: true, buildable: true, verified: true, owner: 'Kris Watson'
+    starQuest: true, buildable: true, verified: true, owner: 'Kris Watson',
+    realm: 'Core Infinity Platform', realmId: 'core-infinity-platform'
   },
   {
     id: 'crown:starquest', type: 'world', title: 'StarQuest',
@@ -160,3 +228,14 @@ export const crownSeeds: CrownRecord[] = [
     starQuest: false, buildable: true, verified: true
   }
 ];
+
+export const crownSeeds: CrownRecord[] = [
+  ...repositoryCrownRecords,
+  ...conceptSeeds,
+];
+
+export {
+  repositoryInventory,
+  repositoryInventoryCount,
+  repositoryRealmGroups,
+};
