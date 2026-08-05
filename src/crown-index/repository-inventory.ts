@@ -183,9 +183,9 @@ export const repositoryRealmGroups: RepositoryRealmGroup[] = [
     ],
   },
   {
-    id: 'medical-concepts',
-    label: "Medical Concepts",
-    description: "Medical research and hope-oriented concept records requiring careful evidence labeling.",
+    id: 'new-hope-health-and-protection',
+    label: "New Hope, Health, and Protection",
+    description: "Women-and-children protection, health navigation, family stability, accountable benefits, and service-platform projects powered by the Infinity backbone.",
     priority: 'active',
     repositories: [
       "Medical-hope",
@@ -226,7 +226,9 @@ export const repositoryInventory: RepositoryInventoryItem[] =
       realm: group.label,
       realmId: group.id,
       priority: group.priority,
-      summary: `${name} is preserved in the ${group.label} realm. ${group.description}`,
+      summary: name === 'Medical-hope'
+        ? 'New Hope is the women-and-children protection experience. Medical-hope contains its first website and health-signal module, powered by the Infinity backbone.'
+        : `${name} is preserved in the ${group.label} realm. ${group.description}`,
     }))
   );
 
