@@ -12,6 +12,13 @@ const FEATURE_CARDS = [
     color: "from-violet-600/25 to-amber-500/20 border-amber-400/30",
   },
   {
+    icon: "✦",
+    title: "Infinity Builder",
+    desc: "Scans every project, shapes its identity, builds out missing pages, validates the result, and prepares a reviewed release.",
+    href: "/builder",
+    color: "from-fuchsia-600/25 to-cyan-500/20 border-fuchsia-400/30",
+  },
+  {
     icon: "🌐",
     title: "Hydrogen Host",
     desc: "Emoji-based 8-block device identifiers for free P2P communication. No phone numbers, no subscriptions.",
@@ -161,7 +168,7 @@ export default function HomePage() {
         >
           What is Infinity OS?
         </h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           {FEATURE_CARDS.map((card) => (
             <Link
               key={card.href}
