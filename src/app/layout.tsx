@@ -35,6 +35,7 @@ export default function RootLayout({
             Built with rare-earth precision • Free forever • No subscriptions
           </p>
         </footer>
+        <script src="https://www-infinity4.github.io/Mint-For-Infinity/infinity-wallet-menu.js" defer></script>
       </body>
     </html>
   );
