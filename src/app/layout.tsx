@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
 
@@ -35,7 +36,7 @@ export default function RootLayout({
             Built with rare-earth precision • Free forever • No subscriptions
           </p>
         </footer>
-        <script src="https://www-infinity4.github.io/Mint-For-Infinity/infinity-wallet-menu.js" defer></script>
+        <Script src="https://www-infinity4.github.io/Mint-For-Infinity/infinity-wallet-menu.js" strategy="afterInteractive" />
       </body>
     </html>
   );
