@@ -44,9 +44,18 @@ It advances an existing machine or creates a reviewable new one.
 - The public app subscribes to status and displays pages as they become preview-ready and live.
 - A nightly index job renders the day's connected pages, tokens, repairs, and unresolved blockers.
 
+## Implemented durable contract
+
+`src/tokens/action-engine.ts` now provides the provider-independent intake engine. It appends one
+token for each idempotency key, queues at most one page build for that token, detects whether the
+repository-route is a create or update, and rejects a published receipt without a commit SHA.
+
+`cloudflare/action-engine/migrations/0001_action_engine.sql` defines the D1 tables and constraints
+for tokens, queued page builds, and immutable build receipts. The Worker binding is intentionally a
+separate deployment step: browser state and a Next.js process are not presented as durable storage.
+
 ## Required safety boundary
 
 Automatic reading, classification, research, drafting, previewing, testing, and repair may continue
 without interruption. Publication, spending, account changes, destructive replacement, and changes
 outside the configured repository allowlist require the applicable owner policy or approval receipt.
-
