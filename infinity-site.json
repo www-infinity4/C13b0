@@ -1,0 +1,15 @@
+{
+  "schema": "infinity-site/v1",
+  "siteId": "c13b0",
+  "title": "Infinity OS — C13b0",
+  "purpose": "Bootstrap and build Infinity applications with deterministic media, site infrastructure, and framework-aware adapters.",
+  "framework": "next-app",
+  "canonicalUrl": "",
+  "preview": "share-preview.png",
+  "wallet": { "required": true, "centralized": true },
+  "share": { "required": true },
+  "readme": { "required": true },
+  "deployment": { "required": true },
+  "scanner": { "contract": "docs/INFINITY_SITE_CREATION_CONTRACT.md" },
+  "ai": { "mode": "capability-detected", "fallback": "server-required-when-local-unavailable" }
+}
