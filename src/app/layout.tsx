@@ -49,7 +49,7 @@ export default function RootLayout({
         <main className="pt-16">{children}</main>
         <footer className="mt-20 border-t border-purple-900/30 py-8 text-center text-sm text-purple-300/60">
           <p>
-            ∞ Infinity OS — Open Source P2P Network &nbsp;|&nbsp; Hydrogen Host
+            Infinity OS — Open Source P2P Network &nbsp;|&nbsp; Hydrogen Host
             Protocol &nbsp;|&nbsp; 2026
           </p>
           <p className="mt-1 text-xs">

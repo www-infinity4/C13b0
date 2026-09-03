@@ -3,7 +3,7 @@ import GameTokens from "@/components/GameTokens";
 import { Trophy, Coins, Star, Zap } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "∞ Game — Infinity OS",
+  title: "Infinity Game — Infinity OS",
   description:
     "Play the Infinity OS token game. Watch & Earn, level up through stages ♣️♦️♥️♠️, collect stars, squash bugs, and unlock new features.",
 };
@@ -40,7 +40,7 @@ export default function GamePage() {
           id="game-page-heading"
           className="text-4xl sm:text-5xl font-extrabold text-white mb-4"
         >
-          ∞ Infinity Game
+          Infinity Game
         </h1>
         <p className="text-purple-200/60 text-lg max-w-2xl mx-auto">
           Build value click by click. Every action earns tokens, every token

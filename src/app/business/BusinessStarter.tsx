@@ -21,6 +21,7 @@ type WalletApi = {
 declare global {
   interface Window {
     InfinityUnifiedWallet?: { UnifiedInfinityWallet: new () => WalletApi };
+    __infinitySparkHandoff?: string;
   }
 }
 
@@ -62,7 +63,11 @@ export default function BusinessStarter() {
       else setTokenId(crypto.randomUUID());
       const incomingQuery = new URLSearchParams(window.location.search).get("query");
       if (incomingQuery && !draft?.research?.query) setSparkQuery(incomingQuery);
-      const handoff = JSON.parse(localStorage.getItem(HANDOFF_KEY) || "null");
+      let handoffRaw = window.__infinitySparkHandoff || null;
+      if (!handoffRaw) for (const storage of [window.sessionStorage, window.localStorage]) {
+        try { handoffRaw = storage.getItem(HANDOFF_KEY); if (handoffRaw) break; } catch { /* optional persistence */ }
+      }
+      const handoff = JSON.parse(handoffRaw || "null");
       if (handoff && !draft?.research?.query) {
         setSparkQuery(handoff.query || incomingQuery || "");
         setReport(handoff.report || "");
@@ -105,7 +110,10 @@ export default function BusinessStarter() {
   }
 
   function saveDraft() {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(payload()));
+    const value = JSON.stringify(payload());
+    for (const storage of [window.sessionStorage, window.localStorage]) {
+      try { storage.setItem(DRAFT_KEY, value); } catch { /* export remains available */ }
+    }
     setSaved(true);
     window.setTimeout(() => setSaved(false), 2200);
   }
@@ -120,9 +128,9 @@ export default function BusinessStarter() {
   }
 
   return (
-    <main className="min-h-screen bg-[#020504] px-4 py-8 text-white sm:px-8">
+    <main className="min-h-screen bg-[#e8edf3] px-4 py-8 text-[#172432] sm:px-8">
       <div className="mx-auto max-w-7xl">
-        <header className="mb-8 grid gap-6 rounded-[2rem] border border-emerald-300/20 bg-[#07100c] p-6 shadow-2xl sm:p-9 lg:grid-cols-[1fr_auto] lg:items-end">
+        <header className="mb-8 grid gap-6 rounded-[2rem] border border-slate-300 bg-[#172432] p-6 text-white shadow-2xl sm:p-9 lg:grid-cols-[1fr_auto] lg:items-end">
           <div><p className="text-sm font-black uppercase tracking-[.24em] text-cyan-300">Infinity Business Pages</p><h1 className="mt-3 text-4xl font-black tracking-[-.04em] sm:text-6xl">Build a useful business. Accept Infinity.</h1><p className="mt-4 max-w-3xl text-lg leading-8 text-white/70">Start a lawful product or service page, collect your unified wallet, and prepare a transparent record for review. No cash, Bitcoin, cryptocurrency, pornography, or illegal goods.</p></div>
           <div className="rounded-2xl border border-white/10 bg-black/30 p-4 text-sm"><div className="text-white/50">Payment rail</div><div className="mt-1 text-xl font-black text-emerald-300">Infinity only</div></div>
         </header>

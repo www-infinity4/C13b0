@@ -99,7 +99,7 @@ export default function GameTokens() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="font-bold text-lg text-white">∞ Token Game</h3>
+          <h3 className="font-bold text-lg text-white">Infinity Token Game</h3>
           <p className="text-xs text-purple-300/60">Click by click — real gold & value</p>
         </div>
         <div className="text-right">
@@ -219,7 +219,7 @@ export default function GameTokens() {
         <div className="ml-auto flex items-center gap-1 text-purple-400/60">
           <Trophy className="w-3 h-3" aria-hidden="true" />
           <Zap className="w-3 h-3" aria-hidden="true" />
-          <span>∞</span>
+          <span>Infinity</span>
         </div>
       </div>
 

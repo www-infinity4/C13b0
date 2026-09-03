@@ -2,13 +2,28 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, BookOpen, ExternalLink, LoaderCircle, Search, Sparkles } from "lucide-react";
+import { ArrowRight, BookOpen, ExternalLink, LoaderCircle, Search } from "lucide-react";
 
 type Source = { title: string; url: string; excerpt: string; kind: string };
 type Report = { title: string; overview: string; findings: string[]; sources: Source[]; limitations: string };
 
 const HISTORY_KEY = "c13b0_infinity_spark_history_v1";
 const HANDOFF_KEY = "c13b0_infinity_spark_handoff_v1";
+
+declare global { interface Window { __infinitySparkHandoff?: string } }
+
+function safeRead(key: string) {
+  for (const storage of [window.sessionStorage, window.localStorage]) {
+    try { const value = storage.getItem(key); if (value) return value; } catch { /* persistence is optional */ }
+  }
+  return null;
+}
+
+function safeWrite(key: string, value: string) {
+  for (const storage of [window.sessionStorage, window.localStorage]) {
+    try { storage.setItem(key, value); } catch { /* preserve live results */ }
+  }
+}
 
 function plain(value: unknown) {
   return String(value || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
@@ -67,8 +82,10 @@ export default function SparkSearch() {
         limitations: "This is an automatic extractive report from public endpoints, not an expert verdict. Source coverage can be incomplete, snippets can omit context, and conflicting claims require direct source review.",
       };
       setReport(next);
-      const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
-      localStorage.setItem(HISTORY_KEY, JSON.stringify([{ query: topic, report: next, createdAt: new Date().toISOString() }, ...history].slice(0, 25)));
+      try {
+        const history = JSON.parse(safeRead(HISTORY_KEY) || "[]");
+        safeWrite(HISTORY_KEY, JSON.stringify([{ query: topic, report: next, createdAt: new Date().toISOString() }, ...history].slice(0, 25)));
+      } catch { /* history never controls search success */ }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Research failed. Please try again.");
     } finally { setLoading(false); }
@@ -76,34 +93,30 @@ export default function SparkSearch() {
 
   function turnInto(siteType: string) {
     if (!report) return;
-    localStorage.setItem(HANDOFF_KEY, JSON.stringify({
+    const handoff = JSON.stringify({
       query: query.trim(), report: reportText(query.trim(), report), sources: report.sources.map(s => s.url),
       overview: report.overview, siteType, createdAt: new Date().toISOString(),
-    }));
+    });
+    window.__infinitySparkHandoff = handoff;
+    safeWrite(HANDOFF_KEY, handoff);
     router.push(`/business?query=${encodeURIComponent(query.trim())}`);
   }
 
-  return <main className="min-h-[calc(100vh-4rem)] bg-[#020504] text-[#f4f7f2]">
-    <section className="relative overflow-hidden border-b border-emerald-300/20 px-4 py-16 sm:py-24">
-      <div className="absolute inset-0 opacity-25 [background-image:linear-gradient(rgba(70,255,155,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(70,255,155,.08)_1px,transparent_1px)] [background-size:42px_42px]"/>
-      <div className="absolute left-1/2 top-0 h-96 w-96 -translate-x-1/2 rounded-full bg-emerald-400/10 blur-[100px]"/>
+  return <main className="min-h-screen bg-[#eef2f6] text-[#172432]">
+    <section className={`relative flex px-4 ${!loading && !report && !error ? "min-h-screen items-center pb-24" : "items-end border-b border-slate-300 py-14"}`}>
       <form onSubmit={research} className="relative mx-auto w-full max-w-4xl text-center">
-        <div className="inline-flex items-center gap-2 border border-emerald-300/25 bg-emerald-300/[.06] px-3 py-1 text-xs font-black uppercase tracking-[.32em] text-emerald-300"><Sparkles size={14}/> Free public research</div>
-        <h1 className="mt-6 font-serif text-6xl font-black tracking-[-.07em] text-white sm:text-8xl">Infinity <span className="text-emerald-300">Spark</span></h1>
-        <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-white/58">Ask once. Spark finds public sources, assembles the report, preserves the citations, and carries the work into a website asset.</p>
-        <label className="mt-10 flex items-center gap-3 rounded-2xl border border-emerald-200/25 bg-[#07100c]/95 p-2 shadow-[0_25px_80px_rgba(0,255,135,.12)]">
-          <Search className="ml-3 shrink-0 text-emerald-300" aria-hidden="true"/>
-          <input autoFocus value={query} onChange={e=>setQuery(e.target.value)} aria-label="Ask Infinity Spark" className="min-w-0 flex-1 bg-transparent px-2 py-4 text-lg text-white outline-none placeholder:text-white/30" placeholder="What do you want to understand or build?"/>
-          <button disabled={loading || !query.trim()} className="rounded-xl bg-emerald-300 px-5 py-4 font-black text-[#00150b] transition hover:bg-white disabled:opacity-40">{loading?<LoaderCircle className="animate-spin"/>:"Research"}</button>
+        <h1 className="font-sans text-5xl font-semibold tracking-[-.06em] text-[#274c77] sm:text-7xl">Infinity <span className="text-[#6c7d90]">Spark</span></h1>
+        <label className="mt-9 flex items-center gap-3 rounded-full border border-slate-300 bg-white p-2 shadow-[0_8px_28px_rgba(30,64,100,.14)] focus-within:border-blue-400">
+          <Search className="ml-4 shrink-0 text-[#6c7d90]" aria-hidden="true"/>
+          <input autoFocus value={query} onChange={e=>setQuery(e.target.value)} aria-label="Ask Infinity Spark" className="min-w-0 flex-1 bg-transparent px-2 py-3 text-lg text-[#172432] outline-none placeholder:text-slate-400" placeholder="Search or ask a question"/>
+          <button disabled={loading || !query.trim()} aria-label="Search" className="rounded-full bg-[#2563eb] p-3 text-white transition hover:bg-[#1d4ed8] disabled:opacity-35">{loading?<LoaderCircle className="animate-spin"/>:<ArrowRight/>}</button>
         </label>
-        <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs uppercase tracking-[.16em] text-white/35"><span>Wikipedia</span><span>DuckDuckGo</span><span>Crossref</span><span>Automatic citations</span></div>
       </form>
     </section>
 
     <section className="mx-auto max-w-6xl px-4 py-10">
       {loading && <div className="rounded-3xl border border-emerald-300/20 bg-emerald-300/[.04] p-10 text-center"><LoaderCircle className="mx-auto animate-spin text-emerald-300" size={34}/><p className="mt-4 font-bold">Retrieving and organizing public sources…</p></div>}
       {error && <div role="alert" className="rounded-2xl border border-red-400/30 bg-red-400/10 p-5 text-red-100"><strong>Search did not complete.</strong> {error}</div>}
-      {!loading && !report && !error && <div className="grid gap-4 sm:grid-cols-3">{[["01","RETRIEVE","Search public knowledge and scholarly records."],["02","REPORT","Organize findings, citations, and uncertainty."],["03","BUILD","Turn the report into a page, tool, or website-token draft."]].map(([n,t,d])=><div key={n} className="border-l border-emerald-300/30 bg-white/[.025] p-6"><div className="font-mono text-sm text-emerald-300">{n}</div><h2 className="mt-8 font-serif text-2xl font-black">{t}</h2><p className="mt-2 leading-7 text-white/50">{d}</p></div>)}</div>}
       {report && <article className="grid gap-7 lg:grid-cols-[1fr_320px]">
         <div className="rounded-[2rem] border border-white/10 bg-[#07100c] p-6 shadow-2xl sm:p-9">
           <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[.25em] text-emerald-300"><BookOpen size={16}/> Research report</div>
