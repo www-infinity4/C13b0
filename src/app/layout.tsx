@@ -4,9 +4,29 @@ import "./globals.css";
 import Navigation from "@/components/Navigation";
 
 export const metadata: Metadata = {
-  title: "Infinity OS — Hydrogen Host & P2P Signal Network",
+  metadataBase: new URL("https://www-infinity4.github.io/C13b0/"),
+  title: "C13b0 — Infinity Site Builder & Crown Index",
   description:
-    "Decentralized communication platform using emoji-based device identifiers, hydrogen signal propagation, and rare-earth magnet technology. Free, open-source P2P network.",
+    "Explore the repository-first Infinity builder: scan, shape, enrich, format, verify, and prepare sites for owner-reviewed publication through Crown Index.",
+  alternates: { canonical: "https://www-infinity4.github.io/C13b0/" },
+  openGraph: {
+    type: "website",
+    url: "https://www-infinity4.github.io/C13b0/",
+    title: "C13b0 — Infinity Site Builder & Crown Index",
+    description: "A repository bootstrap and verification toolkit covering previews, metadata, wallet integration, readiness signals, and owner-reviewed publication.",
+    images: [{
+      url: "https://www-infinity4.github.io/C13b0/c13b0-preview.jpg",
+      width: 1200,
+      height: 630,
+      alt: "C13b0 repository pipeline from scan through owner-reviewed publication",
+    }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "C13b0 — Infinity Site Builder & Crown Index",
+    description: "See the repository pipeline: scan, shape, enrich, format, verify, and prepare an owner-reviewed release.",
+    images: ["https://www-infinity4.github.io/C13b0/c13b0-preview.jpg"],
+  },
   keywords: [
     "hydrogen signal",
     "P2P communication",
@@ -36,7 +56,15 @@ export default function RootLayout({
             Built with rare-earth precision • Free forever • No subscriptions
           </p>
         </footer>
-        <Script src="https://www-infinity4.github.io/Mint-For-Infinity/infinity-wallet-menu.js" strategy="afterInteractive" />
+        <Script src="https://www-infinity4.github.io/Mint-For-Infinity/unified-wallet.js?v=20260831-game-rewards1" strategy="afterInteractive" />
+        <Script src="https://www-infinity4.github.io/Mint-For-Infinity/infinity-wallet-menu.js?v=20260814-menu2" strategy="afterInteractive" />
+        <Script
+          src="https://www-infinity4.github.io/Mint-For-Infinity/site-community.js?v=20260831-storage2"
+          data-site-id="C13B0"
+          data-site-title="C13b0 Infinity Site Builder"
+          data-share-url="https://www-infinity4.github.io/C13b0/"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
