@@ -26,7 +26,7 @@ declare global {
 }
 
 const DRAFT_KEY = "c13b0_infinity_business_draft_v1";
-const HANDOFF_KEY = "c13b0_infinity_spark_handoff_v1";
+const HANDOFF_KEY = "c13b0_infinity_spark_handoff_v2";
 const categories = ["Food and grocery", "Clothing", "Household", "Tools", "Electronics", "Books and learning", "Health and wellness", "Crafts", "Repair and services"];
 
 function newProduct(id?: string): Product {
@@ -74,6 +74,7 @@ export default function BusinessStarter() {
         setSources(Array.isArray(handoff.sources) ? handoff.sources.join("\n") : "");
         setSiteType(handoff.siteType || "Product page");
         setDescription(handoff.overview || "");
+        if (handoff.token?.tokenId) setTokenId(handoff.token.tokenId);
       }
       if (window.InfinityUnifiedWallet) {
         const api = new window.InfinityUnifiedWallet.UnifiedInfinityWallet();
