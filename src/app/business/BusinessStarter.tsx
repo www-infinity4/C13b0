@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Check, Download, Plus, ShieldCheck, Store, Wallet, X } from "lucide-react";
 
 type Product = {
@@ -24,6 +25,7 @@ declare global {
 }
 
 const DRAFT_KEY = "c13b0_infinity_business_draft_v1";
+const HANDOFF_KEY = "c13b0_infinity_spark_handoff_v1";
 const categories = ["Food and grocery", "Clothing", "Household", "Tools", "Electronics", "Books and learning", "Health and wellness", "Crafts", "Repair and services"];
 
 function newProduct(id?: string): Product {
@@ -60,6 +62,14 @@ export default function BusinessStarter() {
       else setTokenId(crypto.randomUUID());
       const incomingQuery = new URLSearchParams(window.location.search).get("query");
       if (incomingQuery && !draft?.research?.query) setSparkQuery(incomingQuery);
+      const handoff = JSON.parse(localStorage.getItem(HANDOFF_KEY) || "null");
+      if (handoff && !draft?.research?.query) {
+        setSparkQuery(handoff.query || incomingQuery || "");
+        setReport(handoff.report || "");
+        setSources(Array.isArray(handoff.sources) ? handoff.sources.join("\n") : "");
+        setSiteType(handoff.siteType || "Product page");
+        setDescription(handoff.overview || "");
+      }
       if (window.InfinityUnifiedWallet) {
         const api = new window.InfinityUnifiedWallet.UnifiedInfinityWallet();
         const state = api.snapshot();
@@ -109,32 +119,25 @@ export default function BusinessStarter() {
     URL.revokeObjectURL(link.href);
   }
 
-  function startResearchRecord() {
-    if (!sparkQuery.trim()) return;
-    setReport(`Research question\n${sparkQuery.trim()}\n\nSummary\n\nWhy it matters\n\nKey findings\n\nTools or services this could support\n\nLimits, uncertainty, and questions still open\n`);
-  }
-
   return (
-    <main className="min-h-screen bg-[#050711] px-4 py-8 text-white sm:px-8">
+    <main className="min-h-screen bg-[#020504] px-4 py-8 text-white sm:px-8">
       <div className="mx-auto max-w-7xl">
-        <header className="mb-8 grid gap-6 rounded-[2rem] border border-cyan-400/20 bg-gradient-to-br from-violet-950 via-[#09152a] to-emerald-950/60 p-6 shadow-2xl sm:p-9 lg:grid-cols-[1fr_auto] lg:items-end">
+        <header className="mb-8 grid gap-6 rounded-[2rem] border border-emerald-300/20 bg-[#07100c] p-6 shadow-2xl sm:p-9 lg:grid-cols-[1fr_auto] lg:items-end">
           <div><p className="text-sm font-black uppercase tracking-[.24em] text-cyan-300">Infinity Business Pages</p><h1 className="mt-3 text-4xl font-black tracking-[-.04em] sm:text-6xl">Build a useful business. Accept Infinity.</h1><p className="mt-4 max-w-3xl text-lg leading-8 text-white/70">Start a lawful product or service page, collect your unified wallet, and prepare a transparent record for review. No cash, Bitcoin, cryptocurrency, pornography, or illegal goods.</p></div>
           <div className="rounded-2xl border border-white/10 bg-black/30 p-4 text-sm"><div className="text-white/50">Payment rail</div><div className="mt-1 text-xl font-black text-emerald-300">Infinity only</div></div>
         </header>
 
-        <section className="mb-7 overflow-hidden rounded-[1.75rem] border border-amber-400/20 bg-gradient-to-r from-amber-400/[.08] via-violet-400/[.06] to-cyan-400/[.08] p-6 sm:p-8">
+        <section className="mb-7 overflow-hidden rounded-[1.75rem] border border-[#e3bd66]/25 bg-[#e3bd66]/[.045] p-6 sm:p-8">
           <div className="grid gap-7 lg:grid-cols-[.85fr_1.15fr]">
             <div>
               <p className="text-sm font-black uppercase tracking-[.24em] text-amber-300">Infinity Spark</p>
               <h2 className="mt-2 text-3xl font-black">Search → research → website → asset</h2>
               <p className="mt-3 leading-7 text-white/65">Begin with a question. Preserve the report, its sources, and its uncertainty. Then turn that work into a useful site attached to the creator’s unified wallet.</p>
               <div className="mt-5 grid grid-cols-4 gap-2 text-center text-xs font-bold"><div className="rounded-xl bg-black/25 p-3"><div className="text-2xl">🔎</div>Research</div><div className="rounded-xl bg-black/25 p-3"><div className="text-2xl">📚</div>Report</div><div className="rounded-xl bg-black/25 p-3"><div className="text-2xl">🌐</div>Website</div><div className="rounded-xl bg-black/25 p-3"><div className="text-2xl">💎</div>Asset</div></div>
-              <p className="mt-4 text-xs leading-5 text-white/40">This page creates the local research and website-token record. Live web retrieval, source ranking, user accounts, user-to-user discovery, AI cross-review, verified issuance, trading, and deployment require connected services and visible approval.</p>
+              <p className="mt-4 text-xs leading-5 text-white/40">Infinity Spark now performs the public-source retrieval and carries its report here automatically. User accounts, user-to-user discovery, generative AI cross-review, verified issuance, trading, and deployment still require connected services and visible approval.</p>
             </div>
-            <div className="grid gap-3">
-              <label className="grid gap-2 font-semibold">What do you want to research or build?<div className="flex gap-2"><input value={sparkQuery} onChange={e=>setSparkQuery(e.target.value)} className="min-w-0 flex-1 rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-base outline-none focus:border-amber-400" placeholder="Ask a question or enter a topic"/><button onClick={startResearchRecord} disabled={!sparkQuery.trim()} className="rounded-xl bg-amber-400 px-4 py-3 font-black text-black disabled:opacity-40">Start report</button></div></label>
-              <label className="grid gap-2 font-semibold">Research report<textarea value={report} onChange={e=>setReport(e.target.value)} className="min-h-52 rounded-xl border border-white/15 bg-black/30 px-4 py-3 font-mono text-sm leading-6 outline-none focus:border-cyan-400" placeholder="The sourced report and its uncertainty belong here."/></label>
-              <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-2 font-semibold">Sources<textarea value={sources} onChange={e=>setSources(e.target.value)} className="min-h-28 rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-sm outline-none" placeholder="One source URL or citation per line"/></label><label className="grid gap-2 font-semibold">Turn the report into<select value={siteType} onChange={e=>setSiteType(e.target.value)} className="rounded-xl border border-white/15 bg-[#090d1b] px-4 py-3"><option>Product page</option><option>Service page</option><option>Learning page</option><option>Research page</option><option>Tool or application</option></select><span className="rounded-xl border border-violet-400/20 bg-violet-400/[.08] p-3 text-xs font-normal leading-5 text-white/55">Website token: <strong className="break-all text-violet-200">{tokenId || "Preparing local identity…"}</strong><br/>Status: draft—not issued or tradeable yet.</span></label></div>
+            <div className="grid content-start gap-4">
+              {report ? <><div className="rounded-2xl border border-emerald-300/25 bg-emerald-300/[.06] p-5"><div className="text-xs font-black uppercase tracking-[.2em] text-emerald-300">Research imported automatically</div><h3 className="mt-2 text-2xl font-black">{sparkQuery}</h3><p className="mt-3 text-sm text-white/55">{sources.split("\n").filter(Boolean).length} sources preserved · {siteType}</p></div><label className="grid gap-2 font-semibold">Website format<select value={siteType} onChange={e=>setSiteType(e.target.value)} className="rounded-xl border border-white/15 bg-[#07100c] px-4 py-3"><option>Product page</option><option>Service page</option><option>Learning page</option><option>Research page</option><option>Tool or application</option></select></label><span className="rounded-xl border border-emerald-300/20 bg-emerald-300/[.06] p-4 text-xs leading-5 text-white/55">Website token: <strong className="break-all text-emerald-200">{tokenId || "Preparing local identity…"}</strong><br/>Status: draft—not issued or tradeable yet.</span></> : <div className="rounded-2xl border border-emerald-300/25 bg-black/25 p-6"><h3 className="text-2xl font-black">Start with real research</h3><p className="mt-2 leading-7 text-white/55">Spark retrieves the sources and writes the report before the business builder opens.</p><Link href="/spark" className="mt-5 inline-flex rounded-xl bg-emerald-300 px-5 py-3 font-black text-[#00150b] hover:bg-white">Open Infinity Spark</Link></div>}
             </div>
           </div>
         </section>
@@ -147,7 +150,7 @@ export default function BusinessStarter() {
             </div>
 
             <div className="rounded-[1.75rem] border border-white/10 bg-white/[.045] p-6 sm:p-8">
-              <div className="flex items-center justify-between gap-4"><div><p className="text-sm font-black uppercase tracking-wider text-violet-300">Product catalog</p><h2 className="mt-1 text-2xl font-black">2. Add products or services</h2></div><button onClick={()=>setProducts(p=>[...p,newProduct()])} className="flex items-center gap-2 rounded-xl bg-violet-500/20 px-4 py-3 font-bold text-violet-200 hover:bg-violet-500/30"><Plus size={18}/> Add</button></div>
+              <div className="flex items-center justify-between gap-4"><div><p className="text-sm font-black uppercase tracking-wider text-[#e3bd66]">Product catalog</p><h2 className="mt-1 text-2xl font-black">2. Add products or services</h2></div><button onClick={()=>setProducts(p=>[...p,newProduct()])} className="flex items-center gap-2 rounded-xl bg-emerald-300/15 px-4 py-3 font-bold text-emerald-200 hover:bg-emerald-300/25"><Plus size={18}/> Add</button></div>
               <div className="mt-6 space-y-4">{products.map((product,index)=><div key={product.id} className="rounded-2xl border border-white/10 bg-black/25 p-4"><div className="mb-4 flex items-center justify-between"><strong>Item {index+1}</strong>{products.length>1&&<button aria-label={`Remove item ${index+1}`} onClick={()=>setProducts(p=>p.filter(x=>x.id!==product.id))} className="rounded-lg p-2 text-white/50 hover:bg-red-500/15 hover:text-red-300"><X size={18}/></button>}</div><div className="grid gap-3 sm:grid-cols-2"><input aria-label="Product name" value={product.name} onChange={e=>setProducts(p=>p.map(x=>x.id===product.id?{...x,name:e.target.value}:x))} className="rounded-xl border border-white/15 bg-black/35 px-4 py-3" placeholder="Product or service name"/><select aria-label="Product category" value={product.category} onChange={e=>setProducts(p=>p.map(x=>x.id===product.id?{...x,category:e.target.value}:x))} className="rounded-xl border border-white/15 bg-[#090d1b] px-4 py-3">{categories.map(c=><option key={c}>{c}</option>)}</select><label className="flex items-center rounded-xl border border-emerald-400/20 bg-emerald-400/[.06] px-4"><input aria-label="Price in Infinity" inputMode="decimal" value={product.price} onChange={e=>setProducts(p=>p.map(x=>x.id===product.id?{...x,price:e.target.value}:x))} className="w-full bg-transparent py-3 outline-none" placeholder="Price"/><span className="font-bold text-emerald-300">Infinity</span></label><input aria-label="Durability or repair information" value={product.durability} onChange={e=>setProducts(p=>p.map(x=>x.id===product.id?{...x,durability:e.target.value}:x))} className="rounded-xl border border-white/15 bg-black/35 px-4 py-3" placeholder="Durability, repair, or useful-life note"/></div></div>)}</div>
             </div>
           </section>
@@ -161,7 +164,7 @@ export default function BusinessStarter() {
 
             <section className="rounded-[1.75rem] border border-cyan-400/20 bg-cyan-400/[.05] p-6"><h2 className="text-xl font-black">Review record</h2><div className="mt-4 space-y-3 text-sm">{[["Local policy check","Ready","text-emerald-300"],["Infinity review","Planned","text-amber-300"],["ChatGPT review","Planned","text-amber-300"],["IBM watsonx review","Planned","text-amber-300"],["Human approval","Required","text-cyan-300"]].map(([name,status,color])=><div key={name} className="flex justify-between gap-3 border-b border-white/10 pb-2"><span className="text-white/65">{name}</span><strong className={color}>{status}</strong></div>)}</div><p className="mt-4 text-sm leading-6 text-white/50">Future AI services must disclose what information they receive. They advise and cross-check; publication and purchases still require visible human confirmation.</p></section>
 
-            <div className="grid gap-3"><button onClick={saveDraft} disabled={!complete} className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-cyan-600 px-4 py-4 font-black disabled:cursor-not-allowed disabled:opacity-40">{saved?<Check size={19}/>:<Store size={19}/>} {saved?"Draft saved on this device":"Save business-page draft"}</button><button onClick={exportDraft} disabled={!complete} className="flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 font-bold text-white/75 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"><Download size={18}/> Export portable record</button><p className="text-center text-xs leading-5 text-white/40">Saving creates a draft, not a public store. Server review, verified balances, checkout settlement, and publication remain separate future steps.</p></div>
+            <div className="grid gap-3"><button onClick={saveDraft} disabled={!complete} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 py-4 font-black text-[#00150b] hover:bg-white disabled:cursor-not-allowed disabled:opacity-40">{saved?<Check size={19}/>:<Store size={19}/>} {saved?"Draft saved on this device":"Save business-page draft"}</button><button onClick={exportDraft} disabled={!complete} className="flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 font-bold text-white/75 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"><Download size={18}/> Export portable record</button><p className="text-center text-xs leading-5 text-white/40">Saving creates a draft, not a public store. Server review, verified balances, checkout settlement, and publication remain separate future steps.</p></div>
           </aside>
         </div>
       </div>
