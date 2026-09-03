@@ -5,6 +5,20 @@ import GameTokens from "@/components/GameTokens";
 
 const FEATURE_CARDS = [
   {
+    icon: "✨",
+    title: "Infinity Spark",
+    desc: "Start with one question, preserve a sourced research report, and carry it into tools, pages, and creator-owned assets.",
+    href: "/spark",
+    color: "from-amber-500/20 to-violet-600/25 border-amber-400/30",
+  },
+  {
+    icon: "🏪",
+    title: "Infinity Business",
+    desc: "Turn sourced research into a lawful Infinity-only product, service, learning, or tool page attached to a unified wallet.",
+    href: "/business",
+    color: "from-emerald-600/25 to-cyan-500/20 border-emerald-400/30",
+  },
+  {
     icon: "👑",
     title: "Crown Index",
     desc: "Repository-first map of all 100 www-infinity4 projects, organized into connected portfolio realms.",
@@ -168,7 +182,7 @@ export default function HomePage() {
         >
           What is Infinity OS?
         </h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {FEATURE_CARDS.map((card) => (
             <Link
               key={card.href}

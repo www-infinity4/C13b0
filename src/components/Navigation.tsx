@@ -6,6 +6,8 @@ import { Menu, X, Infinity, Zap } from "lucide-react";
 
 const navLinks = [
   { href: "/", label: "Home" },
+  { href: "/spark", label: "Infinity Spark" },
+  { href: "/business", label: "Build a Business" },
   { href: "/research", label: "Research" },
   { href: "/hydrogen-host", label: "Hydrogen Host" },
   { href: "/visualizer", label: "3D Visualizer" },
@@ -54,11 +56,11 @@ export default function Navigation() {
           {/* CTA */}
           <div className="hidden md:flex items-center gap-3">
             <Link
-              href="/hydrogen-host"
+              href="/business"
               className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-cyan-600 text-white text-sm font-semibold hover:from-purple-500 hover:to-cyan-500 transition-all glow-pulse"
-              aria-label="Get your free emoji ID"
+              aria-label="Build an Infinity business page"
             >
-              Get Free ID 🌐
+              Start a Business
             </Link>
           </div>
 
@@ -94,11 +96,11 @@ export default function Navigation() {
                 </Link>
               ))}
               <Link
-                href="/hydrogen-host"
+                href="/business"
                 onClick={() => setOpen(false)}
                 className="mt-2 px-4 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-cyan-600 text-white text-sm font-semibold text-center"
               >
-                Get Free ID 🌐
+                Start a Business
               </Link>
             </div>
           </div>
