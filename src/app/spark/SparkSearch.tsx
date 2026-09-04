@@ -1,142 +1,1162 @@
 "use client";
-import {FormEvent,useEffect,useMemo,useRef,useState} from "react";
-import {BookOpen,Check,ChevronRight,Download,ExternalLink,Globe2,History,Layers3,LoaderCircle,Menu,Search,Share2,Sparkles,Wallet,Wrench,X} from "lucide-react";
+import {
+  FormEvent,
+  PointerEvent as ReactPointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  BookOpen,
+  Check,
+  ChevronRight,
+  Download,
+  ExternalLink,
+  Globe2,
+  History,
+  Layers3,
+  LoaderCircle,
+  Menu,
+  Search,
+  Share2,
+  Sparkles,
+  Wallet,
+  Wrench,
+  X,
+} from "lucide-react";
 
-type Source={title:string;url:string;excerpt:string;kind:string};
-type Paper={title:string;dek:string;overview:string;keyTakeaways:string[];engineering:string[];context:string[];findings:string[];opportunities:string[];cautions:string[];next:string[];sources:Source[];generatedAt:string};
-type Stage="query"|"research"|"webpage"|"tools"|"design"|"advertising"|"assets";
-type Token={id:string;query:string;title:string;stage:Stage;createdAt:string;units:number;estimate:number;paper?:Paper};
-type WalletRecord={walletId:string;displayName:string};
-type WalletApi={createWallet(input:{displayName:string}):WalletRecord;snapshot():{currentWalletId:string|null;wallets:Record<string,WalletRecord>}};
-type InstallPrompt=Event&{prompt:()=>Promise<void>;userChoice:Promise<{outcome:"accepted"|"dismissed"}>};
-declare global{interface Window{__infinitySparkHandoff?:string;InfinityUnifiedWallet?:{UnifiedInfinityWallet:new()=>WalletApi}}}
+type Source = { title: string; url: string; excerpt: string; kind: string };
+type Paper = {
+  title: string;
+  dek: string;
+  overview: string;
+  keyTakeaways: string[];
+  engineering: string[];
+  context: string[];
+  findings: string[];
+  opportunities: string[];
+  cautions: string[];
+  next: string[];
+  sources: Source[];
+  generatedAt: string;
+};
+type Stage =
+  | "query"
+  | "research"
+  | "webpage"
+  | "tools"
+  | "design"
+  | "advertising"
+  | "assets";
+type Token = {
+  id: string;
+  query: string;
+  title: string;
+  stage: Stage;
+  createdAt: string;
+  units: number;
+  estimate: number;
+  paper?: Paper;
+};
+type WalletRecord = { walletId: string; displayName: string };
+type WalletApi = {
+  createWallet(input: { displayName: string }): WalletRecord;
+  snapshot(): {
+    currentWalletId: string | null;
+    wallets: Record<string, WalletRecord>;
+  };
+};
+type InstallPrompt = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+declare global {
+  interface Window {
+    __infinitySparkHandoff?: string;
+    InfinityUnifiedWallet?: { UnifiedInfinityWallet: new () => WalletApi };
+  }
+}
 
-const KEY="c13b0_infinity_token_ledger_v3",HANDOFF="c13b0_infinity_spark_handoff_v3",ARTICLE="c13b0_infinity_spark_article_v1";
-const APP_BASE=(process.env.NEXT_PUBLIC_APP_BASE||"").replace(/\/+$/,"");
-const stages:{key:Stage;label:string;note:string;estimate:number;icon:typeof Search}[]=[
- {key:"query",label:"Search",note:"Original question",estimate:1,icon:Search},
- {key:"research",label:"Response",note:"Evidence-built paper",estimate:180,icon:BookOpen},
- {key:"webpage",label:"Webpage",note:"Published subject home",estimate:750,icon:Globe2},
- {key:"tools",label:"Tools",note:"Useful working features",estimate:1600,icon:Wrench},
- {key:"design",label:"Design",note:"Unique visual system",estimate:2400,icon:Layers3},
- {key:"advertising",label:"Advertising",note:"Audience and offers",estimate:4200,icon:Share2},
- {key:"assets",label:"Assets",note:"Documented real-world links",estimate:8000,icon:Sparkles},
+const KEY = "c13b0_infinity_token_ledger_v3",
+  HANDOFF = "c13b0_infinity_spark_handoff_v3",
+  ARTICLE = "c13b0_infinity_spark_article_v1";
+const stages: {
+  key: Stage;
+  label: string;
+  note: string;
+  estimate: number;
+  icon: typeof Search;
+}[] = [
+  {
+    key: "query",
+    label: "Search",
+    note: "Original question",
+    estimate: 1,
+    icon: Search,
+  },
+  {
+    key: "research",
+    label: "Response",
+    note: "Evidence-built paper",
+    estimate: 180,
+    icon: BookOpen,
+  },
+  {
+    key: "webpage",
+    label: "Webpage",
+    note: "Published subject home",
+    estimate: 750,
+    icon: Globe2,
+  },
+  {
+    key: "tools",
+    label: "Tools",
+    note: "Useful working features",
+    estimate: 1600,
+    icon: Wrench,
+  },
+  {
+    key: "design",
+    label: "Design",
+    note: "Unique visual system",
+    estimate: 2400,
+    icon: Layers3,
+  },
+  {
+    key: "advertising",
+    label: "Advertising",
+    note: "Audience and offers",
+    estimate: 4200,
+    icon: Share2,
+  },
+  {
+    key: "assets",
+    label: "Assets",
+    note: "Documented real-world links",
+    estimate: 8000,
+    icon: Sparkles,
+  },
 ];
-function read(){try{const value=JSON.parse(localStorage.getItem(KEY)||"[]");return Array.isArray(value)?value as Token[]:[]}catch{return[]}}
-function save(x:Token[]){try{localStorage.setItem(KEY,JSON.stringify(x.slice(0,100)))}catch{}}
-function plain(x:unknown){return String(x||"").replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim()}
-function words(x:string){return new Set(x.toLowerCase().match(/[a-z0-9]{3,}/g)||[])}
-function sentences(x:string){return plain(x).split(/(?<=[.!?])\s+/).filter(s=>s.length>42&&s.length<440)}
-function unique(x:string[]){return x.filter((v,i,a)=>a.findIndex(y=>y.slice(0,90).toLowerCase()===v.slice(0,90).toLowerCase())===i)}
-function normalizeTopic(text:string){
- const corrections:[RegExp,string][]=[[/\bhydrigen\b/gi,"Hydrogen"],[/\bhydogen\b/gi,"Hydrogen"],[/\bhydorgen\b/gi,"Hydrogen"],[/\bdevelopement\b/gi,"development"],[/\bclould\b/gi,"cloud"],[/\bteh\b/gi,"the"],[/\brecieve\b/gi,"receive"],[/\bseperate\b/gi,"separate"],[/\bdefinately\b/gi,"definitely"],[/\boccured\b/gi,"occurred"],[/\bwich\b/gi,"which"]];
- return corrections.reduce((value,[pattern,replacement])=>value.replace(pattern,replacement),text).replace(/\s+/g," ").trim();
+function read() {
+  try {
+    const value = JSON.parse(localStorage.getItem(KEY) || "[]");
+    return Array.isArray(value) ? (value as Token[]) : [];
+  } catch {
+    return [];
+  }
 }
-async function resolveTopic(text:string){
- const normalized=normalizeTopic(text);
- try{
-  const response=await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(normalized)}&srinfo=suggestion&format=json&origin=*`,{signal:AbortSignal.timeout(2500)});
-  if(!response.ok)return normalized;
-  const data=await response.json() as {query?:{searchinfo?:{suggestion?:string}}};
-  const suggestion=plain(data.query?.searchinfo?.suggestion);
-  return suggestion&&suggestion.split(/\s+/).length>=Math.max(1,normalized.split(/\s+/).length-2)?suggestion:normalized;
- }catch{return normalized}
+function save(x: Token[]) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(x.slice(0, 100)));
+  } catch {}
 }
-function usableEvidence(source:Source){const excerpt=plain(source.excerpt);return excerpt.length>80&&!/^(relevant )?publication record located/i.test(excerpt)&&!/open it to (evaluate|read)/i.test(excerpt)}
-function researchLookup(text:string){
- const corrected=normalizeTopic(text).replace(/\bvedalia\b/gi,"Vidalia").trim();
- if(corrected.length<=420)return corrected;
- const stop=new Set("about after again also because been being between could does doing from have into just more most much must need only other over really should some such than that their them then there these they thing this those through very want were what when where which while will with would your youre".split(" "));
- const counts=new Map<string,number>();
- for(const word of corrected.toLowerCase().match(/[a-z][a-z0-9'-]{2,}/g)||[])if(!stop.has(word))counts.set(word,(counts.get(word)||0)+1);
- const terms=[...counts].sort((a,b)=>b[1]-a[1]).slice(0,24).map(([word])=>word);
- return terms.join(" ").slice(0,420);
+function plain(x: unknown) {
+  return String(x || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
-function growComposer(element:HTMLTextAreaElement){element.style.height="0px";element.style.height=`${Math.min(element.scrollHeight,Math.round(innerHeight*.35))}px`}
-function engineeringLens(topic:string){
- const t=topic.toLowerCase(),material=/oxide|metal|alloy|molecule|atom|crystal|ceramic/.test(t),magnetic=/magnet|dysprosium|neodymium|spin|field/.test(t),device=/diode|sensor|device|circuit|battery|cell/.test(t);
- const ideas:string[]=[];
- if(material)ideas.push(`Treat ${topic} as a structure–property problem: composition, oxidation state, defects, grain boundaries, interfaces, and temperature become adjustable engineering variables rather than background chemistry.`);
- if(magnetic)ideas.push("Map behavior across length scales—from electron configuration and local moments, through crystal anisotropy and domain behavior, to the field strength, thermal stability, and losses measurable in a finished component.");
- if(device)ideas.push("Translate the material behavior into a device stack by defining contacts, geometry, insulation, heat flow, switching conditions, measurement points, and the failure modes that a first prototype must expose.");
- ideas.push(`A useful program around ${topic} begins with a measurable target, a controllable sample or simulation, and a comparison against a known baseline. The result can become a materials map, calculator, experiment log, supplier index, or design tool.`);
- return ideas;
+function words(x: string) {
+  return new Set(x.toLowerCase().match(/[a-z0-9]{3,}/g) || []);
 }
-function directKnowledge(topic:string){
- const t=topic.toLowerCase();
- if(/v[ei]dalia/.test(t)&&/onion/.test(t))return [
-  "Vidalia onions taste unusually sweet mainly because they are grown as a low-pungency onion in the mild, sulfur-poor soils of a legally defined region of Georgia. Onion cells store sugar, but the sensation people describe as sweetness is also the absence of the sharp sulfur compounds that normally mask that sugar.",
-  "When an onion is cut, enzymes act on sulfur-containing precursors and create the volatile compounds responsible for bite, heat, aroma, and tears. Vidalia varieties take up less available sulfur under their regional growing conditions, so that reaction produces fewer pungent compounds. With less chemical heat competing for attention, naturally accumulated glucose, fructose, and sucrose become much easier to taste.",
-  "Variety and cultivation both matter. Vidalia production uses approved short-day, Granex-type cultivars selected for mildness, and the winter-to-spring growing cycle supports a high water content and tender texture. The name therefore describes more than a generic sweet-onion seed: authentic Vidalia onions must be produced in the designated Georgia production area under the applicable standards.",
-  "Cooking pushes the flavor farther toward sweetness. Heat softens the tissue, drives off pungent volatiles, concentrates soluble sugars as water leaves, and eventually produces browning reactions that add caramel-like flavors. It does not mean the raw onion contains extraordinary amounts of sugar; low pungency is the decisive reason its ordinary onion sugars seem so prominent."
- ];
- return [];
+function sentences(x: string) {
+  return plain(x)
+    .split(/(?<=[.!?])\s+/)
+    .filter((s) => s.length > 42 && s.length < 440);
 }
-function chunk<T>(items:T[],size:number){const out:T[][]=[];for(let i=0;i<items.length;i+=size)out.push(items.slice(i,i+size));return out}
-function citeSentence(x:{sentence:string;idx:number}){return `${x.sentence} [${x.idx}]`}
-function makePaper(topic:string,sources:Source[]):Paper{
- const wanted=words(topic),ranked=sources.filter(usableEvidence).flatMap((source)=>sentences(source.excerpt).map((sentence,i)=>({sentence,source,idx:sources.indexOf(source)+1,score:[...words(sentence)].filter(x=>wanted.has(x)).length*14+Math.max(0,10-sources.indexOf(source))+(i?0:4)}))).sort((a,b)=>b.score-a.score);
- const seen=new Set<string>();
- const evidence=ranked.filter(x=>{const key=x.sentence.slice(0,90).toLowerCase();if(seen.has(key))return false;seen.add(key);return true});
- const direct=directKnowledge(topic);
- const engineering=engineeringLens(topic);
- const overview=direct.length?unique(direct).join("\n\n"):(unique(chunk(evidence.slice(0,12),3).map(group=>group.map(citeSentence).join(" "))).join("\n\n")||"The available source records did not include enough readable evidence to produce a responsible overview. Refine the wording or open the listed publications before drawing conclusions.");
- const keyTakeaways=unique(direct.length?direct.slice(0,4).map(p=>sentences(p)[0]||p):evidence.slice(0,8).map(citeSentence)).slice(0,4);
- if(!keyTakeaways.length)keyTakeaways.push("No source returned enough readable evidence for a reliable takeaway; use the publication links as leads, not as established findings.");
- const dekSource=keyTakeaways[0]||`${topic} — synthesized research overview.`;
- const dek=dekSource.replace(/\s\[\d+\]$/,"").split(/(?<=[.!?])\s/)[0].slice(0,180);
- const sourceTitle=plain(evidence[0]?.source.title||sources[0]?.title||"").replace(/\s*[|–—-]\s*(Wikipedia|Britannica).*$/i,"").trim();
- const subject=topic.replace(/^(how|why|what|when|where|can|could|does|do|is|are)\s+/i,"").replace(/[?.!]+$/,"").trim();
- const editorialTitle=sourceTitle&&sourceTitle.toLowerCase()!==topic.toLowerCase()&&sourceTitle.length<110?sourceTitle:`Understanding ${subject.slice(0,92)}`;
- return{title:editorialTitle,dek,overview,keyTakeaways,engineering,context:unique(evidence.slice(4,12).map(citeSentence)),findings:evidence.slice(0,14).map(citeSentence),opportunities:[`Create a living technical index connecting ${topic} to materials, measurements, suppliers, experiments, and applications.`,"Turn repeated calculations, comparisons, or design decisions into an interactive engineering tool.","Build a versioned experiment and simulation workspace that compares each change against the baseline.","Publish focused pages for distinct combinations of terms so each project develops its own technical identity."],cautions:["Separate measured results from hypotheses and label simulated, inferred, and experimentally verified values.","Record units, temperature, sample preparation, geometry, and instrument conditions so results remain comparable.","Technical, medical, legal, and financial applications require the appropriate qualified review before real-world use."],next:[`Which property of ${topic} should be optimized first, and how will it be measured?`,"What baseline material, device, or commercial solution should the first model beat?","Which variable can be changed independently in the smallest affordable experiment?","What dataset and visualization would make the result useful to another builder?"],sources,generatedAt:new Date().toISOString()};
+function unique(x: string[]) {
+  return x.filter(
+    (v, i, a) =>
+      a.findIndex(
+        (y) => y.slice(0, 90).toLowerCase() === v.slice(0, 90).toLowerCase(),
+      ) === i,
+  );
+}
+function normalizeTopic(text: string) {
+  const corrections: [RegExp, string][] = [
+    [/\bhydrigen\b/gi, "Hydrogen"],
+    [/\bhydogen\b/gi, "Hydrogen"],
+    [/\bhydorgen\b/gi, "Hydrogen"],
+    [/\bdevelopement\b/gi, "development"],
+    [/\bclould\b/gi, "cloud"],
+    [/\bteh\b/gi, "the"],
+    [/\brecieve\b/gi, "receive"],
+    [/\bseperate\b/gi, "separate"],
+    [/\bdefinately\b/gi, "definitely"],
+    [/\boccured\b/gi, "occurred"],
+    [/\bwich\b/gi, "which"],
+  ];
+  return corrections
+    .reduce(
+      (value, [pattern, replacement]) => value.replace(pattern, replacement),
+      text,
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+async function resolveTopic(text: string) {
+  const normalized = normalizeTopic(text);
+  try {
+    const response = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(normalized)}&srinfo=suggestion&format=json&origin=*`,
+      { signal: AbortSignal.timeout(2500) },
+    );
+    if (!response.ok) return normalized;
+    const data = (await response.json()) as {
+      query?: { searchinfo?: { suggestion?: string } };
+    };
+    const suggestion = plain(data.query?.searchinfo?.suggestion);
+    return suggestion &&
+      suggestion.split(/\s+/).length >=
+        Math.max(1, normalized.split(/\s+/).length - 2)
+      ? suggestion
+      : normalized;
+  } catch {
+    return normalized;
+  }
+}
+function usableEvidence(source: Source) {
+  const excerpt = plain(source.excerpt);
+  return (
+    excerpt.length > 80 &&
+    !/^(relevant )?publication record located/i.test(excerpt) &&
+    !/open it to (evaluate|read)/i.test(excerpt)
+  );
+}
+function researchLookup(text: string) {
+  const corrected = normalizeTopic(text)
+    .replace(/\bvedalia\b/gi, "Vidalia")
+    .trim();
+  if (corrected.length <= 420) return corrected;
+  const stop = new Set(
+    "about after again also because been being between could does doing from have into just more most much must need only other over really should some such than that their them then there these they thing this those through very want were what when where which while will with would your youre".split(
+      " ",
+    ),
+  );
+  const counts = new Map<string, number>();
+  for (const word of corrected.toLowerCase().match(/[a-z][a-z0-9'-]{2,}/g) ||
+    [])
+    if (!stop.has(word)) counts.set(word, (counts.get(word) || 0) + 1);
+  const terms = [...counts]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 24)
+    .map(([word]) => word);
+  return terms.join(" ").slice(0, 420);
+}
+function growComposer(element: HTMLTextAreaElement) {
+  element.style.height = "0px";
+  element.style.height = `${Math.min(element.scrollHeight, Math.round(innerHeight * 0.35))}px`;
+}
+function engineeringLens(topic: string) {
+  const t = topic.toLowerCase(),
+    material = /oxide|metal|alloy|molecule|atom|crystal|ceramic/.test(t),
+    magnetic = /magnet|dysprosium|neodymium|spin|field/.test(t),
+    device = /diode|sensor|device|circuit|battery|cell/.test(t);
+  const ideas: string[] = [];
+  if (material)
+    ideas.push(
+      `Treat ${topic} as a structure–property problem: composition, oxidation state, defects, grain boundaries, interfaces, and temperature become adjustable engineering variables rather than background chemistry.`,
+    );
+  if (magnetic)
+    ideas.push(
+      "Map behavior across length scales—from electron configuration and local moments, through crystal anisotropy and domain behavior, to the field strength, thermal stability, and losses measurable in a finished component.",
+    );
+  if (device)
+    ideas.push(
+      "Translate the material behavior into a device stack by defining contacts, geometry, insulation, heat flow, switching conditions, measurement points, and the failure modes that a first prototype must expose.",
+    );
+  ideas.push(
+    `A useful program around ${topic} begins with a measurable target, a controllable sample or simulation, and a comparison against a known baseline. The result can become a materials map, calculator, experiment log, supplier index, or design tool.`,
+  );
+  return ideas;
+}
+function directKnowledge(topic: string) {
+  const t = topic.toLowerCase();
+  if (/v[ei]dalia/.test(t) && /onion/.test(t))
+    return [
+      "Vidalia onions taste unusually sweet mainly because they are grown as a low-pungency onion in the mild, sulfur-poor soils of a legally defined region of Georgia. Onion cells store sugar, but the sensation people describe as sweetness is also the absence of the sharp sulfur compounds that normally mask that sugar.",
+      "When an onion is cut, enzymes act on sulfur-containing precursors and create the volatile compounds responsible for bite, heat, aroma, and tears. Vidalia varieties take up less available sulfur under their regional growing conditions, so that reaction produces fewer pungent compounds. With less chemical heat competing for attention, naturally accumulated glucose, fructose, and sucrose become much easier to taste.",
+      "Variety and cultivation both matter. Vidalia production uses approved short-day, Granex-type cultivars selected for mildness, and the winter-to-spring growing cycle supports a high water content and tender texture. The name therefore describes more than a generic sweet-onion seed: authentic Vidalia onions must be produced in the designated Georgia production area under the applicable standards.",
+      "Cooking pushes the flavor farther toward sweetness. Heat softens the tissue, drives off pungent volatiles, concentrates soluble sugars as water leaves, and eventually produces browning reactions that add caramel-like flavors. It does not mean the raw onion contains extraordinary amounts of sugar; low pungency is the decisive reason its ordinary onion sugars seem so prominent.",
+    ];
+  return [];
+}
+function chunk<T>(items: T[], size: number) {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size)
+    out.push(items.slice(i, i + size));
+  return out;
+}
+function citeSentence(x: { sentence: string; idx: number }) {
+  return `${x.sentence} [${x.idx}]`;
+}
+function makePaper(topic: string, sources: Source[]): Paper {
+  const wanted = words(topic),
+    ranked = sources
+      .filter(usableEvidence)
+      .flatMap((source) =>
+        sentences(source.excerpt).map((sentence, i) => ({
+          sentence,
+          source,
+          idx: sources.indexOf(source) + 1,
+          score:
+            [...words(sentence)].filter((x) => wanted.has(x)).length * 14 +
+            Math.max(0, 10 - sources.indexOf(source)) +
+            (i ? 0 : 4),
+        })),
+      )
+      .sort((a, b) => b.score - a.score);
+  const seen = new Set<string>();
+  const evidence = ranked.filter((x) => {
+    const key = x.sentence.slice(0, 90).toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const direct = directKnowledge(topic);
+  const engineering = engineeringLens(topic);
+  const overview = direct.length
+    ? unique(direct).join("\n\n")
+    : unique(
+        chunk(evidence.slice(0, 12), 3).map((group) =>
+          group.map(citeSentence).join(" "),
+        ),
+      ).join("\n\n") ||
+      "The available source records did not include enough readable evidence to produce a responsible overview. Refine the wording or open the listed publications before drawing conclusions.";
+  const keyTakeaways = unique(
+    direct.length
+      ? direct.slice(0, 4).map((p) => sentences(p)[0] || p)
+      : evidence.slice(0, 8).map(citeSentence),
+  ).slice(0, 4);
+  if (!keyTakeaways.length)
+    keyTakeaways.push(
+      "No source returned enough readable evidence for a reliable takeaway; use the publication links as leads, not as established findings.",
+    );
+  const dekSource =
+    keyTakeaways[0] || `${topic} — synthesized research overview.`;
+  const dek = dekSource
+    .replace(/\s\[\d+\]$/, "")
+    .split(/(?<=[.!?])\s/)[0]
+    .slice(0, 180);
+  const sourceTitle = plain(
+    evidence[0]?.source.title || sources[0]?.title || "",
+  )
+    .replace(/\s*[|–—-]\s*(Wikipedia|Britannica).*$/i, "")
+    .trim();
+  const subject = topic
+    .replace(/^(how|why|what|when|where|can|could|does|do|is|are)\s+/i, "")
+    .replace(/[?.!]+$/, "")
+    .trim();
+  const editorialTitle =
+    sourceTitle &&
+    sourceTitle.toLowerCase() !== topic.toLowerCase() &&
+    sourceTitle.length < 110
+      ? sourceTitle
+      : `Understanding ${subject.slice(0, 92)}`;
+  return {
+    title: editorialTitle,
+    dek,
+    overview,
+    keyTakeaways,
+    engineering,
+    context: unique(evidence.slice(4, 12).map(citeSentence)),
+    findings: evidence.slice(0, 14).map(citeSentence),
+    opportunities: [
+      `Create a living technical index connecting ${topic} to materials, measurements, suppliers, experiments, and applications.`,
+      "Turn repeated calculations, comparisons, or design decisions into an interactive engineering tool.",
+      "Build a versioned experiment and simulation workspace that compares each change against the baseline.",
+      "Publish focused pages for distinct combinations of terms so each project develops its own technical identity.",
+    ],
+    cautions: [
+      "Separate measured results from hypotheses and label simulated, inferred, and experimentally verified values.",
+      "Record units, temperature, sample preparation, geometry, and instrument conditions so results remain comparable.",
+      "Technical, medical, legal, and financial applications require the appropriate qualified review before real-world use.",
+    ],
+    next: [
+      `Which property of ${topic} should be optimized first, and how will it be measured?`,
+      "What baseline material, device, or commercial solution should the first model beat?",
+      "Which variable can be changed independently in the smallest affordable experiment?",
+      "What dataset and visualization would make the result useful to another builder?",
+    ],
+    sources,
+    generatedAt: new Date().toISOString(),
+  };
 }
 
-export default function SparkSearch(){
- const[query,setQuery]=useState(""),[loading,setLoading]=useState(false),[error,setError]=useState(""),[paper,setPaper]=useState<Paper|null>(null);
- const[correction,setCorrection]=useState("");
- const[wallet,setWallet]=useState<WalletRecord|null>(null),[ledger,setLedger]=useState<Token[]>([]),[menu,setMenu]=useState(false),[tab,setTab]=useState<"wallet"|"history"|"ledger">("wallet"),[filter,setFilter]=useState(""),[selected,setSelected]=useState<Token|null>(null),[expanded,setExpanded]=useState(false),[installPrompt,setInstallPrompt]=useState<InstallPrompt|null>(null);
- const ledgerRef=useRef<Token[]>([]);
- useEffect(()=>{const stored=read();ledgerRef.current=stored;setLedger(stored);try{if(window.InfinityUnifiedWallet){const api=new window.InfinityUnifiedWallet.UnifiedInfinityWallet(),s=api.snapshot();if(s.currentWalletId)setWallet(s.wallets[s.currentWalletId]||null)}}catch{}const install=(event:Event)=>{event.preventDefault();setInstallPrompt(event as InstallPrompt)},hideCommunity=()=>{const bar=document.getElementById("infinity-community");if(bar)bar.hidden=true},syncLedger=(event:StorageEvent)=>{if(event.key===KEY){const stored=read();ledgerRef.current=stored;setLedger(stored)}};window.addEventListener("beforeinstallprompt",install);window.addEventListener("storage",syncLedger);hideCommunity();const observer=new MutationObserver(hideCommunity);observer.observe(document.body,{childList:true});return()=>{observer.disconnect();window.removeEventListener("beforeinstallprompt",install);window.removeEventListener("storage",syncLedger)}},[]);
- const visible=useMemo(()=>ledger.filter(x=>`${x.query} ${x.title} ${x.stage}`.toLowerCase().includes(filter.toLowerCase())),[ledger,filter]);
- function openWallet(){try{if(!window.InfinityUnifiedWallet)return;const api=new window.InfinityUnifiedWallet.UnifiedInfinityWallet(),s=api.snapshot(),w=s.currentWalletId?s.wallets[s.currentWalletId]:null;setWallet(w||api.createWallet({displayName:"Infinity Wallet"}))}catch{}}
- function add(stage:Stage,title:string,p:Paper|null=paper,queryOverride=query){const info=stages.find(x=>x.key===stage)!;const token:Token={id:crypto.randomUUID(),query:normalizeTopic(queryOverride),title,stage,createdAt:new Date().toISOString(),units:1,estimate:info.estimate,...(p?{paper:p}:{})};const next=[token,...ledgerRef.current.filter(x=>x.id!==token.id)].slice(0,100);ledgerRef.current=next;save(next);setLedger(next);setSelected(token);return token}
- function restore(token:Token){const recovered=token.paper||ledgerRef.current.find(x=>x.query===token.query&&x.paper)?.paper;setSelected(token);setQuery(token.query);setError("");setExpanded(false);if(recovered){setPaper(recovered);try{localStorage.setItem(ARTICLE,JSON.stringify(recovered))}catch{}}else setPaper(null);setMenu(false);requestAnimationFrame(()=>scrollTo({top:0,behavior:"smooth"}))}
- async function research(e:FormEvent){e.preventDefault();const original=normalizeTopic(query);if(!original||loading)return;setLoading(true);setError("");setPaper(null);setExpanded(false);const topic=await resolveTopic(original);setCorrection(topic.toLowerCase()===original.toLowerCase()?"":original);setQuery(topic);const lookupTopic=researchLookup(topic);add("query",topic,null,topic);try{
-  const r=await Promise.allSettled([
-   fetch(`https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(lookupTopic)}&gsrlimit=10&prop=extracts%7Cinfo&explaintext=1&exsentences=10&inprop=url&format=json&origin=*`).then(x=>x.json()),
-   fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(lookupTopic)}&format=json&no_html=1&skip_disambig=1`).then(x=>x.json()),
-   fetch(`https://api.crossref.org/works?query.bibliographic=${encodeURIComponent(lookupTopic)}&rows=8&select=DOI,title,abstract,URL`).then(x=>x.json())]);
-  const wiki=r[0].status==="fulfilled"?r[0].value:null,duck=r[1].status==="fulfilled"?r[1].value:null,cross=r[2].status==="fulfilled"?r[2].value:null;
-  const pages=Object.values(wiki?.query?.pages||{}) as {title?:string;extract?:string;fullurl?:string;index?:number}[];pages.sort((a,b)=>Number(a.index||99)-Number(b.index||99));
-  const sources:Source[]=pages.filter(p=>p.extract&&p.fullurl).map(p=>({title:plain(p.title),url:String(p.fullurl),excerpt:plain(p.extract),kind:"Reference"}));
-  if(plain(duck?.AbstractText)&&duck?.AbstractURL)sources.unshift({title:plain(duck.Heading)||topic,url:String(duck.AbstractURL),excerpt:plain(duck.AbstractText),kind:"Indexed overview"});
-  for(const p of(cross?.message?.items||[])as {title?:string[];abstract?:string;URL?:string}[])if(p.title?.[0]&&p.URL)sources.push({title:plain(p.title[0]),url:String(p.URL),excerpt:plain(p.abstract),kind:p.abstract?"Publication":"Publication record"});
-  if(!sources.length)throw new Error("No usable public sources came back. Try a more specific wording.");const next=makePaper(topic,sources);setPaper(next);add("research",`${topic.slice(0,120)} — overview`,next,topic);try{localStorage.setItem(ARTICLE,JSON.stringify(next))}catch{}
- }catch(c){setError(c instanceof Error?c.message:"The research could not be completed.")}finally{setLoading(false)}}
- function advance(stage:Stage){if(!paper)return;const normalizedQuery=normalizeTopic(query);const token=add(stage,`${paper.title} — ${stages.find(x=>x.key===stage)?.label}`,paper);const chain=[token,...ledgerRef.current.filter(x=>x.id!==token.id&&x.query===normalizedQuery)];const data=JSON.stringify({schema:"infinity/project-token/v3",walletId:wallet?.walletId||null,token,paper,chain});try{localStorage.setItem(HANDOFF,data)}catch{}window.__infinitySparkHandoff=data;location.href=`../studio/?stage=${stage}&query=${encodeURIComponent(paper.title)}`}
- async function share(){try{if(navigator.share)await navigator.share({title:paper?.title||"Infinity",text:paper?.dek||"Build from a question with Infinity.",url:location.href});else await navigator.clipboard.writeText(location.href)}catch{}}
- function community(selector:string){const control=document.querySelector<HTMLElement>(`#infinity-community ${selector}`);if(control)control.click();else if(selector==="[data-share]")void share()}
- function backup(){const blob=new Blob([JSON.stringify({schema:"infinity/wallet-backup/v1",exportedAt:new Date().toISOString(),wallet,tokens:ledger},null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="infinity-wallet-backup.json";a.click();URL.revokeObjectURL(url)}
- async function install(){if(installPrompt){await installPrompt.prompt();await installPrompt.userChoice;setInstallPrompt(null)}}
- const idle=!loading&&!paper&&!error;
- return <main className="min-h-screen bg-[radial-gradient(circle_at_50%_-10%,#174c78_0%,#0b2e50_42%,#061d35_100%)] text-white">
-  <header className={`fixed inset-x-0 z-40 px-3 sm:px-6 ${idle?"top-[max(1rem,env(safe-area-inset-top))] lg:top-[24vh]":"top-[max(.65rem,env(safe-area-inset-top))]"}`}><div className="mx-auto max-w-[52rem]"><form onSubmit={research}><label className="flex min-h-16 items-end gap-2 rounded-full border border-[#4f78ba]/55 bg-[#020d25]/88 p-2 text-white shadow-[inset_0_0_26px_rgba(15,69,150,.45),0_0_22px_rgba(45,112,255,.35)] backdrop-blur-xl focus-within:border-[#8eb9ff] focus-within:ring-4 focus-within:ring-[#2d70ff]/20"><button type="button" onClick={()=>setMenu(true)} className="grid size-12 shrink-0 place-items-center rounded-full bg-white font-serif text-[2rem] text-[#081632] shadow-[0_0_18px_rgba(255,255,255,.65)]" aria-label="Open Infinity menu">φ</button><textarea autoFocus autoCapitalize="sentences" autoCorrect="on" spellCheck rows={1} value={query} onChange={e=>{setQuery(e.target.value);growComposer(e.currentTarget)}} onPaste={e=>requestAnimationFrame(()=>growComposer(e.currentTarget))} className="max-h-[35vh] min-h-12 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-3 text-[1.05rem] text-white outline-none placeholder:text-[#8298bd]" placeholder="Search, ask, or paste" aria-label="Search, ask, or paste a full conversation"/><button disabled={loading||!query.trim()} className="grid size-12 shrink-0 place-items-center rounded-full border border-[#31599b] bg-[#071737] font-serif text-2xl text-white shadow-[inset_0_0_16px_rgba(25,80,170,.5),0_0_14px_rgba(44,105,230,.35)] disabled:opacity-45" aria-label="Search with Pi">{loading?<LoaderCircle className="animate-spin" size={20}/>:"π"}</button></label></form></div></header>
-  {idle&&<section className="relative min-h-[100dvh] overflow-hidden bg-[#01091d]"><img src={`${APP_BASE}/infinity-main.png`} alt="Infinity phi search field" className="absolute inset-0 h-full w-full object-cover object-center max-lg:scale-[1.12]"/><div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#01091d]/10 via-transparent to-[#01091d]/30"/></section>}
-  {!idle&&<section className="mx-auto max-w-6xl px-4 pb-10 pt-28 sm:px-7">{loading&&<div className="mx-auto max-w-3xl rounded-3xl border bg-white p-12 text-center text-[#172331]"><LoaderCircle className="mx-auto animate-spin text-[#215f99]"/><p className="mt-4 text-lg font-bold">Searching and reading sources…</p><p className="mt-2 text-[#607386]">Your query is already preserved as its first token.</p></div>}{error&&<div role="alert" className="mx-auto max-w-3xl rounded-2xl border border-red-600 bg-white p-6 text-red-800"><b>Search did not complete.</b> {error}</div>}{paper&&<article className="mx-auto max-w-4xl rounded-[2rem] border border-white/15 bg-white px-6 py-8 text-[#172331] shadow-[0_30px_100px_rgba(0,0,0,.28)] sm:px-11 sm:py-12"><p className="text-xs text-[#718295]">{paper.sources.length.toLocaleString()} sources reviewed</p><h2 className="mt-2 font-serif text-2xl font-black leading-tight sm:text-3xl">{paper.title}</h2>{paper.dek&&<p className="mt-2 text-lg text-[#4d6b86]">{paper.dek}</p>}<div className="mt-6 rounded-2xl border border-[#e0e8f0] bg-[#f7f9fb] p-5"><p className="text-xs font-bold uppercase tracking-[.14em] text-[#9a6317]">Key takeaways</p><ul className="mt-3 space-y-2">{paper.keyTakeaways.map((point,i)=><li key={i} className="grid grid-cols-[18px_1fr] gap-3"><span className="mt-2 size-1.5 rounded-full bg-[#215f99]"/><span>{point}</span></li>)}</ul></div><Section title="Overview"><div className="space-y-5">{paper.overview.split("\n\n").map((paragraph,i)=><p key={i}>{paragraph}</p>)}</div></Section><a href="article/" target="_blank" rel="noreferrer" className="mt-6 flex items-center justify-center gap-2 rounded-xl border border-[#123f66] px-5 py-3 text-center font-bold text-[#123f66] hover:bg-[#eef4f8]"><BookOpen size={18}/>Read the full research article</a>
-   <section className="mt-10 rounded-[1.6rem] bg-[#0c3153] p-6 text-white sm:p-8"><p className="text-sm font-bold uppercase tracking-[.18em] text-[#9ac7e9]">Assembly package</p><h3 className="mt-2 font-serif text-3xl font-black">Model Your World!</h3><p className="mt-3 max-w-2xl text-lg leading-8 text-white/75">The best way to begin modeling your curated query is to choose the next useful form. Infinity carries the overview, sources, query history, and token record forward automatically.</p><div className="mt-6 grid gap-3 sm:grid-cols-2">{stages.slice(2).map(s=><button key={s.key} onClick={()=>advance(s.key)} className="flex items-center gap-3 rounded-xl border border-white/15 bg-white/5 p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/12"><s.icon size={19} className="text-[#f0bd55]"/><span className="flex-1"><b className="block">{s.label}</b><small className="text-[#b7c8d8]">{s.note}</small></span><ChevronRight size={17}/></button>)}</div></section>
-   <Section title="Refine this search"><form onSubmit={research} className="flex items-end gap-2 rounded-3xl border border-[#c7d2dc] p-2"><Search className="mb-2 ml-3 shrink-0 text-[#607386]"/><textarea rows={1} value={query} onChange={e=>{setQuery(e.target.value);growComposer(e.currentTarget)}} onPaste={e=>requestAnimationFrame(()=>growComposer(e.currentTarget))} className="max-h-[35vh] min-h-10 min-w-0 flex-1 resize-none overflow-y-auto py-2 outline-none" placeholder="Add terms or paste more context"/><button className="rounded-full bg-[#123f66] px-5 py-2 font-bold text-white">Search</button></form><p className="mt-2 text-sm text-[#607386]">A refined query creates a new overview and a new linked token.</p></Section>
-   <button onClick={()=>setExpanded(x=>!x)} className="mt-10 w-full rounded-xl border border-[#9eb1c2] px-5 py-4 font-bold text-[#123f66] hover:bg-[#eef4f8]">{expanded?"Close expanded research":"Expanded research"}</button>
-   {expanded&&<div><Section title="What the evidence establishes"><Numbered items={paper.findings}/></Section><Section title="Context and nuance"><Bullets items={paper.context}/></Section><Section title="Useful directions"><Bullets items={paper.opportunities}/></Section><Section title="Limits and cautions"><Bullets items={paper.cautions}/></Section><Section title="Questions worth answering next"><Bullets items={paper.next}/></Section><Section title="Sources"><div className="grid gap-2">{paper.sources.map(s=><a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="flex justify-between gap-4 rounded-xl border px-4 py-3 hover:border-[#215f99]"><span><small className="block font-bold uppercase text-[#9a6317]">{s.kind}</small>{s.title}</span><ExternalLink size={16}/></a>)}</div></Section></div>}
-  </article>}</section>}
-  {menu&&<div className="fixed inset-0 z-50 bg-[#0c1825]/45 backdrop-blur-sm" onMouseDown={()=>setMenu(false)}><aside className="ml-auto flex h-full w-full max-w-md flex-col bg-white shadow-2xl" onMouseDown={e=>e.stopPropagation()}><div className="flex h-16 items-center justify-between border-b px-5"><b className="font-serif text-xl text-[#163f6b]">Infinity</b><button onClick={()=>setMenu(false)} className="grid size-10 place-items-center rounded-full hover:bg-[#edf2f7]" aria-label="Close"><X/></button></div><div className="grid grid-cols-3 border-b p-2">{([["wallet",Wallet,"Wallet"],["history",History,"History"],["ledger",Search,"Ledger"]]as const).map(([k,I,l])=><button key={k} onClick={()=>setTab(k)} className={`flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold ${tab===k?"bg-[#dceaf6] text-[#174d7e]":"text-[#607386]"}`}><I size={17}/>{l}</button>)}</div><div className="flex-1 overflow-y-auto p-5">
-   {tab==="wallet"&&<div><p className="text-sm font-bold uppercase tracking-wider text-[#607386]">Unified wallet</p><button onClick={install} disabled={!installPrompt} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#123f66] px-4 py-3 font-bold text-white disabled:bg-[#e8eef3] disabled:text-[#607386]"><Download size={17}/>{installPrompt?"Install Infinity app":"Install from your browser menu"}</button>{wallet?<div className="mt-4 rounded-2xl bg-[#172f49] p-5 text-white"><b>{wallet.displayName}</b><p className="mt-2 break-all font-mono text-xs text-[#b7c8d8]">{wallet.walletId}</p></div>:<button onClick={()=>{openWallet();community("[data-connect]")}} className="mt-4 w-full rounded-xl bg-[#215f99] px-4 py-3 font-bold text-white">Connect unified wallet</button>}<div className="mt-5 grid grid-cols-2 gap-2"><button onClick={()=>community("[data-share]")} className="flex items-center justify-center gap-2 rounded-xl border px-3 py-3 font-bold"><Share2 size={17}/>Share</button><button onClick={()=>community("[data-x]")} className="rounded-xl border px-3 py-3 font-bold">Post to X ↗</button></div><div className="mt-6 grid grid-cols-2 gap-3"><Stat label="Tokens" value={String(ledger.length)}/><Stat label="Infinity units" value={String(ledger.reduce((n,t)=>n+t.units,0))}/></div><p className="mt-5 text-sm leading-6 text-[#607386]">Every stored action remains one transferable Infinity unit. Project estimates describe attached work; they are not guaranteed sale prices.</p><button onClick={backup} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 font-bold"><Download size={18}/>Export wallet backup</button><p className="mt-3 text-xs leading-5 text-[#77899a]">Google Drive synchronization requires secure sign-in and server authorization. The export keeps recovery possible until that connection is added.</p></div>}
-   {tab==="history"&&<div><p className="mb-4 text-sm leading-6 text-[#607386]">Tap any saved item to reopen its query and research.</p><TokenList records={ledger} empty="Your searches and builds will appear here." open={restore}/></div>}
-   {tab==="ledger"&&<div><label className="flex items-center gap-2 rounded-xl border px-3"><Search size={17}/><input value={filter} onChange={e=>setFilter(e.target.value)} className="min-w-0 flex-1 py-3 outline-none" placeholder="Search tokens and websites"/></label><div className="mt-4"><TokenList records={visible} empty="No matching tokens." open={setSelected}/></div></div>}
-  </div>{selected&&<div className="border-t bg-[#f4f7fa] p-5"><div className="flex justify-between gap-4"><div><small className="font-bold uppercase text-[#9a6317]">{selected.stage}</small><b className="block">{selected.title}</b><p className="mt-1 font-mono text-xs text-[#607386]">{selected.id}</p><p className="mt-2 text-xs text-[#607386]">1 Infinity unit · project work reference ${selected.estimate.toLocaleString()}</p></div><Check className="text-[#23855b]"/></div></div>}</aside></div>}
- </main>
+export default function SparkSearch() {
+  const [query, setQuery] = useState(""),
+    [loading, setLoading] = useState(false),
+    [error, setError] = useState(""),
+    [paper, setPaper] = useState<Paper | null>(null);
+  const [correction, setCorrection] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [orbPosition, setOrbPosition] = useState({ x: 0, y: 0 });
+  const orbDrag = useRef({ startX: 0, startY: 0, x: 0, y: 0, moved: false });
+  const [wallet, setWallet] = useState<WalletRecord | null>(null),
+    [ledger, setLedger] = useState<Token[]>([]),
+    [menu, setMenu] = useState(false),
+    [tab, setTab] = useState<"wallet" | "history" | "ledger">("wallet"),
+    [filter, setFilter] = useState(""),
+    [selected, setSelected] = useState<Token | null>(null),
+    [expanded, setExpanded] = useState(false),
+    [installPrompt, setInstallPrompt] = useState<InstallPrompt | null>(null);
+  const ledgerRef = useRef<Token[]>([]);
+  useEffect(() => {
+    const stored = read();
+    ledgerRef.current = stored;
+    setLedger(stored);
+    try {
+      if (window.InfinityUnifiedWallet) {
+        const api = new window.InfinityUnifiedWallet.UnifiedInfinityWallet(),
+          s = api.snapshot();
+        if (s.currentWalletId) setWallet(s.wallets[s.currentWalletId] || null);
+      }
+    } catch {}
+    const install = (event: Event) => {
+        event.preventDefault();
+        setInstallPrompt(event as InstallPrompt);
+      },
+      hideCommunity = () => {
+        const bar = document.getElementById("infinity-community");
+        if (bar) bar.hidden = true;
+      },
+      syncLedger = (event: StorageEvent) => {
+        if (event.key === KEY) {
+          const stored = read();
+          ledgerRef.current = stored;
+          setLedger(stored);
+        }
+      };
+    window.addEventListener("beforeinstallprompt", install);
+    window.addEventListener("storage", syncLedger);
+    hideCommunity();
+    const observer = new MutationObserver(hideCommunity);
+    observer.observe(document.body, { childList: true });
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("beforeinstallprompt", install);
+      window.removeEventListener("storage", syncLedger);
+    };
+  }, []);
+  const visible = useMemo(
+    () =>
+      ledger.filter((x) =>
+        `${x.query} ${x.title} ${x.stage}`
+          .toLowerCase()
+          .includes(filter.toLowerCase()),
+      ),
+    [ledger, filter],
+  );
+  function openWallet() {
+    try {
+      if (!window.InfinityUnifiedWallet) return;
+      const api = new window.InfinityUnifiedWallet.UnifiedInfinityWallet(),
+        s = api.snapshot(),
+        w = s.currentWalletId ? s.wallets[s.currentWalletId] : null;
+      setWallet(w || api.createWallet({ displayName: "Infinity Wallet" }));
+    } catch {}
+  }
+  function add(
+    stage: Stage,
+    title: string,
+    p: Paper | null = paper,
+    queryOverride = query,
+  ) {
+    const info = stages.find((x) => x.key === stage)!;
+    const token: Token = {
+      id: crypto.randomUUID(),
+      query: normalizeTopic(queryOverride),
+      title,
+      stage,
+      createdAt: new Date().toISOString(),
+      units: 1,
+      estimate: info.estimate,
+      ...(p ? { paper: p } : {}),
+    };
+    const next = [
+      token,
+      ...ledgerRef.current.filter((x) => x.id !== token.id),
+    ].slice(0, 100);
+    ledgerRef.current = next;
+    save(next);
+    setLedger(next);
+    setSelected(token);
+    return token;
+  }
+  function restore(token: Token) {
+    const recovered =
+      token.paper ||
+      ledgerRef.current.find((x) => x.query === token.query && x.paper)?.paper;
+    setSelected(token);
+    setQuery(token.query);
+    setError("");
+    setExpanded(false);
+    if (recovered) {
+      setPaper(recovered);
+      try {
+        localStorage.setItem(ARTICLE, JSON.stringify(recovered));
+      } catch {}
+    } else setPaper(null);
+    setMenu(false);
+    requestAnimationFrame(() => scrollTo({ top: 0, behavior: "smooth" }));
+  }
+  async function research(e: FormEvent) {
+    e.preventDefault();
+    const original = normalizeTopic(query);
+    if (!original || loading) return;
+    setLoading(true);
+    setError("");
+    setPaper(null);
+    setExpanded(false);
+    const topic = await resolveTopic(original);
+    setCorrection(
+      topic.toLowerCase() === original.toLowerCase() ? "" : original,
+    );
+    setQuery(topic);
+    const lookupTopic = researchLookup(topic);
+    add("query", topic, null, topic);
+    try {
+      const r = await Promise.allSettled([
+        fetch(
+          `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(lookupTopic)}&gsrlimit=10&prop=extracts%7Cinfo&explaintext=1&exsentences=10&inprop=url&format=json&origin=*`,
+        ).then((x) => x.json()),
+        fetch(
+          `https://api.duckduckgo.com/?q=${encodeURIComponent(lookupTopic)}&format=json&no_html=1&skip_disambig=1`,
+        ).then((x) => x.json()),
+        fetch(
+          `https://api.crossref.org/works?query.bibliographic=${encodeURIComponent(lookupTopic)}&rows=8&select=DOI,title,abstract,URL`,
+        ).then((x) => x.json()),
+      ]);
+      const wiki = r[0].status === "fulfilled" ? r[0].value : null,
+        duck = r[1].status === "fulfilled" ? r[1].value : null,
+        cross = r[2].status === "fulfilled" ? r[2].value : null;
+      const pages = Object.values(wiki?.query?.pages || {}) as {
+        title?: string;
+        extract?: string;
+        fullurl?: string;
+        index?: number;
+      }[];
+      pages.sort((a, b) => Number(a.index || 99) - Number(b.index || 99));
+      const sources: Source[] = pages
+        .filter((p) => p.extract && p.fullurl)
+        .map((p) => ({
+          title: plain(p.title),
+          url: String(p.fullurl),
+          excerpt: plain(p.extract),
+          kind: "Reference",
+        }));
+      if (plain(duck?.AbstractText) && duck?.AbstractURL)
+        sources.unshift({
+          title: plain(duck.Heading) || topic,
+          url: String(duck.AbstractURL),
+          excerpt: plain(duck.AbstractText),
+          kind: "Indexed overview",
+        });
+      for (const p of (cross?.message?.items || []) as {
+        title?: string[];
+        abstract?: string;
+        URL?: string;
+      }[])
+        if (p.title?.[0] && p.URL)
+          sources.push({
+            title: plain(p.title[0]),
+            url: String(p.URL),
+            excerpt: plain(p.abstract),
+            kind: p.abstract ? "Publication" : "Publication record",
+          });
+      if (!sources.length)
+        throw new Error(
+          "No usable public sources came back. Try a more specific wording.",
+        );
+      const next = makePaper(topic, sources);
+      setPaper(next);
+      add("research", `${topic.slice(0, 120)} — overview`, next, topic);
+      try {
+        localStorage.setItem(ARTICLE, JSON.stringify(next));
+      } catch {}
+    } catch (c) {
+      setError(
+        c instanceof Error ? c.message : "The research could not be completed.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+  function advance(stage: Stage) {
+    if (!paper) return;
+    const normalizedQuery = normalizeTopic(query);
+    const token = add(
+      stage,
+      `${paper.title} — ${stages.find((x) => x.key === stage)?.label}`,
+      paper,
+    );
+    const chain = [
+      token,
+      ...ledgerRef.current.filter(
+        (x) => x.id !== token.id && x.query === normalizedQuery,
+      ),
+    ];
+    const data = JSON.stringify({
+      schema: "infinity/project-token/v3",
+      walletId: wallet?.walletId || null,
+      token,
+      paper,
+      chain,
+    });
+    try {
+      localStorage.setItem(HANDOFF, data);
+    } catch {}
+    window.__infinitySparkHandoff = data;
+    location.href = `../studio/?stage=${stage}&query=${encodeURIComponent(paper.title)}`;
+  }
+  async function share() {
+    try {
+      if (navigator.share)
+        await navigator.share({
+          title: paper?.title || "Infinity",
+          text: paper?.dek || "Build from a question with Infinity.",
+          url: location.href,
+        });
+      else await navigator.clipboard.writeText(location.href);
+    } catch {}
+  }
+  function community(selector: string) {
+    const control = document.querySelector<HTMLElement>(
+      `#infinity-community ${selector}`,
+    );
+    if (control) control.click();
+    else if (selector === "[data-share]") void share();
+  }
+  function backup() {
+    const blob = new Blob(
+        [
+          JSON.stringify(
+            {
+              schema: "infinity/wallet-backup/v1",
+              exportedAt: new Date().toISOString(),
+              wallet,
+              tokens: ledger,
+            },
+            null,
+            2,
+          ),
+        ],
+        { type: "application/json" },
+      ),
+      url = URL.createObjectURL(blob),
+      a = document.createElement("a");
+    a.href = url;
+    a.download = "infinity-wallet-backup.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  async function install() {
+    if (installPrompt) {
+      await installPrompt.prompt();
+      await installPrompt.userChoice;
+      setInstallPrompt(null);
+    }
+  }
+  function startOrbDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    orbDrag.current = { startX: event.clientX, startY: event.clientY, x: orbPosition.x, y: orbPosition.y, moved: false };
+  }
+  function moveOrb(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    const dx = event.clientX - orbDrag.current.startX;
+    const dy = event.clientY - orbDrag.current.startY;
+    if (Math.hypot(dx, dy) > 7) orbDrag.current.moved = true;
+    setOrbPosition({ x: orbDrag.current.x + dx, y: orbDrag.current.y + dy });
+  }
+  function finishOrbDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (!orbDrag.current.moved) setSearchOpen(true);
+  }
+  const idle = !loading && !paper && !error;
+  return (
+    <main className="min-h-screen bg-[radial-gradient(circle_at_50%_-10%,#174c78_0%,#0b2e50_42%,#061d35_100%)] text-white">
+      {(!idle || searchOpen) && <header
+        className={`fixed inset-x-0 z-40 px-3 sm:px-6 ${idle ? "top-1/2 -translate-y-1/2" : "top-[max(.65rem,env(safe-area-inset-top))]"}`}
+      >
+        <div className="mx-auto max-w-[52rem]">
+          <form onSubmit={research}>
+            <label className="flex min-h-16 items-end gap-2 rounded-full border border-[#4f78ba]/55 bg-[#020d25]/88 p-2 text-white shadow-[inset_0_0_26px_rgba(15,69,150,.45),0_0_22px_rgba(45,112,255,.35)] backdrop-blur-xl focus-within:border-[#8eb9ff] focus-within:ring-4 focus-within:ring-[#2d70ff]/20">
+              {!idle && <button
+                type="button"
+                onClick={() => setMenu(true)}
+                className="grid size-12 shrink-0 place-items-center rounded-full bg-white font-serif text-[2rem] text-[#081632] shadow-[0_0_18px_rgba(255,255,255,.65)]"
+                aria-label="Open Infinity menu"
+              >
+                φ
+              </button>}
+              <textarea
+                autoFocus={idle && searchOpen}
+                autoCapitalize="sentences"
+                autoCorrect="on"
+                spellCheck
+                rows={1}
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  growComposer(e.currentTarget);
+                }}
+                onPaste={(e) =>
+                  requestAnimationFrame(() => growComposer(e.currentTarget))
+                }
+                className="max-h-[35vh] min-h-12 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-3 py-3 text-[1.05rem] text-white outline-none placeholder:text-[#8298bd]"
+                placeholder="Search, ask, or paste"
+                aria-label="Search, ask, or paste a full conversation"
+              />
+              <button
+                disabled={loading || !query.trim()}
+                className="grid size-12 shrink-0 place-items-center rounded-full border border-[#31599b] bg-[#071737] font-serif text-2xl text-white shadow-[inset_0_0_16px_rgba(25,80,170,.5),0_0_14px_rgba(44,105,230,.35)] disabled:opacity-45"
+                aria-label="Search with Pi"
+              >
+                {loading ? (
+                  <LoaderCircle className="animate-spin" size={20} />
+                ) : (
+                  "π"
+                )}
+              </button>
+            </label>
+          </form>
+        </div>
+      </header>}
+      {idle && (
+        <section className="relative min-h-[100dvh] overflow-hidden bg-[#01091d]">
+          <img
+            src="../infinity-main.png"
+            alt="Infinity phi search field"
+            className="absolute inset-0 h-full w-full object-cover object-center max-lg:scale-[1.12]"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#01091d]/10 via-transparent to-[#01091d]/30" />
+          {!searchOpen && <button type="button" onPointerDown={startOrbDrag} onPointerMove={moveOrb} onPointerUp={finishOrbDrag} style={{transform:`translate(calc(-50% + ${orbPosition.x}px), calc(-50% + ${orbPosition.y}px))`}} className="absolute left-1/2 top-1/2 z-20 touch-none select-none font-serif text-[8rem] leading-none text-white drop-shadow-[0_0_28px_rgba(70,135,255,.95)] sm:text-[11rem]" aria-label="Move Infinity search; tap to open">φ</button>}
+        </section>
+      )}
+      {!idle && (
+        <section className="mx-auto max-w-6xl px-4 pb-10 pt-28 sm:px-7">
+          {loading && (
+            <div className="mx-auto max-w-3xl rounded-3xl border bg-white p-12 text-center text-[#172331]">
+              <LoaderCircle className="mx-auto animate-spin text-[#215f99]" />
+              <p className="mt-4 text-lg font-bold">
+                Searching and reading sources…
+              </p>
+              <p className="mt-2 text-[#607386]">
+                Your query is already preserved as its first token.
+              </p>
+            </div>
+          )}
+          {error && (
+            <div
+              role="alert"
+              className="mx-auto max-w-3xl rounded-2xl border border-red-600 bg-white p-6 text-red-800"
+            >
+              <b>Search did not complete.</b> {error}
+            </div>
+          )}
+          {paper && (
+            <article className="mx-auto max-w-4xl rounded-[2rem] border border-white/15 bg-white px-6 py-8 text-[#172331] shadow-[0_30px_100px_rgba(0,0,0,.28)] sm:px-11 sm:py-12">
+              <p className="text-xs text-[#718295]">
+                {paper.sources.length.toLocaleString()} sources reviewed
+              </p>
+              <h2 className="mt-2 font-serif text-2xl font-black leading-tight sm:text-3xl">
+                {paper.title}
+              </h2>
+              {paper.dek && (
+                <p className="mt-2 text-lg text-[#4d6b86]">{paper.dek}</p>
+              )}
+              <div className="mt-6 rounded-2xl border border-[#e0e8f0] bg-[#f7f9fb] p-5">
+                <p className="text-xs font-bold uppercase tracking-[.14em] text-[#9a6317]">
+                  Key takeaways
+                </p>
+                <ul className="mt-3 space-y-2">
+                  {paper.keyTakeaways.map((point, i) => (
+                    <li key={i} className="grid grid-cols-[18px_1fr] gap-3">
+                      <span className="mt-2 size-1.5 rounded-full bg-[#215f99]" />
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <Section title="Overview">
+                <div className="space-y-5">
+                  {paper.overview.split("\n\n").map((paragraph, i) => (
+                    <p key={i}>{paragraph}</p>
+                  ))}
+                </div>
+              </Section>
+              <a
+                href="article/"
+                target="_blank"
+                rel="noreferrer"
+                className="mt-6 flex items-center justify-center gap-2 rounded-xl border border-[#123f66] px-5 py-3 text-center font-bold text-[#123f66] hover:bg-[#eef4f8]"
+              >
+                <BookOpen size={18} />
+                Read the full research article
+              </a>
+              <section className="mt-10 rounded-[1.6rem] bg-[#0c3153] p-6 text-white sm:p-8">
+                <p className="text-sm font-bold uppercase tracking-[.18em] text-[#9ac7e9]">
+                  Assembly package
+                </p>
+                <h3 className="mt-2 font-serif text-3xl font-black">
+                  Model Your World!
+                </h3>
+                <p className="mt-3 max-w-2xl text-lg leading-8 text-white/75">
+                  The best way to begin modeling your curated query is to choose
+                  the next useful form. Infinity carries the overview, sources,
+                  query history, and token record forward automatically.
+                </p>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  {stages.slice(2).map((s) => (
+                    <button
+                      key={s.key}
+                      onClick={() => advance(s.key)}
+                      className="flex items-center gap-3 rounded-xl border border-white/15 bg-white/5 p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/12"
+                    >
+                      <s.icon size={19} className="text-[#f0bd55]" />
+                      <span className="flex-1">
+                        <b className="block">{s.label}</b>
+                        <small className="text-[#b7c8d8]">{s.note}</small>
+                      </span>
+                      <ChevronRight size={17} />
+                    </button>
+                  ))}
+                </div>
+              </section>
+              <Section title="Refine this search">
+                <form
+                  onSubmit={research}
+                  className="flex items-end gap-2 rounded-3xl border border-[#c7d2dc] p-2"
+                >
+                  <Search className="mb-2 ml-3 shrink-0 text-[#607386]" />
+                  <textarea
+                    rows={1}
+                    value={query}
+                    onChange={(e) => {
+                      setQuery(e.target.value);
+                      growComposer(e.currentTarget);
+                    }}
+                    onPaste={(e) =>
+                      requestAnimationFrame(() => growComposer(e.currentTarget))
+                    }
+                    className="max-h-[35vh] min-h-10 min-w-0 flex-1 resize-none overflow-y-auto py-2 outline-none"
+                    placeholder="Add terms or paste more context"
+                  />
+                  <button className="rounded-full bg-[#123f66] px-5 py-2 font-bold text-white">
+                    Search
+                  </button>
+                </form>
+                <p className="mt-2 text-sm text-[#607386]">
+                  A refined query creates a new overview and a new linked token.
+                </p>
+              </Section>
+              <button
+                onClick={() => setExpanded((x) => !x)}
+                className="mt-10 w-full rounded-xl border border-[#9eb1c2] px-5 py-4 font-bold text-[#123f66] hover:bg-[#eef4f8]"
+              >
+                {expanded ? "Close expanded research" : "Expanded research"}
+              </button>
+              {expanded && (
+                <div>
+                  <Section title="What the evidence establishes">
+                    <Numbered items={paper.findings} />
+                  </Section>
+                  <Section title="Context and nuance">
+                    <Bullets items={paper.context} />
+                  </Section>
+                  <Section title="Useful directions">
+                    <Bullets items={paper.opportunities} />
+                  </Section>
+                  <Section title="Limits and cautions">
+                    <Bullets items={paper.cautions} />
+                  </Section>
+                  <Section title="Questions worth answering next">
+                    <Bullets items={paper.next} />
+                  </Section>
+                  <Section title="Sources">
+                    <div className="grid gap-2">
+                      {paper.sources.map((s) => (
+                        <a
+                          key={s.url}
+                          href={s.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex justify-between gap-4 rounded-xl border px-4 py-3 hover:border-[#215f99]"
+                        >
+                          <span>
+                            <small className="block font-bold uppercase text-[#9a6317]">
+                              {s.kind}
+                            </small>
+                            {s.title}
+                          </span>
+                          <ExternalLink size={16} />
+                        </a>
+                      ))}
+                    </div>
+                  </Section>
+                </div>
+              )}
+            </article>
+          )}
+        </section>
+      )}
+      {menu && (
+        <div
+          className="fixed inset-0 z-50 bg-[#0c1825]/45 backdrop-blur-sm"
+          onMouseDown={() => setMenu(false)}
+        >
+          <aside
+            className="ml-auto flex h-full w-full max-w-md flex-col bg-white shadow-2xl"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="flex h-16 items-center justify-between border-b px-5">
+              <b className="font-serif text-xl text-[#163f6b]">Infinity</b>
+              <button
+                onClick={() => setMenu(false)}
+                className="grid size-10 place-items-center rounded-full hover:bg-[#edf2f7]"
+                aria-label="Close"
+              >
+                <X />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 border-b p-2">
+              {(
+                [
+                  ["wallet", Wallet, "Wallet"],
+                  ["history", History, "History"],
+                  ["ledger", Search, "Ledger"],
+                ] as const
+              ).map(([k, I, l]) => (
+                <button
+                  key={k}
+                  onClick={() => setTab(k)}
+                  className={`flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold ${tab === k ? "bg-[#dceaf6] text-[#174d7e]" : "text-[#607386]"}`}
+                >
+                  <I size={17} />
+                  {l}
+                </button>
+              ))}
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              {tab === "wallet" && (
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-wider text-[#607386]">
+                    Unified wallet
+                  </p>
+                  <button
+                    onClick={install}
+                    disabled={!installPrompt}
+                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#123f66] px-4 py-3 font-bold text-white disabled:bg-[#e8eef3] disabled:text-[#607386]"
+                  >
+                    <Download size={17} />
+                    {installPrompt
+                      ? "Install Infinity app"
+                      : "Install from your browser menu"}
+                  </button>
+                  {wallet ? (
+                    <div className="mt-4 rounded-2xl bg-[#172f49] p-5 text-white">
+                      <b>{wallet.displayName}</b>
+                      <p className="mt-2 break-all font-mono text-xs text-[#b7c8d8]">
+                        {wallet.walletId}
+                      </p>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        openWallet();
+                        community("[data-connect]");
+                      }}
+                      className="mt-4 w-full rounded-xl bg-[#215f99] px-4 py-3 font-bold text-white"
+                    >
+                      Connect unified wallet
+                    </button>
+                  )}
+                  <div className="mt-5 grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => community("[data-share]")}
+                      className="flex items-center justify-center gap-2 rounded-xl border px-3 py-3 font-bold"
+                    >
+                      <Share2 size={17} />
+                      Share
+                    </button>
+                    <button
+                      onClick={() => community("[data-x]")}
+                      className="rounded-xl border px-3 py-3 font-bold"
+                    >
+                      Post to X ↗
+                    </button>
+                  </div>
+                  <div className="mt-6 grid grid-cols-2 gap-3">
+                    <Stat label="Tokens" value={String(ledger.length)} />
+                    <Stat
+                      label="Infinity units"
+                      value={String(ledger.reduce((n, t) => n + t.units, 0))}
+                    />
+                  </div>
+                  <p className="mt-5 text-sm leading-6 text-[#607386]">
+                    Every stored action remains one transferable Infinity unit.
+                    Project estimates describe attached work; they are not
+                    guaranteed sale prices.
+                  </p>
+                  <button
+                    onClick={backup}
+                    className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 font-bold"
+                  >
+                    <Download size={18} />
+                    Export wallet backup
+                  </button>
+                  <p className="mt-3 text-xs leading-5 text-[#77899a]">
+                    Google Drive synchronization requires secure sign-in and
+                    server authorization. The export keeps recovery possible
+                    until that connection is added.
+                  </p>
+                </div>
+              )}
+              {tab === "history" && (
+                <div>
+                  <p className="mb-4 text-sm leading-6 text-[#607386]">
+                    Tap any saved item to reopen its query and research.
+                  </p>
+                  <TokenList
+                    records={ledger}
+                    empty="Your searches and builds will appear here."
+                    open={restore}
+                  />
+                </div>
+              )}
+              {tab === "ledger" && (
+                <div>
+                  <label className="flex items-center gap-2 rounded-xl border px-3">
+                    <Search size={17} />
+                    <input
+                      value={filter}
+                      onChange={(e) => setFilter(e.target.value)}
+                      className="min-w-0 flex-1 py-3 outline-none"
+                      placeholder="Search tokens and websites"
+                    />
+                  </label>
+                  <div className="mt-4">
+                    <TokenList
+                      records={visible}
+                      empty="No matching tokens."
+                      open={setSelected}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            {selected && (
+              <div className="border-t bg-[#f4f7fa] p-5">
+                <div className="flex justify-between gap-4">
+                  <div>
+                    <small className="font-bold uppercase text-[#9a6317]">
+                      {selected.stage}
+                    </small>
+                    <b className="block">{selected.title}</b>
+                    <p className="mt-1 font-mono text-xs text-[#607386]">
+                      {selected.id}
+                    </p>
+                    <p className="mt-2 text-xs text-[#607386]">
+                      1 Infinity unit · project work reference $
+                      {selected.estimate.toLocaleString()}
+                    </p>
+                  </div>
+                  <Check className="text-[#23855b]" />
+                </div>
+              </div>
+            )}
+          </aside>
+        </div>
+      )}
+    </main>
+  );
 }
-function Section({title,children}:{title:string;children:React.ReactNode}){return <section className="mt-10 border-t pt-8"><h3 className="font-serif text-2xl font-black">{title}</h3><div className="mt-4 text-[1.05rem] leading-8 text-[#33495d]">{children}</div></section>}
-function Bullets({items}:{items:string[]}){return <ul className="space-y-3">{items.map((x,i)=><li key={i} className="grid grid-cols-[18px_1fr] gap-3"><span className="mt-3 size-1.5 rounded-full bg-[#d29a2e]"/>{x}</li>)}</ul>}
-function Numbered({items}:{items:string[]}){return <ol className="space-y-4">{items.map((x,i)=><li key={i} className="grid grid-cols-[34px_1fr] gap-3"><b className="font-mono text-[#9a6317]">{String(i+1).padStart(2,"0")}</b><span>{x}</span></li>)}</ol>}
-function Stat({label,value}:{label:string;value:string}){return <div className="rounded-xl border bg-[#f7f9fb] p-4"><small className="text-[#607386]">{label}</small><b className="mt-1 block text-2xl">{value}</b></div>}
-function TokenList({records,empty,open}:{records:Token[];empty:string;open:(x:Token)=>void}){return records.length?<div className="space-y-2">{records.map(t=><button key={t.id} onClick={()=>open(t)} className="w-full rounded-xl border p-4 text-left hover:border-[#215f99]"><div className="flex justify-between gap-3"><span><small className="font-bold uppercase text-[#9a6317]">{t.stage}</small><b className="block">{t.title}</b><small className="text-[#77899a]">{new Date(t.createdAt).toLocaleString()}</small></span><span className="rounded-full bg-[#e4edf5] px-2 py-1 text-xs font-bold">1</span></div></button>)}</div>:<p className="py-10 text-center text-[#77899a]">{empty}</p>}
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mt-10 border-t pt-8">
+      <h3 className="font-serif text-2xl font-black">{title}</h3>
+      <div className="mt-4 text-[1.05rem] leading-8 text-[#33495d]">
+        {children}
+      </div>
+    </section>
+  );
+}
+function Bullets({ items }: { items: string[] }) {
+  return (
+    <ul className="space-y-3">
+      {items.map((x, i) => (
+        <li key={i} className="grid grid-cols-[18px_1fr] gap-3">
+          <span className="mt-3 size-1.5 rounded-full bg-[#d29a2e]" />
+          {x}
+        </li>
+      ))}
+    </ul>
+  );
+}
+function Numbered({ items }: { items: string[] }) {
+  return (
+    <ol className="space-y-4">
+      {items.map((x, i) => (
+        <li key={i} className="grid grid-cols-[34px_1fr] gap-3">
+          <b className="font-mono text-[#9a6317]">
+            {String(i + 1).padStart(2, "0")}
+          </b>
+          <span>{x}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border bg-[#f7f9fb] p-4">
+      <small className="text-[#607386]">{label}</small>
+      <b className="mt-1 block text-2xl">{value}</b>
+    </div>
+  );
+}
+function TokenList({
+  records,
+  empty,
+  open,
+}: {
+  records: Token[];
+  empty: string;
+  open: (x: Token) => void;
+}) {
+  return records.length ? (
+    <div className="space-y-2">
+      {records.map((t) => (
+        <button
+          key={t.id}
+          onClick={() => open(t)}
+          className="w-full rounded-xl border p-4 text-left hover:border-[#215f99]"
+        >
+          <div className="flex justify-between gap-3">
+            <span>
+              <small className="font-bold uppercase text-[#9a6317]">
+                {t.stage}
+              </small>
+              <b className="block">{t.title}</b>
+              <small className="text-[#77899a]">
+                {new Date(t.createdAt).toLocaleString()}
+              </small>
+            </span>
+            <span className="rounded-full bg-[#e4edf5] px-2 py-1 text-xs font-bold">
+              1
+            </span>
+          </div>
+        </button>
+      ))}
+    </div>
+  ) : (
+    <p className="py-10 text-center text-[#77899a]">{empty}</p>
+  );
+}
