@@ -12,7 +12,7 @@ type InstallPrompt=Event&{prompt:()=>Promise<void>;userChoice:Promise<{outcome:"
 declare global{interface Window{__infinitySparkHandoff?:string;InfinityUnifiedWallet?:{UnifiedInfinityWallet:new()=>WalletApi}}}
 
 const KEY="c13b0_infinity_token_ledger_v3",HANDOFF="c13b0_infinity_spark_handoff_v3",ARTICLE="c13b0_infinity_spark_article_v1";
-const APP_BASE=process.env.NEXT_PUBLIC_APP_BASE||"";
+const APP_BASE=(process.env.NEXT_PUBLIC_APP_BASE||"").replace(/\/+$/,"");
 const stages:{key:Stage;label:string;note:string;estimate:number;icon:typeof Search}[]=[
  {key:"query",label:"Search",note:"Original question",estimate:1,icon:Search},
  {key:"research",label:"Response",note:"Evidence-built paper",estimate:180,icon:BookOpen},

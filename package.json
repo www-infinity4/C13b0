@@ -12,7 +12,7 @@
     "generate": "ts-node -P tsconfig.engine.json cartoon-engine/cli.ts",
     "generate:gadget": "ts-node -P tsconfig.engine.json cartoon-engine/cli.ts --character investor_gadget",
     "build:web": "GITHUB_PAGES=1 NEXT_PUBLIC_APP_BASE=/C13b0 next build",
-    "build:mobile": "CAPACITOR_BUILD=1 next build && cap sync android",
+    "build:mobile": "next build && cap sync android",
     "android": "npm run build:mobile && cap open android",
     "android:apk": "npm run build:mobile && cd android && ./gradlew assembleDebug",
     "android:bundle": "npm run build:mobile && cd android && ./gradlew bundleRelease"

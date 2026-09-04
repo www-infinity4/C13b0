@@ -7,7 +7,7 @@ import AppRuntime from "@/components/AppRuntime";
 export const metadata: Metadata = {
   metadataBase: new URL("https://www-infinity4.github.io/C13b0/"),
   title: "C13b0 — Infinity Site Builder & Crown Index",
-  manifest: "/C13b0/manifest.webmanifest",
+  manifest: "manifest.webmanifest",
   applicationName: "Infinity",
   appleWebApp: { capable: true, title: "Infinity", statusBarStyle: "black-translucent" },
   description:
