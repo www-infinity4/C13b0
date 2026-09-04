@@ -19,7 +19,7 @@ export default function Navigation() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  if (pathname.replace(/\/+$/, "") === "/spark") return null;
+  if (["/spark", "/studio"].includes(pathname.replace(/\/+$/, ""))) return null;
 
   return (
     <nav
