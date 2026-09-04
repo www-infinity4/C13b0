@@ -19,7 +19,7 @@ export default function Navigation() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  if (pathname === "/spark" || pathname.endsWith("/spark")) return null;
+  if (pathname.replace(/\/+$/, "") === "/spark") return null;
 
   return (
     <nav
