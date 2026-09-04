@@ -101,7 +101,7 @@ export default function SparkArticle() {
               {new Date(paper.generatedAt).toLocaleString()}
             </span>
             <span className="text-[#718295]">
-              {paper.sources.length.toLocaleString()} sources cited
+              {paper.sources.filter(source=>source.excerpt.trim().length>80).length.toLocaleString()} evidence sources cited
             </span>
           </p>
 
