@@ -22,9 +22,14 @@ export default function BuilderPage() {
           <Link href="/" className="text-sm font-bold text-violet-300 hover:text-white">
             ← Infinity OS
           </Link>
-          <Link href="/crown-index" className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/75 hover:bg-white/10">
-            Open Crown Index
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/machine-status" className="rounded-full border border-cyan-400/20 px-4 py-2 text-sm text-cyan-200 hover:bg-cyan-400/10">
+              Machine status
+            </Link>
+            <Link href="/crown-index" className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/75 hover:bg-white/10">
+              Open Crown Index
+            </Link>
+          </div>
         </nav>
 
         <section className="relative overflow-hidden rounded-[2rem] border border-violet-400/20 bg-gradient-to-br from-violet-950 via-[#0b1228] to-amber-950/60 p-6 shadow-2xl sm:p-10">
