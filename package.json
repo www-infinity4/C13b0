@@ -10,7 +10,12 @@
     "test": "jest",
     "test:coverage": "jest --coverage",
     "generate": "ts-node -P tsconfig.engine.json cartoon-engine/cli.ts",
-    "generate:gadget": "ts-node -P tsconfig.engine.json cartoon-engine/cli.ts --character investor_gadget"
+    "generate:gadget": "ts-node -P tsconfig.engine.json cartoon-engine/cli.ts --character investor_gadget",
+    "build:web": "GITHUB_PAGES=1 NEXT_PUBLIC_APP_BASE=/C13b0 next build",
+    "build:mobile": "next build && cap sync android",
+    "android": "npm run build:mobile && cap open android",
+    "android:apk": "npm run build:mobile && cd android && ./gradlew assembleDebug",
+    "android:bundle": "npm run build:mobile && cd android && ./gradlew bundleRelease"
   },
   "dependencies": {
     "@puckeditor/core": "^0.23.0",
@@ -20,6 +25,9 @@
     "react-dom": "19.2.3"
   },
   "devDependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
+    "@capacitor/core": "^7.4.3",
     "@tailwindcss/postcss": "^4",
     "@types/jest": "^30.0.0",
     "@types/js-yaml": "^4.0.9",

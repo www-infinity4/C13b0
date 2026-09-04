@@ -2,13 +2,22 @@
   "name": "Infinity",
   "short_name": "Infinity",
   "description": "Search, research, model, and build from one query.",
-  "start_url": "/C13b0/spark/",
-  "scope": "/C13b0/",
+  "start_url": "./spark/",
+  "scope": "./",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "id": "./spark/",
   "background_color": "#061d35",
   "theme_color": "#071f38",
   "icons": [
-    {"src": "/C13b0/infinity-icon-192.png", "sizes": "192x192", "type": "image/png"},
-    {"src": "/C13b0/infinity-icon-512.png", "sizes": "512x512", "type": "image/png"}
+    {"src": "./infinity-icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "./infinity-icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "./infinity-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ],
+  "categories": ["productivity", "utilities"],
+  "shortcuts": [
+    {"name": "Search with Spark", "short_name": "Search", "url": "./spark/", "icons": [{"src": "./infinity-icon-192.png", "sizes": "192x192"}]},
+    {"name": "Infinity Studio", "short_name": "Studio", "url": "./studio/", "icons": [{"src": "./infinity-icon-192.png", "sizes": "192x192"}]}
   ]
 }

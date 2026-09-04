@@ -2,11 +2,12 @@ import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import "./globals.css";
 import SiteChrome from "@/components/SiteChrome";
+import AppRuntime from "@/components/AppRuntime";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www-infinity4.github.io/C13b0/"),
   title: "C13b0 — Infinity Site Builder & Crown Index",
-  manifest: "/C13b0/manifest.webmanifest",
+  manifest: "manifest.webmanifest",
   applicationName: "Infinity",
   appleWebApp: { capable: true, title: "Infinity", statusBarStyle: "black-translucent" },
   description:
@@ -53,6 +54,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="scroll-smooth">
       <body className="min-h-screen antialiased" style={{ background: "var(--background)" }}>
+        <AppRuntime />
         <SiteChrome>{children}</SiteChrome>
         <Script src="https://www-infinity4.github.io/Mint-For-Infinity/unified-wallet.js?v=20260831-game-rewards1" strategy="afterInteractive" />
         <Script src="https://www-infinity4.github.io/Mint-For-Infinity/infinity-wallet-menu.js?v=20260814-menu2" strategy="afterInteractive" />
