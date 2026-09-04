@@ -5,7 +5,7 @@ import Navigation from "@/components/Navigation";
 
 export default function SiteChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname().replace(/\/+$/, "") || "/";
-  const focusedApp = pathname === "/spark" || pathname === "/studio";
+  const focusedApp = pathname === "/" || pathname === "/spark" || pathname === "/studio";
 
   return (
     <>
