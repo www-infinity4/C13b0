@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import "./globals.css";
 import SiteChrome from "@/components/SiteChrome";
@@ -38,6 +38,11 @@ export const metadata: Metadata = {
     "decentralized network",
     "infinity OS",
   ],
+};
+
+export const viewport: Viewport = {
+  themeColor: "#071f38",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
