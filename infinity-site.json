@@ -5,7 +5,7 @@
   "purpose": "Bootstrap and build Infinity applications with deterministic media, site infrastructure, and framework-aware adapters.",
   "framework": "next-app",
   "canonicalUrl": "https://www-infinity4.github.io/C13b0/",
-  "preview": "public/c13b0-preview.jpg",
+  "preview": "public/infinity-preview-v2.jpg",
   "wallet": { "required": true, "centralized": true },
   "share": { "required": true },
   "readme": { "required": true },

@@ -1,0 +1,14 @@
+{
+  "name": "Infinity",
+  "short_name": "Infinity",
+  "description": "Search, research, model, and build from one query.",
+  "start_url": "/C13b0/spark/",
+  "scope": "/C13b0/",
+  "display": "standalone",
+  "background_color": "#061d35",
+  "theme_color": "#071f38",
+  "icons": [
+    {"src": "/C13b0/infinity-icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/C13b0/infinity-icon-512.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}
