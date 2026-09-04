@@ -10,7 +10,7 @@ export type InfinityPuckProps = {
   Hero: { eyebrow: string; title: string; subtitle: string };
   Heading: { text: string; level: "h2" | "h3" };
   Text: { text: string };
-  Image: { url: string; alt: string; caption: string };
+  Image: { url: string; alt: string; caption: string; sourceUrl: string };
   CardGrid: { cards: { title: string; body: string }[] };
   CTAButton: { label: string; href: string };
   Divider: Record<string, never>;
@@ -85,9 +85,10 @@ export const puckConfig: Config<InfinityPuckProps> = {
         url: { type: "text", label: "Image URL" },
         alt: { type: "text", label: "Alt text" },
         caption: { type: "text", label: "Caption" },
+        sourceUrl: { type: "text", label: "Credit link" },
       },
-      defaultProps: { url: "", alt: "", caption: "" },
-      render: ({ url, alt, caption }) => (
+      defaultProps: { url: "", alt: "", caption: "", sourceUrl: "" },
+      render: ({ url, alt, caption, sourceUrl }) => (
         <figure className="group relative overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-100 shadow-sm">
           <span className="absolute right-3 top-3 z-10"><EditMark label="Edit image" /></span>
           {url ? (
@@ -98,9 +99,7 @@ export const puckConfig: Config<InfinityPuckProps> = {
               Add an image URL
             </div>
           )}
-          {caption && (
-            <figcaption className="bg-white px-5 py-3 text-sm text-slate-500">{caption}</figcaption>
-          )}
+          {caption && <figcaption className="bg-white px-5 py-3 text-sm text-slate-500">{sourceUrl?<a href={sourceUrl} target="_blank" rel="noreferrer" className="underline decoration-slate-300 underline-offset-4">{caption}</a>:caption}</figcaption>}
         </figure>
       ),
     },
