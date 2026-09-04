@@ -13,6 +13,14 @@ const PAGES = "c13b0_infinity_puck_pages_v1";
 type StudioDraft = { id?: string; title?: string; summary?: string; research?: { engineering?: string[]; opportunities?: string[] } };
 type PuckData = Data<InfinityPuckProps>;
 type PuckPageRecord = { id: string; title: string; data: PuckData; updatedAt: string };
+type Pattern = "magazine" | "product" | "dashboard" | "field-guide" | "research";
+const patterns:{id:Pattern;label:string;note:string}[]=[
+  {id:"magazine",label:"Magazine article",note:"Headline, standfirst, evidence, related stories"},
+  {id:"product",label:"Product launch",note:"Promise, benefits, proof, action"},
+  {id:"dashboard",label:"Technical dashboard",note:"Status, metrics, decisions, next action"},
+  {id:"field-guide",label:"Visual field guide",note:"Introduction, specimens, notes, references"},
+  {id:"research",label:"Research brief",note:"Question, findings, cautions, sources"},
+];
 
 function readDrafts(): StudioDraft[] {
   try {
@@ -77,6 +85,13 @@ function starterData(title: string, summary: string, ideas: string[]): PuckData 
     zones: {},
   };
 }
+function patternData(pattern:Pattern,title:string,summary:string,ideas:string[]):PuckData{
+  const source=starterData(title,summary,ideas),cards=(ideas.length?ideas:["Define the goal.","Choose the format.","Publish a first version."]).slice(0,4).map((idea,i)=>({title:`${pattern==="magazine"?"Story":"Direction"} ${i+1}`,body:cleanText(idea,true)}));
+  const labels={magazine:["The feature","Read the full story"],product:["Why it matters","Start here"],dashboard:["Current signals","Open the workspace"],"field-guide":["Field notes","Explore the guide"],research:["Evidence summary","Review the sources"]} as const;
+  const [heading,cta]=labels[pattern];
+  source.content=[source.content[0],{type:"Heading",props:{id:`${pattern}-heading`,text:heading,level:"h2"}},{type:"Text",props:{id:`${pattern}-intro`,text:cleanText(summary||"A focused, evidence-led introduction to the subject.",true)}},{type:"CardGrid",props:{id:`${pattern}-cards`,cards}},{type:"CTAButton",props:{id:`${pattern}-cta`,label:cta,href:"#"}}];
+  return source;
+}
 
 export default function PuckBuilder() {
   const [ready, setReady] = useState(false);
@@ -85,6 +100,7 @@ export default function PuckBuilder() {
   const [data, setData] = useState<PuckData | null>(null);
   const [mode, setMode] = useState<"edit" | "preview">("edit");
   const [saved, setSaved] = useState(false);
+  const [pattern,setPattern]=useState<Pattern>("magazine");
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -98,8 +114,9 @@ export default function PuckBuilder() {
     setTitle(initialTitle);
     setData(
       existing?.data ||
-        starterData(initialTitle, draft?.summary || "", draft?.research?.engineering || draft?.research?.opportunities || [])
+        patternData("magazine",initialTitle, draft?.summary || "", draft?.research?.engineering || draft?.research?.opportunities || [])
     );
+    if(params.get("mode")==="preview")setMode("preview");
     setReady(true);
   }, []);
 
@@ -144,9 +161,9 @@ export default function PuckBuilder() {
         </div>
       </header>
       {mode === "edit" ? (
-        <div className="puck-shell [&_.PuckCanvas-root]:bg-[#f7f8fa]">
+        <div><section className="border-b border-slate-200 bg-white px-4 py-4 sm:px-7"><p className="text-xs font-bold uppercase tracking-[.18em] text-slate-500">Page patterns</p><div className="mt-3 flex gap-2 overflow-x-auto pb-1">{patterns.map(item=><button key={item.id} onClick={()=>{setPattern(item.id);const draft=readDrafts().find(d=>d.id===id);setData(patternData(item.id,heading,draft?.summary||"",draft?.research?.engineering||draft?.research?.opportunities||[]))}} className={`min-w-44 rounded-xl border px-4 py-3 text-left ${pattern===item.id?'border-[#145f94] bg-[#eaf4fb]':'border-slate-200'}`}><b className="block">{item.label}</b><small className="mt-1 block text-slate-500">{item.note}</small></button>)}</div></section><div className="puck-shell [&_.PuckCanvas-root]:bg-[#f7f8fa]">
           <Puck config={puckConfig} data={data} onPublish={handlePublish} />
-        </div>
+        </div></div>
       ) : (
         <main className="published-preview mx-auto max-w-6xl px-3 py-6 sm:px-8 sm:py-10 [&_.edit-mark]:hidden">
           <div className="mb-5 flex items-center gap-2 text-sm font-medium text-slate-500"><Sparkles size={16}/>Finished-page preview</div><Render config={puckConfig} data={data} />
