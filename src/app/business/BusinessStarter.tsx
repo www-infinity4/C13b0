@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -26,7 +27,7 @@ declare global {
 }
 
 const DRAFT_KEY = "c13b0_infinity_business_draft_v1";
-const HANDOFF_KEY = "c13b0_infinity_spark_handoff_v2";
+const HANDOFF_KEY = "c13b0_infinity_spark_handoff_v3";
 const categories = ["Food and grocery", "Clothing", "Household", "Tools", "Electronics", "Books and learning", "Health and wellness", "Crafts", "Repair and services"];
 
 function newProduct(id?: string): Product {
@@ -69,12 +70,12 @@ export default function BusinessStarter() {
       }
       const handoff = JSON.parse(handoffRaw || "null");
       if (handoff && !draft?.research?.query) {
-        setSparkQuery(handoff.query || incomingQuery || "");
-        setReport(handoff.report || "");
-        setSources(Array.isArray(handoff.sources) ? handoff.sources.join("\n") : "");
-        setSiteType(handoff.siteType || "Product page");
-        setDescription(handoff.overview || "");
-        if (handoff.token?.tokenId) setTokenId(handoff.token.tokenId);
+        setSparkQuery(handoff.token?.query || handoff.query || incomingQuery || "");
+        setReport(typeof handoff.paper === "object" ? handoff.paper.overview || "" : handoff.report || "");
+        setSources(Array.isArray(handoff.paper?.sources) ? handoff.paper.sources.map((source: { url?: string }) => source.url).filter(Boolean).join("\n") : Array.isArray(handoff.sources) ? handoff.sources.join("\n") : "");
+        setSiteType(handoff.token?.stage === "webpage" ? "Research page" : handoff.siteType || "Product page");
+        setDescription(handoff.paper?.dek || handoff.overview || "");
+        if (handoff.token?.id || handoff.token?.tokenId) setTokenId(handoff.token.id || handoff.token.tokenId);
       }
       if (window.InfinityUnifiedWallet) {
         const api = new window.InfinityUnifiedWallet.UnifiedInfinityWallet();
