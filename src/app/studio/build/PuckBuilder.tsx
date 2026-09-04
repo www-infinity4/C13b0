@@ -9,6 +9,7 @@ import { puckConfig, type InfinityPuckProps } from "./puck-config";
 
 const DRAFTS = "c13b0_infinity_studio_drafts_v1";
 const PAGES = "c13b0_infinity_puck_pages_v1";
+const APP_BASE=(process.env.NEXT_PUBLIC_APP_BASE||"").replace(/\/+$/,'');
 
 type StudioDraft = { id?: string; title?: string; summary?: string; research?: { engineering?: string[]; opportunities?: string[] } };
 type PuckData = Data<InfinityPuckProps>;
@@ -102,6 +103,8 @@ export default function PuckBuilder() {
   const [saved, setSaved] = useState(false);
   const [pattern,setPattern]=useState<Pattern>("magazine");
 
+  useEffect(()=>{const hide=()=>{const bar=document.getElementById("infinity-community");if(bar)bar.hidden=true},observer=new MutationObserver(hide);hide();observer.observe(document.body,{childList:true,subtree:true});return()=>observer.disconnect()},[]);
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const draftId = params.get("id") || crypto.randomUUID();
@@ -141,7 +144,7 @@ export default function PuckBuilder() {
   return (
     <div className="min-h-screen bg-[#eef2f6] text-slate-950">
       <header className="sticky top-0 z-40 flex min-h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-2 backdrop-blur-xl sm:px-7">
-        <Link href="../../spark/" className="flex items-center gap-2 text-slate-600 hover:text-slate-950">
+        <Link href={`${APP_BASE}/spark/`} className="flex items-center gap-2 text-slate-600 hover:text-slate-950">
           <ChevronLeft />
           Infinity
         </Link>
