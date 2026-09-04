@@ -29,8 +29,18 @@ function words(x:string){return new Set(x.toLowerCase().match(/[a-z0-9]{3,}/g)||
 function sentences(x:string){return plain(x).split(/(?<=[.!?])\s+/).filter(s=>s.length>42&&s.length<440)}
 function unique(x:string[]){return x.filter((v,i,a)=>a.findIndex(y=>y.slice(0,90).toLowerCase()===v.slice(0,90).toLowerCase())===i)}
 function normalizeTopic(text:string){
- const corrections:[RegExp,string][]=[[/\bhydrigen\b/gi,"Hydrogen"],[/\bhydogen\b/gi,"Hydrogen"],[/\bhydorgen\b/gi,"Hydrogen"],[/\bdevelopement\b/gi,"development"],[/\bclould\b/gi,"cloud"],[/\bteh\b/gi,"the"]];
+ const corrections:[RegExp,string][]=[[/\bhydrigen\b/gi,"Hydrogen"],[/\bhydogen\b/gi,"Hydrogen"],[/\bhydorgen\b/gi,"Hydrogen"],[/\bdevelopement\b/gi,"development"],[/\bclould\b/gi,"cloud"],[/\bteh\b/gi,"the"],[/\brecieve\b/gi,"receive"],[/\bseperate\b/gi,"separate"],[/\bdefinately\b/gi,"definitely"],[/\boccured\b/gi,"occurred"],[/\bwich\b/gi,"which"]];
  return corrections.reduce((value,[pattern,replacement])=>value.replace(pattern,replacement),text).replace(/\s+/g," ").trim();
+}
+async function resolveTopic(text:string){
+ const normalized=normalizeTopic(text);
+ try{
+  const response=await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(normalized)}&srinfo=suggestion&format=json&origin=*`,{signal:AbortSignal.timeout(2500)});
+  if(!response.ok)return normalized;
+  const data=await response.json() as {query?:{searchinfo?:{suggestion?:string}}};
+  const suggestion=plain(data.query?.searchinfo?.suggestion);
+  return suggestion&&suggestion.split(/\s+/).length>=Math.max(1,normalized.split(/\s+/).length-2)?suggestion:normalized;
+ }catch{return normalized}
 }
 function usableEvidence(source:Source){const excerpt=plain(source.excerpt);return excerpt.length>80&&!/^(relevant )?publication record located/i.test(excerpt)&&!/open it to (evaluate|read)/i.test(excerpt)}
 function researchLookup(text:string){
@@ -80,13 +90,14 @@ function makePaper(topic:string,sources:Source[]):Paper{
 
 export default function SparkSearch(){
  const[query,setQuery]=useState(""),[loading,setLoading]=useState(false),[error,setError]=useState(""),[paper,setPaper]=useState<Paper|null>(null);
+ const[correction,setCorrection]=useState("");
  const[wallet,setWallet]=useState<WalletRecord|null>(null),[ledger,setLedger]=useState<Token[]>([]),[menu,setMenu]=useState(false),[tab,setTab]=useState<"wallet"|"history"|"ledger">("wallet"),[filter,setFilter]=useState(""),[selected,setSelected]=useState<Token|null>(null),[expanded,setExpanded]=useState(false),[installPrompt,setInstallPrompt]=useState<InstallPrompt|null>(null);
  useEffect(()=>{setLedger(read());try{if(window.InfinityUnifiedWallet){const api=new window.InfinityUnifiedWallet.UnifiedInfinityWallet(),s=api.snapshot();if(s.currentWalletId)setWallet(s.wallets[s.currentWalletId]||null)}}catch{}const install=(event:Event)=>{event.preventDefault();setInstallPrompt(event as InstallPrompt)},hideCommunity=()=>{const bar=document.getElementById("infinity-community");if(bar)bar.hidden=true};window.addEventListener("beforeinstallprompt",install);hideCommunity();const observer=new MutationObserver(hideCommunity);observer.observe(document.body,{childList:true});return()=>{observer.disconnect();window.removeEventListener("beforeinstallprompt",install)}},[]);
  const visible=useMemo(()=>ledger.filter(x=>`${x.query} ${x.title} ${x.stage}`.toLowerCase().includes(filter.toLowerCase())),[ledger,filter]);
  function openWallet(){try{if(!window.InfinityUnifiedWallet)return;const api=new window.InfinityUnifiedWallet.UnifiedInfinityWallet(),s=api.snapshot(),w=s.currentWalletId?s.wallets[s.currentWalletId]:null;setWallet(w||api.createWallet({displayName:"Infinity Wallet"}))}catch{}}
- function add(stage:Stage,title:string,p:Paper|null=paper){const info=stages.find(x=>x.key===stage)!;const token:Token={id:crypto.randomUUID(),query:normalizeTopic(query),title,stage,createdAt:new Date().toISOString(),units:1,estimate:info.estimate,...(p?{paper:p}:{})};setLedger(current=>{const next=[token,...current.filter(x=>x.id!==token.id)];save(next);return next});setSelected(token);return token}
+ function add(stage:Stage,title:string,p:Paper|null=paper,queryOverride=query){const info=stages.find(x=>x.key===stage)!;const token:Token={id:crypto.randomUUID(),query:normalizeTopic(queryOverride),title,stage,createdAt:new Date().toISOString(),units:1,estimate:info.estimate,...(p?{paper:p}:{})};setLedger(current=>{const next=[token,...current.filter(x=>x.id!==token.id)];save(next);return next});setSelected(token);return token}
  function restore(token:Token){setSelected(token);setQuery(token.query);setError("");setExpanded(false);if(token.paper){setPaper(token.paper);try{localStorage.setItem(ARTICLE,JSON.stringify(token.paper))}catch{}}else setPaper(null);setMenu(false);requestAnimationFrame(()=>scrollTo({top:0,behavior:"smooth"}))}
- async function research(e:FormEvent){e.preventDefault();const topic=normalizeTopic(query);if(!topic||loading)return;setQuery(topic);const lookupTopic=researchLookup(topic);setLoading(true);setError("");setPaper(null);setExpanded(false);add("query",topic,null);try{
+ async function research(e:FormEvent){e.preventDefault();const original=normalizeTopic(query);if(!original||loading)return;setLoading(true);setError("");setPaper(null);setExpanded(false);const topic=await resolveTopic(original);setCorrection(topic.toLowerCase()===original.toLowerCase()?"":original);setQuery(topic);const lookupTopic=researchLookup(topic);add("query",topic,null,topic);try{
   const r=await Promise.allSettled([
    fetch(`https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(lookupTopic)}&gsrlimit=10&prop=extracts%7Cinfo&explaintext=1&exsentences=10&inprop=url&format=json&origin=*`).then(x=>x.json()),
    fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(lookupTopic)}&format=json&no_html=1&skip_disambig=1`).then(x=>x.json()),
@@ -96,7 +107,7 @@ export default function SparkSearch(){
   const sources:Source[]=pages.filter(p=>p.extract&&p.fullurl).map(p=>({title:plain(p.title),url:String(p.fullurl),excerpt:plain(p.extract),kind:"Reference"}));
   if(plain(duck?.AbstractText)&&duck?.AbstractURL)sources.unshift({title:plain(duck.Heading)||topic,url:String(duck.AbstractURL),excerpt:plain(duck.AbstractText),kind:"Indexed overview"});
   for(const p of(cross?.message?.items||[])as {title?:string[];abstract?:string;URL?:string}[])if(p.title?.[0]&&p.URL)sources.push({title:plain(p.title[0]),url:String(p.URL),excerpt:plain(p.abstract),kind:p.abstract?"Publication":"Publication record"});
-  if(!sources.length)throw new Error("No usable public sources came back. Try a more specific wording.");const next=makePaper(topic,sources);setPaper(next);add("research",`${topic.slice(0,120)} — overview`,next);try{localStorage.setItem(ARTICLE,JSON.stringify(next))}catch{}
+  if(!sources.length)throw new Error("No usable public sources came back. Try a more specific wording.");const next=makePaper(topic,sources);setPaper(next);add("research",`${topic.slice(0,120)} — overview`,next,topic);try{localStorage.setItem(ARTICLE,JSON.stringify(next))}catch{}
  }catch(c){setError(c instanceof Error?c.message:"The research could not be completed.")}finally{setLoading(false)}}
  function advance(stage:Stage){if(!paper)return;const normalizedQuery=normalizeTopic(query);const token=add(stage,`${paper.title} — ${stages.find(x=>x.key===stage)?.label}`,paper);const data=JSON.stringify({schema:"infinity/project-token/v3",walletId:wallet?.walletId||null,token,paper,chain:ledger.filter(x=>x.query===normalizedQuery)});try{localStorage.setItem(HANDOFF,data)}catch{}window.__infinitySparkHandoff=data;location.href=`../studio/?stage=${stage}&query=${encodeURIComponent(normalizedQuery)}`}
  async function share(){try{if(navigator.share)await navigator.share({title:paper?.title||"Infinity",text:paper?.dek||"Build from a question with Infinity.",url:location.href});else await navigator.clipboard.writeText(location.href)}catch{}}
