@@ -9,6 +9,7 @@ import {
 } from "react";
 import { secureLoad, secureSave } from "@/lib/secure-storage";
 import { appPath } from "@/lib/base-path";
+import { searchImages, type SearchImage, gradeLabel } from "@/lib/image-search";
 import {
   BookOpen,
   Check,
@@ -397,7 +398,10 @@ export default function SparkSearch() {
     [filter, setFilter] = useState(""),
     [selected, setSelected] = useState<Token | null>(null),
     [expanded, setExpanded] = useState(false),
-    [installPrompt, setInstallPrompt] = useState<InstallPrompt | null>(null);
+    [installPrompt, setInstallPrompt] = useState<InstallPrompt | null>(null),
+    [images, setImages] = useState<SearchImage[]>([]),
+    [imagesOpen, setImagesOpen] = useState(false),
+    [imageLoading, setImageLoading] = useState(false);
   const ledgerRef = useRef<Token[]>([]);
   useEffect(() => {
     const stored = read();
@@ -568,6 +572,10 @@ export default function SparkSearch() {
       setPaper(next);
       add("research", `${topic.slice(0, 120)} — overview`, next, topic);
       secureSave(ARTICLE, next);
+      setImageLoading(true);
+      searchImages(topic)
+        .then(setImages)
+        .finally(() => setImageLoading(false));
     } catch (c) {
       setError(
         c instanceof Error ? c.message : "The research could not be completed.",
@@ -834,6 +842,77 @@ export default function SparkSearch() {
                   <span className="rounded-lg bg-white/5 px-2 py-2">Product layout</span>
                   <span className="rounded-lg bg-white/5 px-2 py-2">Token record</span>
                 </div>
+              </section>
+              <section className="mt-10 rounded-[1.6rem] border border-[#e0e8f0] bg-white p-6 text-[#172331] sm:p-8">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[.18em] text-[#9a6317]">
+                      Intelligent image search
+                    </p>
+                    <h3 className="mt-2 font-serif text-2xl font-black">
+                      Illustrations you can actually use
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setImagesOpen((v) => !v)}
+                    className="flex items-center gap-2 rounded-xl border border-[#c7d2dc] px-4 py-2 font-bold hover:bg-[#f7f9fb]"
+                  >
+                    {imageLoading ? (
+                      <LoaderCircle className="animate-spin" size={17} />
+                    ) : imagesOpen ? (
+                      <X size={17} />
+                    ) : (
+                      <Search size={17} />
+                    )}
+                    {imagesOpen
+                      ? "Close images"
+                      : imageLoading
+                        ? "Finding images…"
+                        : `View ${images.length} reusable images`}
+                  </button>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-[#607386]">
+                  Every result is graded by license safety: A = public domain /
+                  CC0, B = CC BY (attribute), C = CC BY-SA, D/E = check or avoid.
+                </p>
+                {imagesOpen && (
+                  <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {images.length === 0 && !imageLoading && (
+                      <p className="col-span-full text-center text-[#607386]">
+                        No clearly reusable images matched this query.
+                      </p>
+                    )}
+                    {images.map((img) => (
+                      <a
+                        key={img.url}
+                        href={img.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group overflow-hidden rounded-2xl border border-[#e0e8f0] bg-[#f7f9fb]"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={img.thumbUrl}
+                          alt={img.alt}
+                          loading="lazy"
+                          className="h-40 w-full object-cover transition group-hover:scale-105"
+                        />
+                        <div className="p-3">
+                          <p className="truncate text-sm font-semibold text-[#172331]">
+                            {img.alt}
+                          </p>
+                          <p className="mt-1 text-xs text-[#607386]">
+                            {img.creator ? `${img.creator} · ` : ""}
+                            {gradeLabel(img.grade)}
+                          </p>
+                          <p className="mt-1 text-[10px] uppercase tracking-wider text-[#9a6317]">
+                            {img.source}
+                          </p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                )}
               </section>
               <Section title="Refine this search">
                 <form
