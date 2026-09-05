@@ -8,6 +8,7 @@ import { Check, ChevronLeft, Eye, Pencil, Sparkles } from "lucide-react";
 import { puckConfig, type InfinityPuckProps } from "./puck-config";
 import { secureLoad, secureSave } from "@/lib/secure-storage";
 import { appPath } from "@/lib/base-path";
+import { searchImages, type SearchImage, gradeLabel } from "@/lib/image-search";
 
 const DRAFTS = "c13b0_infinity_studio_drafts_v1";
 const PAGES = "c13b0_infinity_puck_pages_v1";
@@ -44,16 +45,14 @@ function cleanText(value: string, sentence = false) {
   const capitalized = text[0].toUpperCase() + text.slice(1);
   return sentence && capitalized.length > 24 && !/[.!?]$/.test(capitalized) ? `${capitalized}.` : capitalized;
 }
-function stripHtml(value:string){return value.replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#039;/g,"'").replace(/\s+/g," ").trim()}
 async function findReusableImages(topic:string):Promise<VisualAsset[]>{
-  try{
-    const endpoint=new URL("https://commons.wikimedia.org/w/api.php");
-    endpoint.search=new URLSearchParams({action:"query",generator:"search",gsrsearch:topic,gsrnamespace:"6",gsrlimit:"8",prop:"imageinfo",iiprop:"url|extmetadata",iiurlwidth:"1600",format:"json",origin:"*"}).toString();
-    const response=await fetch(endpoint,{signal:AbortSignal.timeout(7000)});
-    if(!response.ok)return[];
-    const json=await response.json() as {query?:{pages?:Record<string,{title?:string;imageinfo?:{thumburl?:string;url?:string;descriptionurl?:string;extmetadata?:Record<string,{value?:string}>}[]}>}};
-    return Object.values(json.query?.pages||{}).flatMap(page=>{const info=page.imageinfo?.[0],meta=info?.extmetadata||{},license=stripHtml(meta.LicenseShortName?.value||""),creator=stripHtml(meta.Artist?.value||meta.Credit?.value||"").slice(0,100);if(!info?.url||!/public domain|cc0|cc by/i.test(license))return[];return[{url:info.thumburl||info.url,alt:stripHtml(meta.ObjectName?.value||page.title?.replace(/^File:/,"")||topic),caption:`${creator?`${creator} · `:""}${license} · Wikimedia Commons`,sourceUrl:info.descriptionurl||info.url}]});
-  }catch{return[]}
+  const images=await searchImages(topic);
+  return images.slice(0,8).map(img=>({
+    url:img.url,
+    alt:img.alt,
+    caption:`${img.creator?`${img.creator} · `:""}${gradeLabel(img.grade)}${img.licenseUrl?` · ${img.licenseUrl}`:""}`,
+    sourceUrl:img.sourceUrl,
+  }));
 }
 function polishPage(input: PuckData): PuckData {
   const copy = structuredClone(input);
