@@ -7,6 +7,7 @@ import {
   ExternalLink,
   FileText,
 } from "lucide-react";
+import { secureLoad } from "@/lib/secure-storage";
 
 type Source = { title: string; url: string; excerpt: string; kind: string };
 type Paper = {
@@ -44,11 +45,8 @@ function getServerSnapshot() {
 export default function SparkArticle() {
   const raw = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const paper = useMemo<Paper | null>(() => {
-    try {
-      return raw ? (JSON.parse(raw) as Paper) : null;
-    } catch {
-      return null;
-    }
+    if (raw === null) return null;
+    return secureLoad<Paper | null>(ARTICLE, null);
   }, [raw]);
 
   if (raw === null) {

@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { secureLoad, secureSave } from "@/lib/secure-storage";
 import {
   BookOpen,
   Check,
@@ -139,17 +140,11 @@ const stages: {
   },
 ];
 function read() {
-  try {
-    const value = JSON.parse(localStorage.getItem(KEY) || "[]");
-    return Array.isArray(value) ? (value as Token[]) : [];
-  } catch {
-    return [];
-  }
+  const value = secureLoad<Token[]>(KEY, []);
+  return Array.isArray(value) ? value : [];
 }
 function save(x: Token[]) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(x.slice(0, 100)));
-  } catch {}
+  secureSave(KEY, x.slice(0, 100));
 }
 function plain(x: unknown) {
   return String(x || "")
@@ -494,9 +489,7 @@ export default function SparkSearch() {
     setExpanded(false);
     if (recovered) {
       setPaper(recovered);
-      try {
-        localStorage.setItem(ARTICLE, JSON.stringify(recovered));
-      } catch {}
+      secureSave(ARTICLE, recovered);
     } else setPaper(null);
     setMenu(false);
     requestAnimationFrame(() => scrollTo({ top: 0, behavior: "smooth" }));
@@ -572,9 +565,7 @@ export default function SparkSearch() {
       const next = makePaper(topic, sources);
       setPaper(next);
       add("research", `${topic.slice(0, 120)} — overview`, next, topic);
-      try {
-        localStorage.setItem(ARTICLE, JSON.stringify(next));
-      } catch {}
+      secureSave(ARTICLE, next);
     } catch (c) {
       setError(
         c instanceof Error ? c.message : "The research could not be completed.",
@@ -597,16 +588,15 @@ export default function SparkSearch() {
         (x) => x.id !== token.id && x.query === normalizedQuery,
       ),
     ];
-    const data = JSON.stringify({
+    const handoff = {
       schema: "infinity/project-token/v3",
       walletId: wallet?.walletId || null,
       token,
       paper,
       chain,
-    });
-    try {
-      localStorage.setItem(HANDOFF, data);
-    } catch {}
+    };
+    const data = JSON.stringify(handoff);
+    secureSave(HANDOFF, handoff);
     window.__infinitySparkHandoff = data;
     location.href = `../studio/?stage=${stage}&query=${encodeURIComponent(paper.title)}`;
   }
