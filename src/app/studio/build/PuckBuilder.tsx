@@ -93,16 +93,20 @@ function composedArticle(title:string,summary:string,research:Research|undefined
   const findings=(research?.keyTakeaways?.length?research.keyTakeaways:research?.findings||[]).slice(0,4);
   const context=(research?.engineering?.length?research.engineering:research?.opportunities||[]).slice(0,4);
   const overview=(research?.overview||summary||"A focused, evidence-led introduction to the subject.").split(/\n\n+/).filter(Boolean).slice(0,3);
+  const pullQuote=findings[0]||overview[0]||"";
   const content:PuckData["content"]=[
     {type:"Hero",props:{id:"hero-1",eyebrow:"Research feature",title:cleanText(research?.title||title||"Untitled feature"),subtitle:cleanText(research?.dek||summary||overview[0]||"",true)}},
   ];
   if(assets[0])content.push({type:"Image",props:{id:"lead-image",...assets[0]}});
   content.push({type:"Heading",props:{id:"overview-heading",text:"The essential picture",level:"h2"}});
   for(const [index,text] of overview.entries())content.push({type:"Text",props:{id:`overview-${index}`,text:cleanText(text,true)}});
+  if(pullQuote)content.push({type:"PullQuote",props:{id:"pull-quote-1",quote:cleanText(pullQuote,true),attribution:"Infinity research"}});
   if(findings.length)content.push({type:"Heading",props:{id:"findings-heading",text:"What the evidence shows",level:"h2"}},{type:"CardGrid",props:{id:"findings-grid",cards:findings.map((body,index)=>({title:`Finding ${index+1}`,body:cleanText(body,true)}))}});
-  if(assets[1])content.push({type:"Image",props:{id:"detail-image",...assets[1]}});
+  if(assets.length>1)content.push({type:"ImageGallery",props:{id:"asset-gallery",images:assets.slice(1,4).map((a,i)=>({...a,alt:a.alt||`Asset ${i+1}`}))}});
   if(context.length)content.push({type:"Heading",props:{id:"directions-heading",text:"Where the work can go next",level:"h2"}},{type:"CardGrid",props:{id:"directions-grid",cards:context.map((body,index)=>({title:`Direction ${index+1}`,body:cleanText(body,true)}))}});
   if(research?.cautions?.length)content.push({type:"Heading",props:{id:"limits-heading",text:"Limits and safeguards",level:"h2"}},{type:"Text",props:{id:"limits-text",text:cleanText(research.cautions.slice(0,3).join(" "),true)}});
+  const sources=research?.sources?.slice(0,5).map((s,i)=>(`${i+1}. ${s.title}${s.url?` — ${s.url}`:""}`)).join("\n")||"";
+  if(sources)content.push({type:"Heading",props:{id:"sources-heading",text:"Sources",level:"h2"}},{type:"Text",props:{id:"sources-text",text:sources}});
   content.push({type:"CTAButton",props:{id:"sources-cta",label:research?.sources?.length?`Review ${research.sources.length} sources`:"Review the research",href:appPath("spark/article")}});
   return{root:{props:{}},content,zones:{}};
 }

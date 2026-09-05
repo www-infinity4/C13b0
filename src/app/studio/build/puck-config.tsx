@@ -10,7 +10,9 @@ export type InfinityPuckProps = {
   Hero: { eyebrow: string; title: string; subtitle: string };
   Heading: { text: string; level: "h2" | "h3" };
   Text: { text: string };
+  PullQuote: { quote: string; attribution: string };
   Image: { url: string; alt: string; caption: string; sourceUrl: string };
+  ImageGallery: { images: { url: string; alt: string; caption: string; sourceUrl: string }[] };
   CardGrid: { cards: { title: string; body: string }[] };
   CTAButton: { label: string; href: string };
   Divider: Record<string, never>;
@@ -23,7 +25,7 @@ function EditMark({ label = "Edit" }: { label?: string }) {
 export const puckConfig: Config<InfinityPuckProps> = {
   categories: {
     layout: { title: "Layout", components: ["Hero", "Divider"] },
-    content: { title: "Content", components: ["Heading", "Text", "Image", "CardGrid"] },
+    content: { title: "Content", components: ["Heading", "Text", "PullQuote", "Image", "ImageGallery", "CardGrid"] },
     action: { title: "Action", components: ["CTAButton"] },
   },
   components: {
@@ -79,6 +81,21 @@ export const puckConfig: Config<InfinityPuckProps> = {
       defaultProps: { text: "Write the content for this section." },
       render: ({ text }) => <p className="flex max-w-3xl items-start gap-3 text-[1.05rem] leading-8 text-slate-600"><span>{text}</span><EditMark label="Edit paragraph" /></p>,
     },
+    PullQuote: {
+      label: "Pull quote",
+      fields: {
+        quote: { type: "textarea", label: "Quote" },
+        attribution: { type: "text", label: "Attribution" },
+      },
+      defaultProps: { quote: "The most surprising sentence from the research.", attribution: "Infinity research" },
+      render: ({ quote, attribution }) => (
+        <blockquote className="relative my-2 rounded-[1.4rem] border-l-8 border-[#145f94] bg-[#eaf4fb] px-8 py-8 text-[#102b40]">
+          <span className="absolute right-4 top-4"><EditMark label="Edit pull quote" /></span>
+          <p className="text-xl font-medium leading-8 italic sm:text-2xl sm:leading-9">“{quote}”</p>
+          {attribution && <footer className="mt-4 text-sm font-bold uppercase tracking-wider text-[#145f94]">— {attribution}</footer>}
+        </blockquote>
+      ),
+    },
     Image: {
       label: "Image",
       fields: {
@@ -101,6 +118,39 @@ export const puckConfig: Config<InfinityPuckProps> = {
           )}
           {caption && <figcaption className="bg-white px-5 py-3 text-sm text-slate-500">{sourceUrl?<a href={sourceUrl} target="_blank" rel="noreferrer" className="underline decoration-slate-300 underline-offset-4">{caption}</a>:caption}</figcaption>}
         </figure>
+      ),
+    },
+    ImageGallery: {
+      label: "Image gallery",
+      fields: {
+        images: {
+          type: "array",
+          label: "Images",
+          arrayFields: {
+            url: { type: "text", label: "Image URL" },
+            alt: { type: "text", label: "Alt text" },
+            caption: { type: "text", label: "Caption" },
+            sourceUrl: { type: "text", label: "Credit link" },
+          },
+          defaultItemProps: { url: "", alt: "", caption: "", sourceUrl: "" },
+        },
+      },
+      defaultProps: { images: [] },
+      render: ({ images }) => (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {images.map((img, i) => (
+            <figure key={i} className="overflow-hidden rounded-[1.2rem] border border-slate-200 bg-slate-100 shadow-sm">
+              <span className="absolute right-3 top-3 z-10"><EditMark label={`Edit gallery image ${i + 1}`} /></span>
+              {img.url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={img.url} alt={img.alt} className="h-48 w-full object-cover" />
+              ) : (
+                <div className="flex h-48 items-center justify-center text-sm font-medium text-slate-500">Add an image URL</div>
+              )}
+              {img.caption && <figcaption className="bg-white px-4 py-2 text-xs text-slate-500">{img.sourceUrl ? <a href={img.sourceUrl} target="_blank" rel="noreferrer" className="underline decoration-slate-300 underline-offset-4">{img.caption}</a> : img.caption}</figcaption>}
+            </figure>
+          ))}
+        </div>
       ),
     },
     CardGrid: {
