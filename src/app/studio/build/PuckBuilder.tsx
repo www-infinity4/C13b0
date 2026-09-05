@@ -8,7 +8,7 @@ import { Check, ChevronLeft, Eye, Pencil, Sparkles } from "lucide-react";
 import { puckConfig, type InfinityPuckProps } from "./puck-config";
 import { secureLoad, secureSave } from "@/lib/secure-storage";
 import { appPath } from "@/lib/base-path";
-import { searchImages, type SearchImage, gradeLabel } from "@/lib/image-search";
+import { searchImages, gradeLabel } from "@/lib/image-search";
 
 const DRAFTS = "c13b0_infinity_studio_drafts_v1";
 const PAGES = "c13b0_infinity_puck_pages_v1";

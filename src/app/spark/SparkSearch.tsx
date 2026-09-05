@@ -13,14 +13,12 @@ import { searchImages, type SearchImage, gradeLabel } from "@/lib/image-search";
 import {
   BookOpen,
   Check,
-  ChevronRight,
   Download,
   ExternalLink,
   Globe2,
   History,
   Layers3,
   LoaderCircle,
-  Menu,
   Search,
   Share2,
   Sparkles,
@@ -583,32 +581,6 @@ export default function SparkSearch() {
     } finally {
       setLoading(false);
     }
-  }
-  function advance(stage: Stage) {
-    if (!paper) return;
-    const normalizedQuery = normalizeTopic(query);
-    const token = add(
-      stage,
-      `${paper.title} — ${stages.find((x) => x.key === stage)?.label}`,
-      paper,
-    );
-    const chain = [
-      token,
-      ...ledgerRef.current.filter(
-        (x) => x.id !== token.id && x.query === normalizedQuery,
-      ),
-    ];
-    const handoff = {
-      schema: "infinity/project-token/v3",
-      walletId: wallet?.walletId || null,
-      token,
-      paper,
-      chain,
-    };
-    const data = JSON.stringify(handoff);
-    secureSave(HANDOFF, handoff);
-    window.__infinitySparkHandoff = data;
-    location.href = `${appPath("studio")}?stage=${stage}&query=${encodeURIComponent(paper.title)}`;
   }
   function autoBuild() {
     if (!paper) return;
