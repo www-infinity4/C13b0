@@ -24,6 +24,7 @@ import {
   Share2,
   Sparkles,
   Wallet,
+  Wand2,
   Wrench,
   X,
 } from "lucide-react";
@@ -601,6 +602,27 @@ export default function SparkSearch() {
     window.__infinitySparkHandoff = data;
     location.href = `${appPath("studio")}?stage=${stage}&query=${encodeURIComponent(paper.title)}`;
   }
+  function autoBuild() {
+    if (!paper) return;
+    const token = add("webpage", `${paper.title} — Auto-built Infinity site`, paper);
+    const chain = [
+      token,
+      ...ledgerRef.current.filter(
+        (x) => x.id !== token.id && x.query === normalizeTopic(query),
+      ),
+    ];
+    const handoff = {
+      schema: "infinity/project-token/v3",
+      walletId: wallet?.walletId || null,
+      token,
+      paper,
+      chain,
+      autoBuild: true,
+    };
+    secureSave(HANDOFF, handoff);
+    window.__infinitySparkHandoff = JSON.stringify(handoff);
+    location.href = `${appPath("studio/build")}?id=${encodeURIComponent(token.id)}&query=${encodeURIComponent(paper.title)}&mode=preview`;
+  }
   async function share() {
     try {
       if (navigator.share)
@@ -788,31 +810,29 @@ export default function SparkSearch() {
               </a>
               <section className="mt-10 rounded-[1.6rem] bg-[#0c3153] p-6 text-white sm:p-8">
                 <p className="text-sm font-bold uppercase tracking-[.18em] text-[#9ac7e9]">
-                  Assembly package
+                  Auto-build
                 </p>
                 <h3 className="mt-2 font-serif text-3xl font-black">
-                  Model Your World!
+                  Build the whole Infinity site & assets
                 </h3>
                 <p className="mt-3 max-w-2xl text-lg leading-8 text-white/75">
-                  The best way to begin modeling your curated query is to choose
-                  the next useful form. Infinity carries the overview, sources,
-                  query history, and token record forward automatically.
+                  Infinity turns the research into a styled webpage, reusable
+                  visuals, a business-ready product layout, and a saved token
+                  record — all in one step. You can still refine everything in
+                  Studio afterwards.
                 </p>
-                <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                  {stages.slice(2).map((s) => (
-                    <button
-                      key={s.key}
-                      onClick={() => advance(s.key)}
-                      className="flex items-center gap-3 rounded-xl border border-white/15 bg-white/5 p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/12"
-                    >
-                      <s.icon size={19} className="text-[#f0bd55]" />
-                      <span className="flex-1">
-                        <b className="block">{s.label}</b>
-                        <small className="text-[#b7c8d8]">{s.note}</small>
-                      </span>
-                      <ChevronRight size={17} />
-                    </button>
-                  ))}
+                <button
+                  onClick={autoBuild}
+                  className="mt-6 flex w-full items-center justify-center gap-3 rounded-xl bg-[#f0bd55] px-5 py-4 font-black text-[#081632] transition hover:bg-white"
+                >
+                  <Wand2 size={20} />
+                  Auto-build Infinity site & assets
+                </button>
+                <div className="mt-4 grid grid-cols-2 gap-2 text-center text-xs text-[#b7c8d8]">
+                  <span className="rounded-lg bg-white/5 px-2 py-2">Magazine page</span>
+                  <span className="rounded-lg bg-white/5 px-2 py-2">Reusable visuals</span>
+                  <span className="rounded-lg bg-white/5 px-2 py-2">Product layout</span>
+                  <span className="rounded-lg bg-white/5 px-2 py-2">Token record</span>
                 </div>
               </section>
               <Section title="Refine this search">
