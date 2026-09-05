@@ -8,6 +8,7 @@ import {
   FileText,
 } from "lucide-react";
 import { secureLoad } from "@/lib/secure-storage";
+import { appPath } from "@/lib/base-path";
 
 type Source = { title: string; url: string; excerpt: string; kind: string };
 type Paper = {
@@ -59,7 +60,7 @@ export default function SparkArticle() {
           as soon as an overview has been built.
         </p>
         <a
-          href="../"
+          href={appPath("spark")}
           className="mt-8 inline-flex items-center gap-2 rounded-xl bg-[#123f66] px-5 py-3 font-bold text-white"
         >
           <ArrowLeft size={18} />
@@ -81,7 +82,7 @@ export default function SparkArticle() {
     <main className="min-h-screen bg-[radial-gradient(circle_at_50%_-10%,#174c78_0%,#0b2e50_42%,#061d35_100%)] px-4 py-12 text-white sm:px-8">
       <div className="mx-auto max-w-3xl">
         <a
-          href="../"
+          href={appPath("spark")}
           className="inline-flex items-center gap-2 text-sm font-bold text-[#9ac7e9] hover:text-white"
         >
           <ArrowLeft size={16} />

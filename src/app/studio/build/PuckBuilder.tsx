@@ -7,10 +7,11 @@ import { Puck, Render, type Data } from "@puckeditor/core";
 import { Check, ChevronLeft, Eye, Pencil, Sparkles } from "lucide-react";
 import { puckConfig, type InfinityPuckProps } from "./puck-config";
 import { secureLoad, secureSave } from "@/lib/secure-storage";
+import { appPath } from "@/lib/base-path";
+import { searchImages, gradeLabel } from "@/lib/image-search";
 
 const DRAFTS = "c13b0_infinity_studio_drafts_v1";
 const PAGES = "c13b0_infinity_puck_pages_v1";
-const APP_BASE=(process.env.NEXT_PUBLIC_APP_BASE||"").replace(/\/+$/,'');
 
 type Research = { title?:string; dek?:string; overview?:string; keyTakeaways?:string[]; engineering?:string[]; findings?:string[]; context?:string[]; opportunities?:string[]; cautions?:string[]; sources?:{title:string;url:string}[] };
 type StudioDraft = { id?: string; title?: string; summary?: string; research?: Research };
@@ -44,16 +45,14 @@ function cleanText(value: string, sentence = false) {
   const capitalized = text[0].toUpperCase() + text.slice(1);
   return sentence && capitalized.length > 24 && !/[.!?]$/.test(capitalized) ? `${capitalized}.` : capitalized;
 }
-function stripHtml(value:string){return value.replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#039;/g,"'").replace(/\s+/g," ").trim()}
 async function findReusableImages(topic:string):Promise<VisualAsset[]>{
-  try{
-    const endpoint=new URL("https://commons.wikimedia.org/w/api.php");
-    endpoint.search=new URLSearchParams({action:"query",generator:"search",gsrsearch:topic,gsrnamespace:"6",gsrlimit:"8",prop:"imageinfo",iiprop:"url|extmetadata",iiurlwidth:"1600",format:"json",origin:"*"}).toString();
-    const response=await fetch(endpoint,{signal:AbortSignal.timeout(7000)});
-    if(!response.ok)return[];
-    const json=await response.json() as {query?:{pages?:Record<string,{title?:string;imageinfo?:{thumburl?:string;url?:string;descriptionurl?:string;extmetadata?:Record<string,{value?:string}>}[]}>}};
-    return Object.values(json.query?.pages||{}).flatMap(page=>{const info=page.imageinfo?.[0],meta=info?.extmetadata||{},license=stripHtml(meta.LicenseShortName?.value||""),creator=stripHtml(meta.Artist?.value||meta.Credit?.value||"").slice(0,100);if(!info?.url||!/public domain|cc0|cc by/i.test(license))return[];return[{url:info.thumburl||info.url,alt:stripHtml(meta.ObjectName?.value||page.title?.replace(/^File:/,"")||topic),caption:`${creator?`${creator} · `:""}${license} · Wikimedia Commons`,sourceUrl:info.descriptionurl||info.url}]});
-  }catch{return[]}
+  const images=await searchImages(topic);
+  return images.slice(0,8).map(img=>({
+    url:img.url,
+    alt:img.alt,
+    caption:`${img.creator?`${img.creator} · `:""}${gradeLabel(img.grade)}${img.licenseUrl?` · ${img.licenseUrl}`:""}`,
+    sourceUrl:img.sourceUrl,
+  }));
 }
 function polishPage(input: PuckData): PuckData {
   const copy = structuredClone(input);
@@ -93,17 +92,21 @@ function composedArticle(title:string,summary:string,research:Research|undefined
   const findings=(research?.keyTakeaways?.length?research.keyTakeaways:research?.findings||[]).slice(0,4);
   const context=(research?.engineering?.length?research.engineering:research?.opportunities||[]).slice(0,4);
   const overview=(research?.overview||summary||"A focused, evidence-led introduction to the subject.").split(/\n\n+/).filter(Boolean).slice(0,3);
+  const pullQuote=findings[0]||overview[0]||"";
   const content:PuckData["content"]=[
     {type:"Hero",props:{id:"hero-1",eyebrow:"Research feature",title:cleanText(research?.title||title||"Untitled feature"),subtitle:cleanText(research?.dek||summary||overview[0]||"",true)}},
   ];
   if(assets[0])content.push({type:"Image",props:{id:"lead-image",...assets[0]}});
   content.push({type:"Heading",props:{id:"overview-heading",text:"The essential picture",level:"h2"}});
   for(const [index,text] of overview.entries())content.push({type:"Text",props:{id:`overview-${index}`,text:cleanText(text,true)}});
+  if(pullQuote)content.push({type:"PullQuote",props:{id:"pull-quote-1",quote:cleanText(pullQuote,true),attribution:"Infinity research"}});
   if(findings.length)content.push({type:"Heading",props:{id:"findings-heading",text:"What the evidence shows",level:"h2"}},{type:"CardGrid",props:{id:"findings-grid",cards:findings.map((body,index)=>({title:`Finding ${index+1}`,body:cleanText(body,true)}))}});
-  if(assets[1])content.push({type:"Image",props:{id:"detail-image",...assets[1]}});
+  if(assets.length>1)content.push({type:"ImageGallery",props:{id:"asset-gallery",images:assets.slice(1,4).map((a,i)=>({...a,alt:a.alt||`Asset ${i+1}`}))}});
   if(context.length)content.push({type:"Heading",props:{id:"directions-heading",text:"Where the work can go next",level:"h2"}},{type:"CardGrid",props:{id:"directions-grid",cards:context.map((body,index)=>({title:`Direction ${index+1}`,body:cleanText(body,true)}))}});
   if(research?.cautions?.length)content.push({type:"Heading",props:{id:"limits-heading",text:"Limits and safeguards",level:"h2"}},{type:"Text",props:{id:"limits-text",text:cleanText(research.cautions.slice(0,3).join(" "),true)}});
-  content.push({type:"CTAButton",props:{id:"sources-cta",label:research?.sources?.length?`Review ${research.sources.length} sources`:"Review the research",href:"../../spark/article/"}});
+  const sources=research?.sources?.slice(0,5).map((s,i)=>(`${i+1}. ${s.title}${s.url?` — ${s.url}`:""}`)).join("\n")||"";
+  if(sources)content.push({type:"Heading",props:{id:"sources-heading",text:"Sources",level:"h2"}},{type:"Text",props:{id:"sources-text",text:sources}});
+  content.push({type:"CTAButton",props:{id:"sources-cta",label:research?.sources?.length?`Review ${research.sources.length} sources`:"Review the research",href:appPath("spark/article")}});
   return{root:{props:{}},content,zones:{}};
 }
 function patternData(pattern:Pattern,title:string,summary:string,ideas:string[]):PuckData{
@@ -172,7 +175,7 @@ export default function PuckBuilder() {
   return (
     <div className="min-h-screen bg-[#eef2f6] text-slate-950">
       <header className="sticky top-0 z-40 flex min-h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-2 backdrop-blur-xl sm:px-7">
-        <Link href={`${APP_BASE}/spark/`} className="flex items-center gap-2 text-slate-600 hover:text-slate-950">
+        <Link href={appPath("spark")} className="flex items-center gap-2 text-slate-600 hover:text-slate-950">
           <ChevronLeft />
           Infinity
         </Link>

@@ -8,21 +8,22 @@ import {
   useState,
 } from "react";
 import { secureLoad, secureSave } from "@/lib/secure-storage";
+import { appPath } from "@/lib/base-path";
+import { searchImages, type SearchImage, gradeLabel } from "@/lib/image-search";
 import {
   BookOpen,
   Check,
-  ChevronRight,
   Download,
   ExternalLink,
   Globe2,
   History,
   Layers3,
   LoaderCircle,
-  Menu,
   Search,
   Share2,
   Sparkles,
   Wallet,
+  Wand2,
   Wrench,
   X,
 } from "lucide-react";
@@ -395,7 +396,10 @@ export default function SparkSearch() {
     [filter, setFilter] = useState(""),
     [selected, setSelected] = useState<Token | null>(null),
     [expanded, setExpanded] = useState(false),
-    [installPrompt, setInstallPrompt] = useState<InstallPrompt | null>(null);
+    [installPrompt, setInstallPrompt] = useState<InstallPrompt | null>(null),
+    [images, setImages] = useState<SearchImage[]>([]),
+    [imagesOpen, setImagesOpen] = useState(false),
+    [imageLoading, setImageLoading] = useState(false);
   const ledgerRef = useRef<Token[]>([]);
   useEffect(() => {
     const stored = read();
@@ -566,6 +570,10 @@ export default function SparkSearch() {
       setPaper(next);
       add("research", `${topic.slice(0, 120)} — overview`, next, topic);
       secureSave(ARTICLE, next);
+      setImageLoading(true);
+      searchImages(topic)
+        .then(setImages)
+        .finally(() => setImageLoading(false));
     } catch (c) {
       setError(
         c instanceof Error ? c.message : "The research could not be completed.",
@@ -574,18 +582,13 @@ export default function SparkSearch() {
       setLoading(false);
     }
   }
-  function advance(stage: Stage) {
+  function autoBuild() {
     if (!paper) return;
-    const normalizedQuery = normalizeTopic(query);
-    const token = add(
-      stage,
-      `${paper.title} — ${stages.find((x) => x.key === stage)?.label}`,
-      paper,
-    );
+    const token = add("webpage", `${paper.title} — Auto-built Infinity site`, paper);
     const chain = [
       token,
       ...ledgerRef.current.filter(
-        (x) => x.id !== token.id && x.query === normalizedQuery,
+        (x) => x.id !== token.id && x.query === normalizeTopic(query),
       ),
     ];
     const handoff = {
@@ -594,11 +597,11 @@ export default function SparkSearch() {
       token,
       paper,
       chain,
+      autoBuild: true,
     };
-    const data = JSON.stringify(handoff);
     secureSave(HANDOFF, handoff);
-    window.__infinitySparkHandoff = data;
-    location.href = `../studio/?stage=${stage}&query=${encodeURIComponent(paper.title)}`;
+    window.__infinitySparkHandoff = JSON.stringify(handoff);
+    location.href = `${appPath("studio/build")}?id=${encodeURIComponent(token.id)}&query=${encodeURIComponent(paper.title)}&mode=preview`;
   }
   async function share() {
     try {
@@ -777,7 +780,7 @@ export default function SparkSearch() {
                 </div>
               </Section>
               <a
-                href="article/"
+                href={appPath("spark/article")}
                 target="_blank"
                 rel="noreferrer"
                 className="mt-6 flex items-center justify-center gap-2 rounded-xl border border-[#123f66] px-5 py-3 text-center font-bold text-[#123f66] hover:bg-[#eef4f8]"
@@ -787,32 +790,101 @@ export default function SparkSearch() {
               </a>
               <section className="mt-10 rounded-[1.6rem] bg-[#0c3153] p-6 text-white sm:p-8">
                 <p className="text-sm font-bold uppercase tracking-[.18em] text-[#9ac7e9]">
-                  Assembly package
+                  Auto-build
                 </p>
                 <h3 className="mt-2 font-serif text-3xl font-black">
-                  Model Your World!
+                  Build the whole Infinity site & assets
                 </h3>
                 <p className="mt-3 max-w-2xl text-lg leading-8 text-white/75">
-                  The best way to begin modeling your curated query is to choose
-                  the next useful form. Infinity carries the overview, sources,
-                  query history, and token record forward automatically.
+                  Infinity turns the research into a styled webpage, reusable
+                  visuals, a business-ready product layout, and a saved token
+                  record — all in one step. You can still refine everything in
+                  Studio afterwards.
                 </p>
-                <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                  {stages.slice(2).map((s) => (
-                    <button
-                      key={s.key}
-                      onClick={() => advance(s.key)}
-                      className="flex items-center gap-3 rounded-xl border border-white/15 bg-white/5 p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/12"
-                    >
-                      <s.icon size={19} className="text-[#f0bd55]" />
-                      <span className="flex-1">
-                        <b className="block">{s.label}</b>
-                        <small className="text-[#b7c8d8]">{s.note}</small>
-                      </span>
-                      <ChevronRight size={17} />
-                    </button>
-                  ))}
+                <button
+                  onClick={autoBuild}
+                  className="mt-6 flex w-full items-center justify-center gap-3 rounded-xl bg-[#f0bd55] px-5 py-4 font-black text-[#081632] transition hover:bg-white"
+                >
+                  <Wand2 size={20} />
+                  Auto-build Infinity site & assets
+                </button>
+                <div className="mt-4 grid grid-cols-2 gap-2 text-center text-xs text-[#b7c8d8]">
+                  <span className="rounded-lg bg-white/5 px-2 py-2">Magazine page</span>
+                  <span className="rounded-lg bg-white/5 px-2 py-2">Reusable visuals</span>
+                  <span className="rounded-lg bg-white/5 px-2 py-2">Product layout</span>
+                  <span className="rounded-lg bg-white/5 px-2 py-2">Token record</span>
                 </div>
+              </section>
+              <section className="mt-10 rounded-[1.6rem] border border-[#e0e8f0] bg-white p-6 text-[#172331] sm:p-8">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[.18em] text-[#9a6317]">
+                      Intelligent image search
+                    </p>
+                    <h3 className="mt-2 font-serif text-2xl font-black">
+                      Illustrations you can actually use
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setImagesOpen((v) => !v)}
+                    className="flex items-center gap-2 rounded-xl border border-[#c7d2dc] px-4 py-2 font-bold hover:bg-[#f7f9fb]"
+                  >
+                    {imageLoading ? (
+                      <LoaderCircle className="animate-spin" size={17} />
+                    ) : imagesOpen ? (
+                      <X size={17} />
+                    ) : (
+                      <Search size={17} />
+                    )}
+                    {imagesOpen
+                      ? "Close images"
+                      : imageLoading
+                        ? "Finding images…"
+                        : `View ${images.length} reusable images`}
+                  </button>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-[#607386]">
+                  Every result is graded by license safety: A = public domain /
+                  CC0, B = CC BY (attribute), C = CC BY-SA, D/E = check or avoid.
+                </p>
+                {imagesOpen && (
+                  <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {images.length === 0 && !imageLoading && (
+                      <p className="col-span-full text-center text-[#607386]">
+                        No clearly reusable images matched this query.
+                      </p>
+                    )}
+                    {images.map((img) => (
+                      <a
+                        key={img.url}
+                        href={img.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group overflow-hidden rounded-2xl border border-[#e0e8f0] bg-[#f7f9fb]"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={img.thumbUrl}
+                          alt={img.alt}
+                          loading="lazy"
+                          className="h-40 w-full object-cover transition group-hover:scale-105"
+                        />
+                        <div className="p-3">
+                          <p className="truncate text-sm font-semibold text-[#172331]">
+                            {img.alt}
+                          </p>
+                          <p className="mt-1 text-xs text-[#607386]">
+                            {img.creator ? `${img.creator} · ` : ""}
+                            {gradeLabel(img.grade)}
+                          </p>
+                          <p className="mt-1 text-[10px] uppercase tracking-wider text-[#9a6317]">
+                            {img.source}
+                          </p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                )}
               </section>
               <Section title="Refine this search">
                 <form
