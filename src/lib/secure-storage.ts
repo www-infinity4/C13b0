@@ -89,16 +89,23 @@ function unwrap(raw: string): UnwrapResult {
   return { status: "corrupt" };
 }
 
-function getStorage(): Storage | null {
+export type StorageArea = "local" | "session";
+
+function getStorage(area: StorageArea = "local"): Storage | null {
   try {
-    return typeof window !== "undefined" ? window.localStorage : null;
+    if (typeof window === "undefined") return null;
+    return area === "session" ? window.sessionStorage : window.localStorage;
   } catch {
     return null;
   }
 }
 
-function readRaw(key: string): string | null {
-  const storage = getStorage();
+function memoryKey(area: StorageArea, key: string): string {
+  return `${area}:${key}`;
+}
+
+function readRaw(key: string, area: StorageArea = "local"): string | null {
+  const storage = getStorage(area);
   if (storage) {
     try {
       const value = storage.getItem(key);
@@ -107,21 +114,23 @@ function readRaw(key: string): string | null {
       /* storage inaccessible, fall back to memory */
     }
   }
-  return memoryFallback.has(key) ? memoryFallback.get(key)! : null;
+  const memKey = memoryKey(area, key);
+  return memoryFallback.has(memKey) ? memoryFallback.get(memKey)! : null;
 }
 
-function writeRaw(key: string, value: string): boolean {
-  const storage = getStorage();
+function writeRaw(key: string, value: string, area: StorageArea = "local"): boolean {
+  const storage = getStorage(area);
+  const memKey = memoryKey(area, key);
   if (storage) {
     try {
       storage.setItem(key, value);
-      memoryFallback.delete(key);
+      memoryFallback.delete(memKey);
       return true;
     } catch {
       /* fall through to retry/fallback below */
     }
   }
-  memoryFallback.set(key, value);
+  memoryFallback.set(memKey, value);
   return storage === null;
 }
 
@@ -131,13 +140,13 @@ function writeRaw(key: string, value: string): boolean {
  * example a full storage quota), the oldest entries are pruned and the
  * write is retried so recent history is never silently lost.
  */
-export function secureSave<T>(key: string, value: T): boolean {
+export function secureSave<T>(key: string, value: T, area: StorageArea = "local"): boolean {
   const attempt = (payload: T): boolean => {
     const envelope = wrap(JSON.stringify(payload));
-    const ok = writeRaw(key, envelope);
+    const ok = writeRaw(key, envelope, area);
     if (!ok) return false;
     // Verify the write is actually readable back before trusting it.
-    const verify = unwrap(readRaw(key) ?? "");
+    const verify = unwrap(readRaw(key, area) ?? "");
     return verify.status === "ok" && verify.json === JSON.stringify(payload);
   };
 
@@ -151,7 +160,7 @@ export function secureSave<T>(key: string, value: T): boolean {
     }
   }
 
-  memoryFallback.set(key, wrap(JSON.stringify(value)));
+  memoryFallback.set(memoryKey(area, key), wrap(JSON.stringify(value)));
   return false;
 }
 
@@ -161,8 +170,8 @@ export function secureSave<T>(key: string, value: T): boolean {
  * existing history is migrated rather than dropped, and returns
  * `fallback` when nothing usable is found.
  */
-export function secureLoad<T>(key: string, fallback: T): T {
-  const raw = readRaw(key);
+export function secureLoad<T>(key: string, fallback: T, area: StorageArea = "local"): T {
+  const raw = readRaw(key, area);
   if (raw === null) return fallback;
   const result = unwrap(raw);
   if (result.status === "corrupt") return fallback;
@@ -176,8 +185,8 @@ export function secureLoad<T>(key: string, fallback: T): T {
 }
 
 /** Remove a persisted value from both storage and the memory fallback. */
-export function secureRemove(key: string): void {
-  const storage = getStorage();
+export function secureRemove(key: string, area: StorageArea = "local"): void {
+  const storage = getStorage(area);
   if (storage) {
     try {
       storage.removeItem(key);
@@ -185,5 +194,5 @@ export function secureRemove(key: string): void {
       /* ignore */
     }
   }
-  memoryFallback.delete(key);
+  memoryFallback.delete(memoryKey(area, key));
 }

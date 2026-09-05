@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Check, Download, Plus, ShieldCheck, Store, Wallet, X } from "lucide-react";
+import { secureLoad, secureSave } from "@/lib/secure-storage";
 
 type Product = {
   id: string;
@@ -49,7 +50,14 @@ export default function BusinessStarter() {
 
   useEffect(() => {
     try {
-      const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null");
+      const draft = secureLoad<{
+        research?: { query?: string; report?: string; sources?: string[] };
+        websiteToken?: { siteType?: string; tokenId?: string };
+        businessName?: string;
+        description?: string;
+        products?: Product[];
+        agreed?: typeof agreed;
+      } | null>(DRAFT_KEY, null);
       if (draft) {
         setSparkQuery(draft.research?.query || "");
         setReport(draft.research?.report || "");
@@ -64,11 +72,8 @@ export default function BusinessStarter() {
       else setTokenId(crypto.randomUUID());
       const incomingQuery = new URLSearchParams(window.location.search).get("query");
       if (incomingQuery && !draft?.research?.query) setSparkQuery(incomingQuery);
-      let handoffRaw = window.__infinitySparkHandoff || null;
-      if (!handoffRaw) for (const storage of [window.sessionStorage, window.localStorage]) {
-        try { handoffRaw = storage.getItem(HANDOFF_KEY); if (handoffRaw) break; } catch { /* optional persistence */ }
-      }
-      const handoff = JSON.parse(handoffRaw || "null");
+      let handoff = window.__infinitySparkHandoff ? JSON.parse(window.__infinitySparkHandoff) : null;
+      if (!handoff) handoff = secureLoad(HANDOFF_KEY, null, "session") ?? secureLoad(HANDOFF_KEY, null, "local");
       if (handoff && !draft?.research?.query) {
         setSparkQuery(handoff.token?.query || handoff.query || incomingQuery || "");
         setReport(typeof handoff.paper === "object" ? handoff.paper.overview || "" : handoff.report || "");
@@ -112,10 +117,9 @@ export default function BusinessStarter() {
   }
 
   function saveDraft() {
-    const value = JSON.stringify(payload());
-    for (const storage of [window.sessionStorage, window.localStorage]) {
-      try { storage.setItem(DRAFT_KEY, value); } catch { /* export remains available */ }
-    }
+    const value = payload();
+    secureSave(DRAFT_KEY, value, "session");
+    secureSave(DRAFT_KEY, value);
     setSaved(true);
     window.setTimeout(() => setSaved(false), 2200);
   }

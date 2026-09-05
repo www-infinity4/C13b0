@@ -6,6 +6,7 @@ import "@puckeditor/core/puck.css";
 import { Puck, Render, type Data } from "@puckeditor/core";
 import { Check, ChevronLeft, Eye, Pencil, Sparkles } from "lucide-react";
 import { puckConfig, type InfinityPuckProps } from "./puck-config";
+import { secureLoad, secureSave } from "@/lib/secure-storage";
 
 const DRAFTS = "c13b0_infinity_studio_drafts_v1";
 const PAGES = "c13b0_infinity_puck_pages_v1";
@@ -26,27 +27,16 @@ const patterns:{id:Pattern;label:string;note:string}[]=[
 ];
 
 function readDrafts(): StudioDraft[] {
-  try {
-    return JSON.parse(localStorage.getItem(DRAFTS) || "[]");
-  } catch {
-    return [];
-  }
+  const value = secureLoad<unknown>(DRAFTS, []);
+  return Array.isArray(value) ? (value as StudioDraft[]) : [];
 }
 function readPages(): Record<string, PuckPageRecord> {
-  try {
-    return JSON.parse(localStorage.getItem(PAGES) || "{}");
-  } catch {
-    return {};
-  }
+  return secureLoad<Record<string, PuckPageRecord>>(PAGES, {});
 }
 function savePage(record: PuckPageRecord) {
   const all = readPages();
   all[record.id] = record;
-  try {
-    localStorage.setItem(PAGES, JSON.stringify(all));
-  } catch {
-    /* storage unavailable */
-  }
+  secureSave(PAGES, all);
 }
 function cleanText(value: string, sentence = false) {
   const text = value.trim().replace(/\s+/g, " ").replace(/\s+([,.!?;:])/g, "$1");

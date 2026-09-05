@@ -20,8 +20,14 @@ class FakeStorage {
 }
 
 const fakeStorage = new FakeStorage();
-(globalThis as unknown as { window: { localStorage: FakeStorage } }).window = {
+const fakeSessionStorage = new FakeStorage();
+(
+  globalThis as unknown as {
+    window: { localStorage: FakeStorage; sessionStorage: FakeStorage };
+  }
+).window = {
   localStorage: fakeStorage,
+  sessionStorage: fakeSessionStorage,
 };
 
 import { secureLoad, secureRemove, secureSave } from "../secure-storage";
@@ -32,6 +38,7 @@ describe("secure-storage", () => {
   beforeEach(() => {
     fakeStorage.clear();
     fakeStorage.quotaLimit = null;
+    fakeSessionStorage.clear();
   });
 
   it("round-trips a value and does not store it as plaintext", () => {
@@ -84,5 +91,14 @@ describe("secure-storage", () => {
     secureRemove(KEY);
     expect(fakeStorage.getItem(KEY)).toBe(null);
     expect(secureLoad(KEY, null)).toBe(null);
+  });
+
+  it("supports an independent session storage area", () => {
+    const value = { session: true };
+    expect(secureSave(KEY, value, "session")).toBe(true);
+    expect(fakeStorage.getItem(KEY)).toBe(null);
+    expect(fakeSessionStorage.getItem(KEY)).not.toBe(null);
+    expect(secureLoad(KEY, null, "session")).toEqual(value);
+    expect(secureLoad(KEY, null, "local")).toBe(null);
   });
 });
