@@ -7,10 +7,10 @@ import { Puck, Render, type Data } from "@puckeditor/core";
 import { Check, ChevronLeft, Eye, Pencil, Sparkles } from "lucide-react";
 import { puckConfig, type InfinityPuckProps } from "./puck-config";
 import { secureLoad, secureSave } from "@/lib/secure-storage";
+import { appPath } from "@/lib/base-path";
 
 const DRAFTS = "c13b0_infinity_studio_drafts_v1";
 const PAGES = "c13b0_infinity_puck_pages_v1";
-const APP_BASE=(process.env.NEXT_PUBLIC_APP_BASE||"").replace(/\/+$/,'');
 
 type Research = { title?:string; dek?:string; overview?:string; keyTakeaways?:string[]; engineering?:string[]; findings?:string[]; context?:string[]; opportunities?:string[]; cautions?:string[]; sources?:{title:string;url:string}[] };
 type StudioDraft = { id?: string; title?: string; summary?: string; research?: Research };
@@ -103,7 +103,7 @@ function composedArticle(title:string,summary:string,research:Research|undefined
   if(assets[1])content.push({type:"Image",props:{id:"detail-image",...assets[1]}});
   if(context.length)content.push({type:"Heading",props:{id:"directions-heading",text:"Where the work can go next",level:"h2"}},{type:"CardGrid",props:{id:"directions-grid",cards:context.map((body,index)=>({title:`Direction ${index+1}`,body:cleanText(body,true)}))}});
   if(research?.cautions?.length)content.push({type:"Heading",props:{id:"limits-heading",text:"Limits and safeguards",level:"h2"}},{type:"Text",props:{id:"limits-text",text:cleanText(research.cautions.slice(0,3).join(" "),true)}});
-  content.push({type:"CTAButton",props:{id:"sources-cta",label:research?.sources?.length?`Review ${research.sources.length} sources`:"Review the research",href:"../../spark/article/"}});
+  content.push({type:"CTAButton",props:{id:"sources-cta",label:research?.sources?.length?`Review ${research.sources.length} sources`:"Review the research",href:appPath("spark/article")}});
   return{root:{props:{}},content,zones:{}};
 }
 function patternData(pattern:Pattern,title:string,summary:string,ideas:string[]):PuckData{
@@ -172,7 +172,7 @@ export default function PuckBuilder() {
   return (
     <div className="min-h-screen bg-[#eef2f6] text-slate-950">
       <header className="sticky top-0 z-40 flex min-h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-2 backdrop-blur-xl sm:px-7">
-        <Link href={`${APP_BASE}/spark/`} className="flex items-center gap-2 text-slate-600 hover:text-slate-950">
+        <Link href={appPath("spark")} className="flex items-center gap-2 text-slate-600 hover:text-slate-950">
           <ChevronLeft />
           Infinity
         </Link>

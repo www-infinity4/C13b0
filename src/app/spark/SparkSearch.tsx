@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { secureLoad, secureSave } from "@/lib/secure-storage";
+import { appPath } from "@/lib/base-path";
 import {
   BookOpen,
   Check,
@@ -598,7 +599,7 @@ export default function SparkSearch() {
     const data = JSON.stringify(handoff);
     secureSave(HANDOFF, handoff);
     window.__infinitySparkHandoff = data;
-    location.href = `../studio/?stage=${stage}&query=${encodeURIComponent(paper.title)}`;
+    location.href = `${appPath("studio")}?stage=${stage}&query=${encodeURIComponent(paper.title)}`;
   }
   async function share() {
     try {
@@ -777,7 +778,7 @@ export default function SparkSearch() {
                 </div>
               </Section>
               <a
-                href="article/"
+                href={appPath("spark/article")}
                 target="_blank"
                 rel="noreferrer"
                 className="mt-6 flex items-center justify-center gap-2 rounded-xl border border-[#123f66] px-5 py-3 text-center font-bold text-[#123f66] hover:bg-[#eef4f8]"
