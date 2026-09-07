@@ -1,208 +1,42 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect,useMemo,useState } from "react";
 import Link from "next/link";
 import "@puckeditor/core/puck.css";
-import { Puck, Render, type Data } from "@puckeditor/core";
-import { Check, ChevronLeft, Eye, Pencil, Sparkles } from "lucide-react";
-import { puckConfig, type InfinityPuckProps } from "./puck-config";
-import { secureLoad, secureSave } from "@/lib/secure-storage";
+import { Puck,Render,type Data } from "@puckeditor/core";
+import { Check,ChevronLeft,Eye,Pencil,Sparkles } from "lucide-react";
+import { puckConfig,type InfinityPuckProps } from "./puck-config";
+import { secureLoad,secureSave } from "@/lib/secure-storage";
 import { appPath } from "@/lib/base-path";
-import { searchImages, gradeLabel } from "@/lib/image-search";
+import { searchImages,gradeLabel } from "@/lib/image-search";
 
-const DRAFTS = "c13b0_infinity_studio_drafts_v1";
-const PAGES = "c13b0_infinity_puck_pages_v1";
-
-type Research = { title?:string; dek?:string; overview?:string; keyTakeaways?:string[]; engineering?:string[]; findings?:string[]; context?:string[]; opportunities?:string[]; cautions?:string[]; sources?:{title:string;url:string}[] };
-type StudioDraft = { id?: string; title?: string; summary?: string; research?: Research };
-type PuckData = Data<InfinityPuckProps>;
-type PuckPageRecord = { id: string; title: string; data: PuckData; updatedAt: string };
-type VisualAsset = { url:string; alt:string; caption:string; sourceUrl:string };
-type Pattern = "magazine" | "product" | "dashboard" | "field-guide" | "research";
-const patterns:{id:Pattern;label:string;note:string}[]=[
-  {id:"magazine",label:"Magazine article",note:"Headline, standfirst, evidence, related stories"},
-  {id:"product",label:"Product launch",note:"Promise, benefits, proof, action"},
-  {id:"dashboard",label:"Technical dashboard",note:"Status, metrics, decisions, next action"},
-  {id:"field-guide",label:"Visual field guide",note:"Introduction, specimens, notes, references"},
-  {id:"research",label:"Research brief",note:"Question, findings, cautions, sources"},
-];
-
-function readDrafts(): StudioDraft[] {
-  const value = secureLoad<unknown>(DRAFTS, []);
-  return Array.isArray(value) ? (value as StudioDraft[]) : [];
+const DRAFTS="c13b0_infinity_studio_drafts_v1",PAGES="c13b0_infinity_puck_pages_v1";
+type Research={title?:string;dek?:string;overview?:string;keyTakeaways?:string[];engineering?:string[];findings?:string[];context?:string[];opportunities?:string[];cautions?:string[];sources?:{title:string;url:string}[]};
+type StudioDraft={id?:string;title?:string;summary?:string;research?:Research};
+type PuckData=Data<InfinityPuckProps>; type PuckPageRecord={id:string;title:string;data:PuckData;updatedAt:string}; type VisualAsset={url:string;alt:string;caption:string;sourceUrl:string};
+type Pattern="magazine"|"product"|"dashboard"|"field-guide"|"research";
+const patterns:{id:Pattern;label:string;note:string}[]=[{id:"magazine",label:"Magazine article",note:"Narrative feature and visual evidence"},{id:"product",label:"Product launch",note:"Promise, proof and action"},{id:"dashboard",label:"Technical dashboard",note:"Signals, decisions and next actions"},{id:"field-guide",label:"Visual field guide",note:"Facts, specimens and references"},{id:"research",label:"Research brief",note:"Evidence, cautions and sources"}];
+function readDrafts():StudioDraft[]{const v=secureLoad<unknown>(DRAFTS,[]);return Array.isArray(v)?v as StudioDraft[]:[]} function readPages(){return secureLoad<Record<string,PuckPageRecord>>(PAGES,{})} function savePage(r:PuckPageRecord){const a=readPages();a[r.id]=r;secureSave(PAGES,a)}
+function cleanText(v:string,s=false){const t=v.trim().replace(/\s+/g," ").replace(/\s+([,.!?;:])/g,"$1");if(!t)return t;const c=t[0].toUpperCase()+t.slice(1);return s&&c.length>24&&!/[.!?]$/.test(c)?`${c}.`:c}
+async function findReusableImages(topic:string):Promise<VisualAsset[]>{const images=await searchImages(topic);return images.slice(0,8).map(img=>({url:img.url,alt:img.alt,caption:`${img.creator?`${img.creator} · `:""}${gradeLabel(img.grade)}`,sourceUrl:img.sourceUrl}))}
+function classify(title:string,research?:Research):Pattern{const t=[title,research?.overview,...(research?.engineering||[]),...(research?.findings||[])].join(" ").toLowerCase();if(/build|system|software|engineering|machine|circuit|robot|api|code|architecture/.test(t))return"dashboard";if(/product|service|launch|brand|business|shop|company/.test(t))return"product";if(/species|element|material|mineral|animal|plant|planet|star|biology|chemistry|physics/.test(t))return"field-guide";if(/study|evidence|research|analysis|experiment|hypothesis/.test(t))return"research";return"magazine"}
+function blocks(title:string,summary:string,research:Research|undefined,assets:VisualAsset[],pattern:Pattern):PuckData{
+ const findings=(research?.keyTakeaways?.length?research.keyTakeaways:research?.findings||[]).filter(Boolean).slice(0,6), context=(research?.engineering?.length?research.engineering:research?.opportunities||[]).filter(Boolean).slice(0,6), overview=(research?.overview||summary||"A focused introduction to the subject.").split(/\n\n+/).filter(Boolean).slice(0,5), sources=research?.sources||[];
+ const content:PuckData["content"]=[{type:"Hero",props:{id:"hero",eyebrow:pattern==="dashboard"?"Engineering intelligence":pattern==="field-guide"?"Infinity field guide":"Infinity research",title:cleanText(research?.title||title),subtitle:cleanText(research?.dek||summary||overview[0]||"",true)}}];
+ if(assets[0])content.push({type:"Image",props:{id:"lead",...assets[0]}});
+ if(pattern==="field-guide"&&findings.length)content.push({type:"FactStrip",props:{id:"facts",facts:findings.slice(0,4).map((x,i)=>({value:String(i+1).padStart(2,"0"),label:cleanText(x,true)}))}});
+ content.push({type:"Heading",props:{id:"overview-h",text:pattern==="dashboard"?"System overview":"Overview",level:"h2"}}); overview.forEach((x,i)=>content.push({type:"Text",props:{id:`overview-${i}`,text:cleanText(x,true)}}));
+ if(findings.length){content.push({type:"Heading",props:{id:"findings-h",text:pattern==="product"?"Why it matters":"Key findings",level:"h2"}});content.push({type:"CardGrid",props:{id:"findings",cards:findings.map((body,i)=>({title:pattern==="dashboard"?`Signal ${i+1}`:`Finding ${i+1}`,body:cleanText(body,true)}))}})}
+ if(assets.length>1)content.push({type:"ImageGallery",props:{id:"gallery",images:assets.slice(1,5)}});
+ if(context.length){content.push({type:"Heading",props:{id:"context-h",text:pattern==="dashboard"?"Engineering path":pattern==="product"?"How it works":"What comes next",level:"h2"}}); if(pattern==="dashboard"||pattern==="product")content.push({type:"Steps",props:{id:"steps",items:context.slice(0,5).map((body,i)=>({title:pattern==="dashboard"?`Stage ${i+1}`:`Step ${i+1}`,body:cleanText(body,true)}))}});else content.push({type:"CardGrid",props:{id:"context",cards:context.map((body,i)=>({title:`Direction ${i+1}`,body:cleanText(body,true)}))}})}
+ if(research?.cautions?.length)content.push({type:"Callout",props:{id:"caution",label:"Limits and safeguards",title:"What to keep in view",body:cleanText(research.cautions.slice(0,4).join(" "),true)}});
+ if(sources.length){content.push({type:"Heading",props:{id:"sources-h",text:"Sources and further reading",level:"h2"}});content.push({type:"SourceList",props:{id:"sources",sources:sources.slice(0,12).map(s=>({title:s.title,url:s.url,note:"Source used in the Infinity research package."}))}})}
+ content.push({type:"CTAButton",props:{id:"research-link",label:"Review the research",href:appPath("spark/article")}});return{root:{props:{}},content,zones:{}}
 }
-function readPages(): Record<string, PuckPageRecord> {
-  return secureLoad<Record<string, PuckPageRecord>>(PAGES, {});
-}
-function savePage(record: PuckPageRecord) {
-  const all = readPages();
-  all[record.id] = record;
-  secureSave(PAGES, all);
-}
-function cleanText(value: string, sentence = false) {
-  const text = value.trim().replace(/\s+/g, " ").replace(/\s+([,.!?;:])/g, "$1");
-  if (!text) return text;
-  const capitalized = text[0].toUpperCase() + text.slice(1);
-  return sentence && capitalized.length > 24 && !/[.!?]$/.test(capitalized) ? `${capitalized}.` : capitalized;
-}
-async function findReusableImages(topic:string):Promise<VisualAsset[]>{
-  const images=await searchImages(topic);
-  return images.slice(0,8).map(img=>({
-    url:img.url,
-    alt:img.alt,
-    caption:`${img.creator?`${img.creator} · `:""}${gradeLabel(img.grade)}${img.licenseUrl?` · ${img.licenseUrl}`:""}`,
-    sourceUrl:img.sourceUrl,
-  }));
-}
-function polishPage(input: PuckData): PuckData {
-  const copy = structuredClone(input);
-  for (const block of copy.content) {
-    const props = block.props as Record<string, unknown>;
-    for (const key of ["eyebrow", "title", "text", "label", "caption", "alt"]) if (typeof props[key] === "string") props[key] = cleanText(props[key] as string);
-    for (const key of ["subtitle", "body"]) if (typeof props[key] === "string") props[key] = cleanText(props[key] as string, true);
-    if (Array.isArray(props.cards)) props.cards = props.cards.map(card => ({...card,title:cleanText(String(card.title||"")),body:cleanText(String(card.body||""),true)}));
-  }
-  return copy;
-}
-function starterData(title: string, summary: string, ideas: string[]): PuckData {
-  return {
-    root: { props: {} },
-    content: [
-      {
-        type: "Hero",
-        props: { id: "hero-1", eyebrow: "A focused Infinity project", title: cleanText(title || "Your project title"), subtitle: cleanText(summary || "A clear introduction to this project and why it matters.", true) },
-      },
-      { type: "Heading", props: { id: "heading-1", text: "What this project makes possible", level: "h2" } },
-      { type: "Text", props: { id: "text-1", text: "Start with the strongest useful idea, explain it clearly, and give visitors an obvious next step." } },
-      {
-        type: "CardGrid",
-        props: {
-          id: "cards-1",
-          cards: (ideas.length ? ideas : ["Define the goal.", "Choose the format.", "Publish a first version."])
-            .slice(0, 4)
-            .map((idea, i) => ({ title: `Direction ${i + 1}`, body: cleanText(idea, true) })),
-        },
-      },
-      { type: "CTAButton", props: { id: "cta-1", label: "Explore the next step", href: "#" } },
-    ],
-    zones: {},
-  };
-}
-function composedArticle(title:string,summary:string,research:Research|undefined,assets:VisualAsset[]):PuckData{
-  const findings=(research?.keyTakeaways?.length?research.keyTakeaways:research?.findings||[]).slice(0,4);
-  const context=(research?.engineering?.length?research.engineering:research?.opportunities||[]).slice(0,4);
-  const overview=(research?.overview||summary||"A focused, evidence-led introduction to the subject.").split(/\n\n+/).filter(Boolean).slice(0,3);
-  const pullQuote=findings[0]||overview[0]||"";
-  const content:PuckData["content"]=[
-    {type:"Hero",props:{id:"hero-1",eyebrow:"Research feature",title:cleanText(research?.title||title||"Untitled feature"),subtitle:cleanText(research?.dek||summary||overview[0]||"",true)}},
-  ];
-  if(assets[0])content.push({type:"Image",props:{id:"lead-image",...assets[0]}});
-  content.push({type:"Heading",props:{id:"overview-heading",text:"The essential picture",level:"h2"}});
-  for(const [index,text] of overview.entries())content.push({type:"Text",props:{id:`overview-${index}`,text:cleanText(text,true)}});
-  if(pullQuote)content.push({type:"PullQuote",props:{id:"pull-quote-1",quote:cleanText(pullQuote,true),attribution:"Infinity research"}});
-  if(findings.length)content.push({type:"Heading",props:{id:"findings-heading",text:"What the evidence shows",level:"h2"}},{type:"CardGrid",props:{id:"findings-grid",cards:findings.map((body,index)=>({title:`Finding ${index+1}`,body:cleanText(body,true)}))}});
-  if(assets.length>1)content.push({type:"ImageGallery",props:{id:"asset-gallery",images:assets.slice(1,4).map((a,i)=>({...a,alt:a.alt||`Asset ${i+1}`}))}});
-  if(context.length)content.push({type:"Heading",props:{id:"directions-heading",text:"Where the work can go next",level:"h2"}},{type:"CardGrid",props:{id:"directions-grid",cards:context.map((body,index)=>({title:`Direction ${index+1}`,body:cleanText(body,true)}))}});
-  if(research?.cautions?.length)content.push({type:"Heading",props:{id:"limits-heading",text:"Limits and safeguards",level:"h2"}},{type:"Text",props:{id:"limits-text",text:cleanText(research.cautions.slice(0,3).join(" "),true)}});
-  const sources=research?.sources?.slice(0,5).map((s,i)=>(`${i+1}. ${s.title}${s.url?` — ${s.url}`:""}`)).join("\n")||"";
-  if(sources)content.push({type:"Heading",props:{id:"sources-heading",text:"Sources",level:"h2"}},{type:"Text",props:{id:"sources-text",text:sources}});
-  content.push({type:"CTAButton",props:{id:"sources-cta",label:research?.sources?.length?`Review ${research.sources.length} sources`:"Review the research",href:appPath("spark/article")}});
-  return{root:{props:{}},content,zones:{}};
-}
-function patternData(pattern:Pattern,title:string,summary:string,ideas:string[]):PuckData{
-  const source=starterData(title,summary,ideas),cards=(ideas.length?ideas:["Define the goal.","Choose the format.","Publish a first version."]).slice(0,4).map((idea,i)=>({title:`${pattern==="magazine"?"Story":"Direction"} ${i+1}`,body:cleanText(idea,true)}));
-  const labels={magazine:["The feature","Read the full story"],product:["Why it matters","Start here"],dashboard:["Current signals","Open the workspace"],"field-guide":["Field notes","Explore the guide"],research:["Evidence summary","Review the sources"]} as const;
-  const [heading,cta]=labels[pattern];
-  source.content=[source.content[0],{type:"Heading",props:{id:`${pattern}-heading`,text:heading,level:"h2"}},{type:"Text",props:{id:`${pattern}-intro`,text:cleanText(summary||"A focused, evidence-led introduction to the subject.",true)}},{type:"CardGrid",props:{id:`${pattern}-cards`,cards}},{type:"CTAButton",props:{id:`${pattern}-cta`,label:cta,href:"#"}}];
-  return source;
-}
-
-export default function PuckBuilder() {
-  const [ready, setReady] = useState(false);
-  const [id, setId] = useState("");
-  const [title, setTitle] = useState("");
-  const [data, setData] = useState<PuckData | null>(null);
-  const [mode, setMode] = useState<"edit" | "preview">("edit");
-  const [saved, setSaved] = useState(false);
-  const [pattern,setPattern]=useState<Pattern>("magazine");
-  const [assetNote,setAssetNote]=useState("Composing the article and finding reusable visuals…");
-
-  useEffect(()=>{const hide=()=>{const bar=document.getElementById("infinity-community");if(bar)bar.hidden=true},observer=new MutationObserver(hide);hide();observer.observe(document.body,{childList:true,subtree:true});return()=>observer.disconnect()},[]);
-
-  useEffect(() => {
-    let active=true;
-    async function compose(){
-    const params = new URLSearchParams(location.search);
-    const draftId = params.get("id") || crypto.randomUUID();
-    const drafts = readDrafts();
-    const draft = drafts.find((d) => d.id === draftId);
-    const pages = readPages();
-    const existing = pages[draftId];
-    const initialTitle = draft?.title || params.get("query") || "Untitled page";
-    setId(draftId);
-    setTitle(initialTitle);
-    if(existing?.data){setData(existing.data);setAssetNote("Saved composition restored")}else{
-      const assets=await findReusableImages(draft?.research?.title||initialTitle);
-      if(!active)return;
-      setData(composedArticle(initialTitle,draft?.summary||"",draft?.research,assets));
-      setAssetNote(assets.length?`${assets.length} credited reusable visual${assets.length===1?"":"s"} selected automatically`:"Article composed; no clearly reusable visual matched this subject");
-    }
-    if(params.get("mode")==="preview")setMode("preview");
-    setReady(true);
-    }
-    void compose();
-    return()=>{active=false};
-  }, []);
-
-  const heading = useMemo(() => title || "Untitled page", [title]);
-
-  function handlePublish(next: PuckData) {
-    const polished=polishPage(next);
-    setData(polished);
-    savePage({ id, title: cleanText(heading), data: polished, updatedAt: new Date().toISOString() });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1800);
-  }
-
-  if (!ready || !data) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#061a30] text-white/60">
-        Loading page builder…
-      </main>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-[#eef2f6] text-slate-950">
-      <header className="sticky top-0 z-40 flex min-h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-2 backdrop-blur-xl sm:px-7">
-        <Link href={appPath("spark")} className="flex items-center gap-2 text-slate-600 hover:text-slate-950">
-          <ChevronLeft />
-          Infinity
-        </Link>
-        <div className="min-w-0 flex-1 truncate text-center font-serif text-lg font-black sm:text-xl">
-          {heading}
-          <span className="ml-2 font-sans text-xs font-normal text-slate-400">Website builder</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setMode(mode === "edit" ? "preview" : "edit")}
-            className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 font-bold shadow-sm"
-          >
-            {mode === "edit" ? <Eye size={16} /> : <Pencil size={16} />}
-            {mode === "edit" ? "Preview" : "Edit"}
-          </button>
-          {saved && <span className="flex items-center gap-1 text-sm font-bold text-emerald-600"><Check size={15}/>Saved</span>}
-        </div>
-      </header>
-      {mode === "edit" ? (
-        <div><section className="border-b border-slate-200 bg-white px-4 py-4 sm:px-7"><div className="flex flex-wrap items-end justify-between gap-2"><p className="text-xs font-bold uppercase tracking-[.18em] text-slate-500">Page patterns</p><p className="text-sm text-slate-500">{assetNote}</p></div><div className="mt-3 flex gap-2 overflow-x-auto pb-1">{patterns.map(item=><button key={item.id} onClick={()=>{setPattern(item.id);const draft=readDrafts().find(d=>d.id===id);setData(patternData(item.id,heading,draft?.summary||"",draft?.research?.engineering||draft?.research?.opportunities||[]))}} className={`min-w-44 rounded-xl border px-4 py-3 text-left ${pattern===item.id?'border-[#145f94] bg-[#eaf4fb]':'border-slate-200'}`}><b className="block">{item.label}</b><small className="mt-1 block text-slate-500">{item.note}</small></button>)}</div></section><div className="puck-shell [&_.PuckCanvas-root]:bg-[#f7f8fa]">
-          <Puck config={puckConfig} data={data} onPublish={handlePublish} />
-        </div></div>
-      ) : (
-        <main className="published-preview mx-auto max-w-6xl px-3 py-6 sm:px-8 sm:py-10 [&_.edit-mark]:hidden">
-          <div className="mb-5 flex items-center gap-2 text-sm font-medium text-slate-500"><Sparkles size={16}/>Finished-page preview</div><Render config={puckConfig} data={data} />
-        </main>
-      )}
-    </div>
-  );
+function polishPage(input:PuckData):PuckData{const copy=structuredClone(input);for(const block of copy.content){const p=block.props as Record<string,unknown>;for(const k of["eyebrow","title","text","label","caption","alt"])if(typeof p[k]==="string")p[k]=cleanText(p[k] as string);for(const k of["subtitle","body"])if(typeof p[k]==="string")p[k]=cleanText(p[k] as string,true)}return copy}
+export default function PuckBuilder(){const[ready,setReady]=useState(false),[id,setId]=useState(""),[title,setTitle]=useState(""),[data,setData]=useState<PuckData|null>(null),[mode,setMode]=useState<"edit"|"preview">("edit"),[saved,setSaved]=useState(false),[pattern,setPattern]=useState<Pattern>("magazine"),[assetNote,setAssetNote]=useState("Phi is composing the publication…");
+ useEffect(()=>{let active=true;(async()=>{const params=new URLSearchParams(location.search),draftId=params.get("id")||crypto.randomUUID(),draft=readDrafts().find(d=>d.id===draftId),existing=readPages()[draftId],initialTitle=draft?.title||params.get("query")||"Untitled page";setId(draftId);setTitle(initialTitle);if(existing?.data){setData(existing.data);setAssetNote("Saved composition restored")}else{const selected=classify(initialTitle,draft?.research);setPattern(selected);const assets=await findReusableImages(draft?.research?.title||initialTitle);if(!active)return;setData(blocks(initialTitle,draft?.summary||"",draft?.research,assets,selected));setAssetNote(`Phi selected ${selected} architecture · ${assets.length} relevant visual${assets.length===1?"":"s"}`)}if(params.get("mode")==="preview")setMode("preview");setReady(true)})();return()=>{active=false}},[]);
+ const heading=useMemo(()=>title||"Untitled page",[title]);function handlePublish(next:PuckData){const polished=polishPage(next);setData(polished);savePage({id,title:cleanText(heading),data:polished,updatedAt:new Date().toISOString()});setSaved(true);setTimeout(()=>setSaved(false),1800)}
+ if(!ready||!data)return <main className="flex min-h-screen items-center justify-center bg-[#061a30] text-white/60">Phi is building the website…</main>;
+ return <div className="min-h-screen bg-[#eef2f6] text-slate-950"><header className="sticky top-0 z-40 flex min-h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 py-2 backdrop-blur-xl sm:px-7"><Link href={appPath("spark")} className="flex items-center gap-2 text-slate-600"><ChevronLeft/>Infinity</Link><div className="min-w-0 flex-1 truncate text-center font-serif text-lg font-black sm:text-xl">{heading}<span className="ml-2 font-sans text-xs font-normal text-slate-400">Phi builder</span></div><button onClick={()=>setMode(mode==="edit"?"preview":"edit")} className="flex items-center gap-2 rounded-full border bg-white px-4 py-2 font-bold shadow-sm">{mode==="edit"?<Eye size={16}/>:<Pencil size={16}/>} {mode==="edit"?"Preview":"Edit"}</button>{saved&&<span className="text-sm font-bold text-emerald-600"><Check size={15}/>Saved</span>}</header>{mode==="edit"?<div><section className="border-b bg-white px-4 py-4 sm:px-7"><div className="flex flex-wrap items-end justify-between gap-2"><p className="text-xs font-bold uppercase tracking-[.18em] text-slate-500">Phi architecture</p><p className="text-sm text-slate-500">{assetNote}</p></div><div className="mt-3 flex gap-2 overflow-x-auto pb-1">{patterns.map(item=><button key={item.id} onClick={()=>{setPattern(item.id);const d=readDrafts().find(x=>x.id===id);void findReusableImages(d?.research?.title||heading).then(a=>setData(blocks(heading,d?.summary||"",d?.research,a,item.id)))}} className={`min-w-44 rounded-xl border px-4 py-3 text-left ${pattern===item.id?"border-[#145f94] bg-[#eaf4fb]":"border-slate-200"}`}><b className="block">{item.label}</b><small className="mt-1 block text-slate-500">{item.note}</small></button>)}</div></section><div className="puck-shell"><Puck config={puckConfig} data={data} onPublish={handlePublish}/></div></div>:<main className="published-preview mx-auto max-w-6xl px-3 py-6 sm:px-8 sm:py-10 [&_.edit-mark]:hidden"><div className="mb-5 flex items-center gap-2 text-sm font-medium text-slate-500"><Sparkles size={16}/>Finished website preview · Phi chose {pattern}</div><Render config={puckConfig} data={data}/></main>}</div>
 }
