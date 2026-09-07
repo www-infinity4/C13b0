@@ -1,11 +1,6 @@
 import type { Config } from "@puckeditor/core";
 import { ArrowUpRight, Pencil } from "lucide-react";
 
-/**
- * Shared Puck visual-page-builder configuration for Infinity Studio.
- * Every block is styled to match the site's dark/glass aesthetic so pages
- * built by users stay visually consistent with the rest of Infinity OS.
- */
 export type InfinityPuckProps = {
   Hero: { eyebrow: string; title: string; subtitle: string };
   Heading: { text: string; level: "h2" | "h3" };
@@ -14,196 +9,40 @@ export type InfinityPuckProps = {
   Image: { url: string; alt: string; caption: string; sourceUrl: string };
   ImageGallery: { images: { url: string; alt: string; caption: string; sourceUrl: string }[] };
   CardGrid: { cards: { title: string; body: string }[] };
+  FactStrip: { facts: { value: string; label: string }[] };
+  Timeline: { items: { year: string; title: string; body: string }[] };
+  Comparison: { leftTitle: string; rightTitle: string; rows: { label: string; left: string; right: string }[] };
+  Steps: { items: { title: string; body: string }[] };
+  SourceList: { sources: { title: string; url: string; note: string }[] };
+  Callout: { label: string; title: string; body: string };
   CTAButton: { label: string; href: string };
   Divider: Record<string, never>;
 };
 
-function EditMark({ label = "Edit" }: { label?: string }) {
-  return <span className="edit-mark inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm" aria-label={label}><Pencil size={13} /></span>;
-}
+function EditMark({ label = "Edit" }: { label?: string }) { return <span className="edit-mark inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm" aria-label={label}><Pencil size={13}/></span>; }
+const textField={type:"text" as const}; const areaField={type:"textarea" as const};
 
 export const puckConfig: Config<InfinityPuckProps> = {
   categories: {
-    layout: { title: "Layout", components: ["Hero", "Divider"] },
-    content: { title: "Content", components: ["Heading", "Text", "PullQuote", "Image", "ImageGallery", "CardGrid"] },
-    action: { title: "Action", components: ["CTAButton"] },
+    layout:{title:"Layout",components:["Hero","FactStrip","Divider"]},
+    content:{title:"Content",components:["Heading","Text","PullQuote","Image","ImageGallery","CardGrid","Timeline","Comparison","Steps","Callout","SourceList"]},
+    action:{title:"Action",components:["CTAButton"]},
   },
-  components: {
-    Hero: {
-      label: "Hero banner",
-      fields: {
-        eyebrow: { type: "text", label: "Eyebrow" },
-        title: { type: "text", label: "Title" },
-        subtitle: { type: "textarea", label: "Subtitle" },
-      },
-      defaultProps: {
-        eyebrow: "Built with Infinity",
-        title: "Your project title",
-        subtitle: "A short, compelling description of what this page is about.",
-      },
-      render: ({ eyebrow, title, subtitle }) => (
-        <section className="relative overflow-hidden rounded-[2rem] bg-[#071d35] px-6 py-16 text-white shadow-[0_30px_80px_rgba(15,23,42,.18)] sm:px-12 sm:py-24">
-          <div className="absolute -right-24 -top-24 size-80 rounded-full border border-blue-300/20 bg-blue-500/10 blur-sm" />
-          <div className="relative max-w-3xl">
-            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.22em] text-[#8fd3ff]"><span>{eyebrow}</span><EditMark label="Edit introduction" /></p>
-            <h1 className="mt-5 flex items-start gap-3 font-sans text-4xl font-semibold leading-[1.05] tracking-[-.04em] sm:text-6xl"><span>{title}</span><EditMark label="Edit title" /></h1>
-            <p className="mt-6 flex max-w-2xl items-start gap-3 text-lg leading-8 text-slate-300 sm:text-xl"><span>{subtitle}</span><EditMark label="Edit summary" /></p>
-          </div>
-        </section>
-      ),
-    },
-    Heading: {
-      label: "Heading",
-      fields: {
-        text: { type: "text", label: "Text" },
-        level: {
-          type: "select",
-          label: "Size",
-          options: [
-            { label: "Large", value: "h2" },
-            { label: "Medium", value: "h3" },
-          ],
-        },
-      },
-      defaultProps: { text: "Section heading", level: "h2" },
-      render: ({ text, level }) => {
-        const Tag = level;
-        return (
-          <Tag className={`${level === "h2" ? "text-3xl sm:text-4xl" : "text-2xl sm:text-3xl"} flex items-center gap-3 font-sans font-semibold tracking-[-.025em] text-slate-950`}>
-            <span>{text}</span><EditMark label="Edit heading" />
-          </Tag>
-        );
-      },
-    },
-    Text: {
-      label: "Paragraph",
-      fields: { text: { type: "textarea", label: "Text" } },
-      defaultProps: { text: "Write the content for this section." },
-      render: ({ text }) => <p className="flex max-w-3xl items-start gap-3 text-[1.05rem] leading-8 text-slate-600"><span>{text}</span><EditMark label="Edit paragraph" /></p>,
-    },
-    PullQuote: {
-      label: "Pull quote",
-      fields: {
-        quote: { type: "textarea", label: "Quote" },
-        attribution: { type: "text", label: "Attribution" },
-      },
-      defaultProps: { quote: "The most surprising sentence from the research.", attribution: "Infinity research" },
-      render: ({ quote, attribution }) => (
-        <blockquote className="relative my-2 rounded-[1.4rem] border-l-8 border-[#145f94] bg-[#eaf4fb] px-8 py-8 text-[#102b40]">
-          <span className="absolute right-4 top-4"><EditMark label="Edit pull quote" /></span>
-          <p className="text-xl font-medium leading-8 italic sm:text-2xl sm:leading-9">“{quote}”</p>
-          {attribution && <footer className="mt-4 text-sm font-bold uppercase tracking-wider text-[#145f94]">— {attribution}</footer>}
-        </blockquote>
-      ),
-    },
-    Image: {
-      label: "Image",
-      fields: {
-        url: { type: "text", label: "Image URL" },
-        alt: { type: "text", label: "Alt text" },
-        caption: { type: "text", label: "Caption" },
-        sourceUrl: { type: "text", label: "Credit link" },
-      },
-      defaultProps: { url: "", alt: "", caption: "", sourceUrl: "" },
-      render: ({ url, alt, caption, sourceUrl }) => (
-        <figure className="group relative overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-100 shadow-sm">
-          <span className="absolute right-3 top-3 z-10"><EditMark label="Edit image" /></span>
-          {url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={url} alt={alt} className="w-full object-cover" />
-          ) : (
-            <div className="flex h-64 items-center justify-center text-sm font-medium text-slate-500">
-              Add an image URL
-            </div>
-          )}
-          {caption && <figcaption className="bg-white px-5 py-3 text-sm text-slate-500">{sourceUrl?<a href={sourceUrl} target="_blank" rel="noreferrer" className="underline decoration-slate-300 underline-offset-4">{caption}</a>:caption}</figcaption>}
-        </figure>
-      ),
-    },
-    ImageGallery: {
-      label: "Image gallery",
-      fields: {
-        images: {
-          type: "array",
-          label: "Images",
-          arrayFields: {
-            url: { type: "text", label: "Image URL" },
-            alt: { type: "text", label: "Alt text" },
-            caption: { type: "text", label: "Caption" },
-            sourceUrl: { type: "text", label: "Credit link" },
-          },
-          defaultItemProps: { url: "", alt: "", caption: "", sourceUrl: "" },
-        },
-      },
-      defaultProps: { images: [] },
-      render: ({ images }) => (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {images.map((img, i) => (
-            <figure key={i} className="overflow-hidden rounded-[1.2rem] border border-slate-200 bg-slate-100 shadow-sm">
-              <span className="absolute right-3 top-3 z-10"><EditMark label={`Edit gallery image ${i + 1}`} /></span>
-              {img.url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={img.url} alt={img.alt} className="h-48 w-full object-cover" />
-              ) : (
-                <div className="flex h-48 items-center justify-center text-sm font-medium text-slate-500">Add an image URL</div>
-              )}
-              {img.caption && <figcaption className="bg-white px-4 py-2 text-xs text-slate-500">{img.sourceUrl ? <a href={img.sourceUrl} target="_blank" rel="noreferrer" className="underline decoration-slate-300 underline-offset-4">{img.caption}</a> : img.caption}</figcaption>}
-            </figure>
-          ))}
-        </div>
-      ),
-    },
-    CardGrid: {
-      label: "Card grid",
-      fields: {
-        cards: {
-          type: "array",
-          label: "Cards",
-          arrayFields: {
-            title: { type: "text", label: "Title" },
-            body: { type: "textarea", label: "Body" },
-          },
-          defaultItemProps: { title: "Card title", body: "Card description." },
-        },
-      },
-      defaultProps: {
-        cards: [
-          { title: "First idea", body: "Describe the first working direction." },
-          { title: "Second idea", body: "Describe the second working direction." },
-        ],
-      },
-      render: ({ cards }) => (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {cards.map((card, i) => (
-            <article key={i} className="rounded-[1.4rem] border border-slate-200 bg-white p-6 shadow-[0_12px_35px_rgba(15,23,42,.06)] transition hover:-translate-y-1 hover:shadow-[0_18px_50px_rgba(15,23,42,.1)]">
-              <div className="flex items-start justify-between gap-3"><b className="block text-lg font-semibold tracking-[-.015em] text-slate-950">{card.title}</b><EditMark label={`Edit card ${i+1}`} /></div>
-              <p className="mt-3 leading-7 text-slate-600">{card.body}</p>
-            </article>
-          ))}
-        </div>
-      ),
-    },
-    CTAButton: {
-      label: "Call to action",
-      fields: {
-        label: { type: "text", label: "Label" },
-        href: { type: "text", label: "Link" },
-      },
-      defaultProps: { label: "Learn more", href: "#" },
-      render: ({ label, href }) => (
-        <a
-          href={href}
-          className="inline-flex items-center gap-2 rounded-full bg-[#0b3154] px-6 py-3 font-bold text-white shadow-lg shadow-blue-950/15 transition hover:-translate-y-0.5"
-        >
-          {label}<ArrowUpRight size={17}/><EditMark label="Edit button" />
-        </a>
-      ),
-    },
-    Divider: {
-      label: "Divider",
-      fields: {},
-      defaultProps: {},
-      render: () => <hr className="border-slate-200" />,
-    },
-  },
+  components:{
+    Hero:{label:"Hero banner",fields:{eyebrow:textField,title:textField,subtitle:areaField},defaultProps:{eyebrow:"Built with Infinity",title:"Your project title",subtitle:"A clear introduction to the subject."},render:({eyebrow,title,subtitle})=><section className="relative overflow-hidden rounded-[2rem] bg-[#071d35] px-6 py-16 text-white shadow-[0_30px_80px_rgba(15,23,42,.18)] sm:px-12 sm:py-24"><div className="absolute -right-24 -top-24 size-80 rounded-full border border-blue-300/20 bg-blue-500/10"/><div className="relative max-w-3xl"><p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.22em] text-[#8fd3ff]">{eyebrow}<EditMark/></p><h1 className="mt-5 flex items-start gap-3 text-4xl font-semibold leading-[1.05] tracking-[-.04em] sm:text-6xl">{title}<EditMark/></h1><p className="mt-6 flex max-w-2xl items-start gap-3 text-lg leading-8 text-slate-300 sm:text-xl">{subtitle}<EditMark/></p></div></section>},
+    Heading:{label:"Heading",fields:{text:textField,level:{type:"select",options:[{label:"Large",value:"h2"},{label:"Medium",value:"h3"}]}},defaultProps:{text:"Section heading",level:"h2"},render:({text,level})=>{const Tag=level;return <Tag className={`${level==="h2"?"text-3xl sm:text-4xl":"text-2xl sm:text-3xl"} flex items-center gap-3 font-semibold tracking-[-.025em] text-slate-950`}>{text}<EditMark/></Tag>}},
+    Text:{label:"Paragraph",fields:{text:areaField},defaultProps:{text:"Write the content for this section."},render:({text})=><p className="flex max-w-3xl items-start gap-3 text-[1.05rem] leading-8 text-slate-600"><span>{text}</span><EditMark/></p>},
+    PullQuote:{label:"Pull quote",fields:{quote:areaField,attribution:textField},defaultProps:{quote:"The most useful sentence from the research.",attribution:"Infinity research"},render:({quote,attribution})=><blockquote className="rounded-[1.4rem] border-l-8 border-[#145f94] bg-[#eaf4fb] px-8 py-8 text-[#102b40]"><p className="text-xl font-medium italic sm:text-2xl">“{quote}”</p>{attribution&&<footer className="mt-4 text-sm font-bold uppercase tracking-wider text-[#145f94]">— {attribution}</footer>}</blockquote>},
+    Image:{label:"Image",fields:{url:textField,alt:textField,caption:textField,sourceUrl:textField},defaultProps:{url:"",alt:"",caption:"",sourceUrl:""},render:({url,alt,caption,sourceUrl})=><figure className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-100 shadow-sm">{url?<img src={url} alt={alt} className="w-full object-cover"/>:<div className="flex h-64 items-center justify-center text-slate-500">Add an image</div>}{caption&&<figcaption className="bg-white px-5 py-3 text-sm text-slate-500">{sourceUrl?<a href={sourceUrl} target="_blank" rel="noreferrer" className="underline">{caption}</a>:caption}</figcaption>}</figure>},
+    ImageGallery:{label:"Image gallery",fields:{images:{type:"array",arrayFields:{url:textField,alt:textField,caption:textField,sourceUrl:textField},defaultItemProps:{url:"",alt:"",caption:"",sourceUrl:""}}},defaultProps:{images:[]},render:({images})=><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{images.map((img,i)=><figure key={i} className="overflow-hidden rounded-[1.2rem] border bg-white">{img.url&&<img src={img.url} alt={img.alt} className="h-52 w-full object-cover"/>}{img.caption&&<figcaption className="p-3 text-xs text-slate-500">{img.caption}</figcaption>}</figure>)}</div>},
+    CardGrid:{label:"Card grid",fields:{cards:{type:"array",arrayFields:{title:textField,body:areaField},defaultItemProps:{title:"Card title",body:"Card description."}}},defaultProps:{cards:[]},render:({cards})=><div className="grid gap-4 sm:grid-cols-2">{cards.map((card,i)=><article key={i} className="rounded-[1.4rem] border border-slate-200 bg-white p-6 shadow-sm"><b className="text-lg">{card.title}</b><p className="mt-3 leading-7 text-slate-600">{card.body}</p></article>)}</div>},
+    FactStrip:{label:"Fact strip",fields:{facts:{type:"array",arrayFields:{value:textField,label:textField},defaultItemProps:{value:"42",label:"Key fact"}}},defaultProps:{facts:[]},render:({facts})=><section className="grid overflow-hidden rounded-2xl border border-slate-200 bg-white sm:grid-cols-2 lg:grid-cols-4">{facts.map((f,i)=><div key={i} className="border-b border-slate-100 p-5 last:border-0 sm:border-b-0 sm:border-r"><strong className="block text-2xl tracking-tight text-[#0b3154]">{f.value}</strong><span className="mt-1 block text-sm text-slate-500">{f.label}</span></div>)}</section>},
+    Timeline:{label:"Timeline",fields:{items:{type:"array",arrayFields:{year:textField,title:textField,body:areaField},defaultItemProps:{year:"2026",title:"Milestone",body:"What changed."}}},defaultProps:{items:[]},render:({items})=><div className="border-l-2 border-[#9bc9e7] pl-6">{items.map((item,i)=><article key={i} className="relative pb-8"><span className="absolute -left-[31px] top-1 size-3 rounded-full bg-[#145f94]"/><span className="text-xs font-bold uppercase tracking-widest text-[#145f94]">{item.year}</span><h3 className="mt-1 text-xl font-semibold">{item.title}</h3><p className="mt-2 max-w-3xl leading-7 text-slate-600">{item.body}</p></article>)}</div>},
+    Comparison:{label:"Comparison",fields:{leftTitle:textField,rightTitle:textField,rows:{type:"array",arrayFields:{label:textField,left:areaField,right:areaField},defaultItemProps:{label:"Feature",left:"",right:""}}},defaultProps:{leftTitle:"Option A",rightTitle:"Option B",rows:[]},render:({leftTitle,rightTitle,rows})=><div className="overflow-x-auto rounded-2xl border bg-white"><table className="w-full min-w-[620px] text-left"><thead className="bg-slate-50"><tr><th className="p-4">Comparison</th><th className="p-4">{leftTitle}</th><th className="p-4">{rightTitle}</th></tr></thead><tbody>{rows.map((r,i)=><tr key={i} className="border-t"><th className="p-4 align-top">{r.label}</th><td className="p-4 text-slate-600">{r.left}</td><td className="p-4 text-slate-600">{r.right}</td></tr>)}</tbody></table></div>},
+    Steps:{label:"Process steps",fields:{items:{type:"array",arrayFields:{title:textField,body:areaField},defaultItemProps:{title:"Step",body:"Describe the action."}}},defaultProps:{items:[]},render:({items})=><div className="grid gap-4 md:grid-cols-3">{items.map((item,i)=><article key={i} className="rounded-2xl border bg-white p-6"><span className="text-sm font-black text-[#145f94]">{String(i+1).padStart(2,"0")}</span><h3 className="mt-3 text-xl font-semibold">{item.title}</h3><p className="mt-2 leading-7 text-slate-600">{item.body}</p></article>)}</div>},
+    Callout:{label:"Callout",fields:{label:textField,title:textField,body:areaField},defaultProps:{label:"Important",title:"What to know",body:"A concise high-value note."},render:({label,title,body})=><aside className="rounded-[1.5rem] bg-[#0b3154] p-7 text-white"><span className="text-xs font-bold uppercase tracking-[.2em] text-[#8fd3ff]">{label}</span><h3 className="mt-3 text-2xl font-semibold">{title}</h3><p className="mt-3 max-w-3xl leading-7 text-slate-200">{body}</p></aside>},
+    SourceList:{label:"Sources",fields:{sources:{type:"array",arrayFields:{title:textField,url:textField,note:areaField},defaultItemProps:{title:"Source",url:"",note:"Why this source matters."}}},defaultProps:{sources:[]},render:({sources})=><div className="divide-y overflow-hidden rounded-2xl border bg-white">{sources.map((s,i)=><article key={i} className="p-5"><a href={s.url} target="_blank" rel="noreferrer" className="font-semibold text-[#145f94] hover:underline">{s.title}</a>{s.note&&<p className="mt-1 text-sm leading-6 text-slate-500">{s.note}</p>}</article>)}</div>},
+    CTAButton:{label:"Call to action",fields:{label:textField,href:textField},defaultProps:{label:"Learn more",href:"#"},render:({label,href})=><a href={href} className="inline-flex items-center gap-2 rounded-full bg-[#0b3154] px-6 py-3 font-bold text-white shadow-lg">{label}<ArrowUpRight size={17}/><EditMark/></a>},
+    Divider:{label:"Divider",fields:{},defaultProps:{},render:()=> <hr className="border-slate-200"/>},
+  }
 };
