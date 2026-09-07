@@ -2,14 +2,34 @@
   "schema": "infinity-site/v1",
   "siteId": "c13b0",
   "title": "Infinity OS — C13b0",
-  "purpose": "Bootstrap and build Infinity applications with deterministic media, site infrastructure, and framework-aware adapters.",
+  "purpose": "Bootstrap and build Infinity applications with deterministic media, site infrastructure, framework-aware adapters, and capability-routed repository reuse.",
   "framework": "next-app",
   "canonicalUrl": "https://www-infinity4.github.io/C13b0/",
   "preview": "public/infinity-preview-v2.jpg",
   "wallet": { "required": true, "centralized": true },
-  "share": { "required": true },
+  "share": { "required": true, "starCoinAware": true },
   "readme": { "required": true },
   "deployment": { "required": true },
-  "scanner": { "contract": "docs/INFINITY_SITE_CREATION_CONTRACT.md" },
+  "scanner": {
+    "contract": "docs/INFINITY_SITE_CREATION_CONTRACT.md",
+    "master": "tools/c13b0-master-scan.py",
+    "output": "phi-index/frontend-index.json",
+    "capabilityStates": ["CAN_DO", "NEEDS_TEST", "PARTIAL", "SHOULD_DO", "ABSENT"],
+    "routing": "prefer-working-capabilities"
+  },
+  "requiredInfinityInfrastructure": [
+    "preview-image",
+    "open-graph",
+    "x-large-card",
+    "share-post",
+    "unified-wallet",
+    "star-coin",
+    "share-reward",
+    "durable-ledger",
+    "token-engine",
+    "scanner-manifest",
+    "canonical-url",
+    "mobile-first"
+  ],
   "ai": { "mode": "capability-detected", "fallback": "server-required-when-local-unavailable" }
 }
