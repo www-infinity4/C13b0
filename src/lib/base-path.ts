@@ -1,19 +1,19 @@
 /**
  * Return the absolute path prefix for the current deployment.
  *
- * On GitHub Pages the exported site is mounted under /C13b0, so a hardcoded
- * absolute path like "/spark" becomes a 404. During the build
- * NEXT_PUBLIC_APP_BASE is set to "/C13b0"; in dev it is empty. This helper
- * centralises the base-path handling so navigation links stay valid in both
- * environments.
+ * GitHub Pages mounts this application at /C13b0. The landing page itself is
+ * exactly `/C13b0` (no trailing slash), while child routes begin `/C13b0/`.
+ * Both forms must resolve to the same base or links created on the opening
+ * screen incorrectly jump to domain-root routes such as /spark/article and
+ * /studio/build, which are 404s on GitHub Pages.
  */
 export function appBase(): string {
   if (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_APP_BASE) {
     return process.env.NEXT_PUBLIC_APP_BASE.replace(/\/+$/, "") || "";
   }
   if (typeof document !== "undefined") {
-    const path = location.pathname;
-    if (path.startsWith("/C13b0/")) return "/C13b0";
+    const path = location.pathname.replace(/\/+$/, "") || "/";
+    if (path === "/C13b0" || path.startsWith("/C13b0/")) return "/C13b0";
   }
   return "";
 }
