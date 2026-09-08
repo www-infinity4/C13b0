@@ -262,32 +262,63 @@
   box-shadow: 0 18px 42px rgba(164, 57, 10, 0.28);
 }
 .phi-build-card {
+  width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 18px;
   margin-top: 34px;
   padding: 20px;
+  border: 0;
   border-radius: 20px;
   background: #eef3ff;
+  color: #17202b;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }
-.phi-build-card p {
+.phi-build-card:hover,
+.phi-build-card:focus-visible {
+  transform: translateY(-2px);
+  background: #e5edff;
+  box-shadow: 0 16px 34px rgba(21, 67, 110, 0.16);
+  outline: 3px solid rgba(22, 139, 76, 0.25);
+  outline-offset: 2px;
+}
+.phi-build-card:disabled {
+  cursor: wait;
+  opacity: 0.78;
+}
+.phi-build-copy {
+  display: block;
+}
+.phi-build-copy > span {
+  display: block;
   margin: 6px 0 0;
   color: #5b6574;
   font-size: 0.88rem;
   line-height: 1.4;
 }
-.phi-build-card a {
+.phi-build-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  color: #116a3a;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.phi-build-action i {
   display: grid;
   place-items: center;
-  flex: none;
   width: 48px;
   height: 48px;
   border-radius: 50%;
   background: #168b4c;
   color: #fff;
-  text-decoration: none;
   font-weight: 700;
+  font-style: normal;
   font-family: Georgia, serif;
   font-size: 1.65rem;
 }
@@ -425,8 +456,9 @@
     align-items: flex-start;
     flex-direction: column;
   }
-  .phi-build-card a {
-    width: 48px;
+  .phi-build-action {
+    width: 100%;
+    justify-content: space-between;
   }
   .phi-search-section.compact {
     margin-top: 28px;
