@@ -4,7 +4,10 @@ export type WalletRecord = { walletId: string; displayName: string };
 
 type WalletApi = {
   createWallet(input: { displayName: string }): WalletRecord;
-  snapshot(): { currentWalletId: string | null; wallets: Record<string, WalletRecord> };
+  snapshot(): {
+    currentWalletId: string | null;
+    wallets: Record<string, WalletRecord>;
+  };
 };
 
 declare global {
@@ -23,7 +26,9 @@ export function saveLocalWallet(wallet: WalletRecord): void {
   secureSave(LOCAL_WALLET, wallet);
 }
 
-export function connectOrCreateWallet(displayName = "Infinity Wallet"): WalletRecord {
+export function connectOrCreateWallet(
+  displayName = "Infinity Wallet",
+): WalletRecord {
   let wallet: WalletRecord | null = null;
   try {
     if (window.InfinityUnifiedWallet) {
@@ -38,8 +43,11 @@ export function connectOrCreateWallet(displayName = "Infinity Wallet"): WalletRe
   }
   if (!wallet) {
     const existing = loadLocalWallet();
-    wallet =
-      existing || { walletId: `infinity-${crypto.randomUUID()}`, displayName };
+    const randomId =
+      typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    wallet = existing || { walletId: `infinity-${randomId}`, displayName };
   }
   saveLocalWallet(wallet);
   return wallet;

@@ -20,6 +20,8 @@ export function appBase(): string {
 
 export function appPath(route: string): string {
   const base = appBase();
-  const clean = route.replace(/^\/+/, "");
-  return clean ? `${base}/${clean}` : base || "/";
+  const clean = route.replace(/^\/+|\/+$/g, "");
+  // Exported child routes are directories containing index.html. The slash
+  // must come before any query string or GitHub Pages returns its 404 page.
+  return clean ? `${base}/${clean}/` : `${base}/` || "/";
 }

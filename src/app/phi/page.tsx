@@ -47,6 +47,7 @@ type Paper = {
 const HISTORY = "infinity_phi_context_v1";
 const PAPERS = "infinity_phi_research_v1";
 const PAPER_PREFIX = "infinity_phi_paper_v2_";
+const LEDGER = "c13b0_infinity_token_ledger_v3";
 const ELEMENTS: Record<string, { symbol: string; number: number }> = {
   hydrogen: { symbol: "H", number: 1 },
   helium: { symbol: "He", number: 2 },
@@ -159,8 +160,7 @@ function sourceScore(source: Source, identity: Identity) {
   let score = 0;
   if (exactTitle) score += 200;
   if (new RegExp(`\\b${name}\\b`, "i").test(title)) score += 80;
-  if (new RegExp(`\\b${name}\\b`, "i").test(excerpt.slice(0, 420)))
-    score += 35;
+  if (new RegExp(`\\b${name}\\b`, "i").test(excerpt.slice(0, 420))) score += 35;
   if (excerpt.includes(`atomic number ${identity.number}`)) score += 40;
   if (source.provider === "Wikipedia") score += 15;
   if (source.imageUrl && exactTitle) score += 25;
@@ -321,6 +321,30 @@ function savePaper(paper: Paper) {
   return directLocal;
 }
 
+function saveResearchToken(paper: Paper) {
+  const existing = secureLoad<Record<string, unknown>[]>(LEDGER, []);
+  const token = {
+    id: paper.id,
+    researchId: paper.id,
+    stage: "research",
+    kind: "research",
+    color: "yellow",
+    status: "finished",
+    value: 1,
+    units: 1,
+    title: paper.query,
+    query: paper.query,
+    resolved: paper.resolved,
+    sourceCount: paper.sources.length,
+    createdAt: new Date(paper.created).toISOString(),
+  };
+  secureSave(
+    LEDGER,
+    [token, ...existing.filter((item) => item.id !== paper.id)].slice(0, 200),
+  );
+  window.dispatchEvent(new Event("infinity-history-updated"));
+}
+
 export default function PhiPage() {
   const [query, setQuery] = useState("");
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -364,6 +388,7 @@ export default function PhiPage() {
       setPaper(nextPaper);
       setHistory(nextHistory);
       secureSave(HISTORY, nextHistory);
+      saveResearchToken(nextPaper);
       if (!savePaper(nextPaper))
         setNotice(
           "This research is saved for this session. Older stored research was compacted to make room.",
