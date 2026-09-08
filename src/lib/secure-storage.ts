@@ -46,14 +46,16 @@ function decode(base64: string): string {
 
 function wrap(json: string): string {
   const data = encode(json);
-  const envelope: Envelope = { v: ENVELOPE_VERSION, checksum: checksum(data), data };
+  const envelope: Envelope = {
+    v: ENVELOPE_VERSION,
+    checksum: checksum(data),
+    data,
+  };
   return JSON.stringify(envelope);
 }
 
 type UnwrapResult =
-  | { status: "ok"; json: string }
-  | { status: "corrupt" }
-  | { status: "legacy" };
+  { status: "ok"; json: string } | { status: "corrupt" } | { status: "legacy" };
 
 function looksLikeEnvelope(value: unknown): value is Partial<Envelope> {
   return (
@@ -118,7 +120,11 @@ function readRaw(key: string, area: StorageArea = "local"): string | null {
   return memoryFallback.has(memKey) ? memoryFallback.get(memKey)! : null;
 }
 
-function writeRaw(key: string, value: string, area: StorageArea = "local"): boolean {
+function writeRaw(
+  key: string,
+  value: string,
+  area: StorageArea = "local",
+): boolean {
   const storage = getStorage(area);
   const memKey = memoryKey(area, key);
   if (storage) {
@@ -140,7 +146,11 @@ function writeRaw(key: string, value: string, area: StorageArea = "local"): bool
  * example a full storage quota), the oldest entries are pruned and the
  * write is retried so recent history is never silently lost.
  */
-export function secureSave<T>(key: string, value: T, area: StorageArea = "local"): boolean {
+export function secureSave<T>(
+  key: string,
+  value: T,
+  area: StorageArea = "local",
+): boolean {
   const attempt = (payload: T): boolean => {
     const envelope = wrap(JSON.stringify(payload));
     const ok = writeRaw(key, envelope, area);
@@ -153,10 +163,14 @@ export function secureSave<T>(key: string, value: T, area: StorageArea = "local"
   if (attempt(value)) return true;
 
   if (Array.isArray(value) && value.length > 1) {
-    let shrinking = value.slice(0, Math.max(1, Math.floor(value.length / 2)));
+    // Keep the newest records. Keeping the first half could discard the
+    // research package that had just been created.
+    let shrinking = value.slice(
+      -Math.max(1, Math.floor(value.length / 2)),
+    );
     while (shrinking.length > 0) {
       if (attempt(shrinking as unknown as T)) return true;
-      shrinking = shrinking.slice(0, Math.floor(shrinking.length / 2));
+      shrinking = shrinking.slice(-Math.floor(shrinking.length / 2));
     }
   }
 
@@ -170,7 +184,11 @@ export function secureSave<T>(key: string, value: T, area: StorageArea = "local"
  * existing history is migrated rather than dropped, and returns
  * `fallback` when nothing usable is found.
  */
-export function secureLoad<T>(key: string, fallback: T, area: StorageArea = "local"): T {
+export function secureLoad<T>(
+  key: string,
+  fallback: T,
+  area: StorageArea = "local",
+): T {
   const raw = readRaw(key, area);
   if (raw === null) return fallback;
   const result = unwrap(raw);

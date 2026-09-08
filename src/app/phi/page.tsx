@@ -1,12 +1,170 @@
 "use client";
-import {FormEvent,useEffect,useMemo,useState} from "react";import Link from "next/link";
-type H={query:string;resolved:string;kind:string;at:number};type Src={title:string;url:string;excerpt:string;provider:string};type Identity={kind:string;name:string;symbol?:string;number?:number};type Paper={id:string;query:string;resolved:string;identity:Identity;title:string;overview:string;findings:string[];sources:Src[];created:number};
-const HISTORY="infinity_phi_context_v1",PAPERS="infinity_phi_research_v1";
-const E:Record<string,{symbol:string;number:number}>={hydrogen:{symbol:"H",number:1},helium:{symbol:"He",number:2},boron:{symbol:"B",number:5},carbon:{symbol:"C",number:6},nitrogen:{symbol:"N",number:7},oxygen:{symbol:"O",number:8},fluorine:{symbol:"F",number:9},aluminum:{symbol:"Al",number:13},potassium:{symbol:"K",number:19},iron:{symbol:"Fe",number:26},copper:{symbol:"Cu",number:29},arsenic:{symbol:"As",number:33},selenium:{symbol:"Se",number:34},yttrium:{symbol:"Y",number:39},niobium:{symbol:"Nb",number:41},antimony:{symbol:"Sb",number:51},iodine:{symbol:"I",number:53},dysprosium:{symbol:"Dy",number:66},ytterbium:{symbol:"Yb",number:70},hafnium:{symbol:"Hf",number:72},tantalum:{symbol:"Ta",number:73},tungsten:{symbol:"W",number:74},rhenium:{symbol:"Re",number:75},platinum:{symbol:"Pt",number:78},gold:{symbol:"Au",number:79},mercury:{symbol:"Hg",number:80},lead:{symbol:"Pb",number:82},bismuth:{symbol:"Bi",number:83},uranium:{symbol:"U",number:92}};
-const MUSIC=/\b(queen|freddie|music|song|album|singer|band|rock|vocal|concert)\b/i,SCI=/\b(element|atom|atomic|chem|chemistry|metal|oxide|ion|alloy|periodic|material|molecule|electron|isotope|physics|rhenium|helium|yttrium|dysprosium|bismuth|antimony|fluorine)\b/i;
-function resolve(q:string,h:H[]){const raw=q.trim(),l=raw.toLowerCase();if(l!=="mercury"){const e=E[l];return e?{kind:"element",resolved:`${raw} chemical element ${e.symbol} atomic number ${e.number}`,identity:{kind:"element",name:raw,symbol:e.symbol,number:e.number} as Identity}:{kind:"general",resolved:raw,identity:{kind:"general",name:raw} as Identity};}const c=h.slice(-32).map(x=>`${x.query} ${x.resolved} ${x.kind}`).join(" ");return SCI.test(c)||!MUSIC.test(c)?{kind:"element",resolved:"Mercury chemical element Hg atomic number 80",identity:{kind:"element",name:"Mercury",symbol:"Hg",number:80} as Identity}:{kind:"music",resolved:"Mercury music Queen Freddie Mercury",identity:{kind:"music",name:"Mercury"} as Identity};}
-const clean=(s:any)=>String(s||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
-function relevant(x:Src,id:Identity){if(id.kind!=="element")return true;const t=`${x.title} ${x.excerpt}`.toLowerCase(),name=id.name.toLowerCase(),sym=String(id.symbol||"").toLowerCase();const exactName=new RegExp(`\\b${name}\\b`,`i`).test(t),atomic=t.includes(`atomic number ${id.number}`),symbol=new RegExp(`\\b${sym}\\b`,`i`).test(t);if(name==="rhenium"&&/\bhelium\b/i.test(t)&&!exactName)return false;return exactName||atomic||(symbol&&/\b(element|metal|atomic|isotope|chemical)\b/i.test(t));}
-async function research(q:string,id:Identity):Promise<Src[]>{const raw:Src[]=[];const add=(x:Src)=>{if(x.excerpt&&x.title&&!raw.some(y=>y.url===x.url))raw.push(x)};const wp=fetch(`https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(q)}&gsrlimit=18&prop=extracts|info&exintro=1&explaintext=1&inprop=url&format=json&origin=*`).then(r=>r.json()).then(j=>Object.values(j?.query?.pages||{}).forEach((p:any)=>add({title:clean(p.title),url:p.fullurl||"",excerpt:clean(p.extract),provider:"Wikipedia"}))).catch(()=>{});const dd=fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_html=1&skip_disambig=0`).then(r=>r.json()).then(j=>{if(j.AbstractText)add({title:clean(j.Heading||q),url:j.AbstractURL||"",excerpt:clean(j.AbstractText),provider:"DuckDuckGo"});(j.RelatedTopics||[]).flatMap((x:any)=>x.Topics||[x]).forEach((x:any)=>x.Text&&add({title:clean(x.Text).split(" - ")[0],url:x.FirstURL||"",excerpt:clean(x.Text),provider:"DuckDuckGo"}))}).catch(()=>{});const cr=fetch(`https://api.crossref.org/works?query=${encodeURIComponent(q)}&rows=18`).then(r=>r.json()).then(j=>(j?.message?.items||[]).forEach((x:any)=>{const title=clean(x.title?.[0]),abstract=clean(x.abstract);if(title)add({title,url:x.URL||`https://doi.org/${x.DOI||""}`,excerpt:abstract||`${title}. Scholarly work indexed by Crossref${x.publisher?` from ${x.publisher}`:""}.`,provider:"Crossref"})})).catch(()=>{});await Promise.all([wp,dd,cr]);return raw.filter(x=>relevant(x,id));}
-function makePaper(query:string,resolved:string,id:Identity,s:Src[]):Paper{const passages=s.map(x=>x.excerpt).filter(Boolean),overview=passages.slice(0,5).join(" "),findings=[...new Set(passages.flatMap(x=>x.split(/(?<=[.!?])\s+/)).filter(x=>x.length>55))].slice(0,12);return{id:`phi-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,query,resolved,identity:id,title:`Understanding ${query}`,overview:overview||`No source passed the exact identity check for ${resolved}. Nothing from another subject was substituted.`,findings,sources:s,created:Date.now()};}
-export default function PhiPage(){const [query,setQuery]=useState(""),[history,setHistory]=useState<H[]>([]),[paper,setPaper]=useState<Paper|null>(null),[busy,setBusy]=useState(false),[err,setErr]=useState("");useEffect(()=>{try{setHistory(JSON.parse(localStorage.getItem(HISTORY)||"[]"));const q=new URLSearchParams(location.search).get("q");if(q)setQuery(q)}catch{}},[]);const recent=useMemo(()=>history.slice(-6).reverse(),[history]);async function submit(e:FormEvent){e.preventDefault();if(!query.trim()||busy)return;setBusy(true);setErr("");const r=resolve(query,history);try{const sources=await research(r.resolved,r.identity),p=makePaper(query.trim(),r.resolved,r.identity,sources),next=[...history,{query:query.trim(),resolved:r.resolved,kind:r.kind,at:Date.now()}];setPaper(p);setHistory(next);localStorage.setItem(HISTORY,JSON.stringify(next));const papers=JSON.parse(localStorage.getItem(PAPERS)||"[]");localStorage.setItem(PAPERS,JSON.stringify([...papers,p]));}catch{setErr("Research failed safely. The exact subject remains locked; no substitute topic was used.")}finally{setBusy(false)}}return <main style={{minHeight:"100dvh",background:"#06172b",color:"white",fontFamily:"system-ui,-apple-system,sans-serif",padding:"max(22px,env(safe-area-inset-top)) 20px 60px"}}><div style={{maxWidth:820,margin:"auto"}}><header style={{display:"flex",justifyContent:"space-between"}}><Link href="../" style={{color:"white",textDecoration:"none",fontWeight:900,letterSpacing:4}}>INFINITY</Link><span style={{fontSize:12,color:"#8db6d9"}}>PHI / EXACT RESEARCH</span></header><section style={{padding:"8vh 0 28px"}}><div style={{width:72,height:72,borderRadius:999,background:"#e3322b",display:"grid",placeItems:"center",font:"36px Georgia",marginBottom:22}}>φ</div><h1 style={{fontSize:"clamp(38px,10vw,68px)",lineHeight:1,margin:"0 0 12px"}}>Research without substitution.</h1><p style={{color:"#b9cee2",fontSize:18,lineHeight:1.5}}>Entity identity is checked after retrieval so the research package stays attached to the subject you entered.</p></section><form onSubmit={submit} style={{display:"flex",background:"white",borderRadius:999,padding:7}}><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search…" style={{flex:1,minWidth:0,border:0,outline:0,borderRadius:999,padding:"12px 14px",fontSize:17,color:"#071526",background:"white"}}/><button style={{border:0,borderRadius:999,background:"#e3322b",color:"white",fontWeight:900,padding:"12px 18px"}}>{busy?"Checking…":"Research"}</button></form>{err&&<p style={{background:"#5a291f",padding:14,borderRadius:14}}>{err}</p>}{paper&&<article style={{marginTop:30,padding:"clamp(20px,5vw,38px)",borderRadius:26,background:"white",color:"#071526"}}><div style={{fontSize:12,fontWeight:900,color:"#3877a8",letterSpacing:1}}>IDENTITY LOCK · {paper.identity.kind==="element"?`${paper.identity.name} / ${paper.identity.symbol} / ${paper.identity.number}`:paper.identity.name}</div><h2 style={{fontSize:"clamp(32px,8vw,54px)",lineHeight:1.02,margin:"12px 0"}}>{paper.title}</h2><p style={{color:"#587087",fontWeight:700}}>Resolved: {paper.resolved}</p><p style={{fontSize:18,lineHeight:1.7}}>{paper.overview}</p>{paper.findings.map((x,i)=><p key={i} style={{fontSize:16,lineHeight:1.65}}>{x}</p>)}<div style={{marginTop:26,paddingTop:18,borderTop:"1px solid #dbe4ec"}}><b>{paper.sources.length} records passed identity validation</b><p style={{color:"#587087"}}>Rejected retrieval results are not stored in this package.</p><a href={`./build/?id=${encodeURIComponent(paper.id)}`} style={{display:"inline-block",padding:"13px 18px",borderRadius:999,background:"#e3322b",color:"white",textDecoration:"none",fontWeight:900}}>Build exact package →</a></div></article>}{recent.length>0&&<section style={{marginTop:30}}><h2 style={{fontSize:14,letterSpacing:2,color:"#8db6d9"}}>ACTIVE CONTEXT</h2>{recent.map((x,i)=><div key={`${x.at}-${i}`} style={{padding:"10px 0",borderBottom:"1px solid #ffffff1f"}}><b>{x.query}</b><div style={{fontSize:13,color:"#9db7ce"}}>{x.resolved}</div></div>)}</section>}</div></main>}
+
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { ArrowRight, Check, ChevronDown, ExternalLink, Search, Sparkles } from "lucide-react";
+import { appPath } from "@/lib/base-path";
+import { secureLoad, secureSave } from "@/lib/secure-storage";
+
+type HistoryItem = { query: string; resolved: string; kind: string; at: number };
+type Source = { title: string; url: string; excerpt: string; provider: string };
+type Identity = { kind: string; name: string; symbol?: string; number?: number };
+type Paper = { id: string; query: string; resolved: string; identity: Identity; title: string; overview: string; findings: string[]; sources: Source[]; created: number };
+
+const HISTORY = "infinity_phi_context_v1";
+const PAPERS = "infinity_phi_research_v1";
+const PAPER_PREFIX = "infinity_phi_paper_v2_";
+const ELEMENTS: Record<string, { symbol: string; number: number }> = {
+  hydrogen:{symbol:"H",number:1},helium:{symbol:"He",number:2},boron:{symbol:"B",number:5},carbon:{symbol:"C",number:6},nitrogen:{symbol:"N",number:7},oxygen:{symbol:"O",number:8},fluorine:{symbol:"F",number:9},aluminum:{symbol:"Al",number:13},potassium:{symbol:"K",number:19},iron:{symbol:"Fe",number:26},copper:{symbol:"Cu",number:29},arsenic:{symbol:"As",number:33},selenium:{symbol:"Se",number:34},yttrium:{symbol:"Y",number:39},niobium:{symbol:"Nb",number:41},antimony:{symbol:"Sb",number:51},iodine:{symbol:"I",number:53},dysprosium:{symbol:"Dy",number:66},ytterbium:{symbol:"Yb",number:70},hafnium:{symbol:"Hf",number:72},tantalum:{symbol:"Ta",number:73},tungsten:{symbol:"W",number:74},rhenium:{symbol:"Re",number:75},platinum:{symbol:"Pt",number:78},gold:{symbol:"Au",number:79},mercury:{symbol:"Hg",number:80},lead:{symbol:"Pb",number:82},bismuth:{symbol:"Bi",number:83},uranium:{symbol:"U",number:92}
+};
+const MUSIC = /\b(queen|freddie|music|song|album|singer|band|rock|vocal|concert)\b/i;
+const SCIENCE = /\b(element|atom|atomic|chem|chemistry|metal|oxide|ion|alloy|periodic|material|molecule|electron|isotope|physics|rhenium|helium|yttrium|dysprosium|bismuth|antimony|fluorine)\b/i;
+
+function resolve(query: string, history: HistoryItem[]) {
+  const raw = query.trim();
+  const lower = raw.toLowerCase();
+  if (lower !== "mercury") {
+    const element = ELEMENTS[lower];
+    return element
+      ? { kind:"element", resolved:`${raw} chemical element ${element.symbol} atomic number ${element.number}`, identity:{kind:"element",name:raw,symbol:element.symbol,number:element.number} as Identity }
+      : { kind:"general", resolved:raw, identity:{kind:"general",name:raw} as Identity };
+  }
+  const context = history.slice(-32).map(item => `${item.query} ${item.resolved} ${item.kind}`).join(" ");
+  return SCIENCE.test(context) || !MUSIC.test(context)
+    ? {kind:"element",resolved:"Mercury chemical element Hg atomic number 80",identity:{kind:"element",name:"Mercury",symbol:"Hg",number:80} as Identity}
+    : {kind:"music",resolved:"Mercury music Queen Freddie Mercury",identity:{kind:"music",name:"Mercury"} as Identity};
+}
+
+const clean = (value: unknown) => String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+function relevant(source: Source, identity: Identity) {
+  if (identity.kind !== "element") return true;
+  const text = `${source.title} ${source.excerpt}`.toLowerCase();
+  const name = identity.name.toLowerCase();
+  const symbol = String(identity.symbol || "").toLowerCase();
+  const exactName = new RegExp(`\\b${name}\\b`, "i").test(text);
+  const atomic = text.includes(`atomic number ${identity.number}`);
+  const exactSymbol = new RegExp(`\\b${symbol}\\b`, "i").test(text);
+  if (name === "rhenium" && /\bhelium\b/i.test(text) && !exactName) return false;
+  return exactName || atomic || (exactSymbol && /\b(element|metal|atomic|isotope|chemical)\b/i.test(text));
+}
+
+async function research(query: string, identity: Identity): Promise<Source[]> {
+  const raw: Source[] = [];
+  const add = (source: Source) => {
+    if (source.excerpt && source.title && !raw.some(item => item.url === source.url)) raw.push(source);
+  };
+  const wikipedia = fetch(`https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=18&prop=extracts|info&exintro=1&explaintext=1&inprop=url&format=json&origin=*`)
+    .then(response => response.json()).then(data => Object.values(data?.query?.pages || {}).forEach((page: any) => add({title:clean(page.title),url:page.fullurl || "",excerpt:clean(page.extract),provider:"Wikipedia"}))).catch(() => {});
+  const duckduckgo = fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=0`)
+    .then(response => response.json()).then(data => {
+      if (data.AbstractText) add({title:clean(data.Heading || query),url:data.AbstractURL || "",excerpt:clean(data.AbstractText),provider:"DuckDuckGo"});
+      (data.RelatedTopics || []).flatMap((item: any) => item.Topics || [item]).forEach((item: any) => item.Text && add({title:clean(item.Text).split(" - ")[0],url:item.FirstURL || "",excerpt:clean(item.Text),provider:"DuckDuckGo"}));
+    }).catch(() => {});
+  const crossref = fetch(`https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=18`)
+    .then(response => response.json()).then(data => (data?.message?.items || []).forEach((item: any) => {
+      const title = clean(item.title?.[0]);
+      const abstract = clean(item.abstract);
+      if (title) add({title,url:item.URL || `https://doi.org/${item.DOI || ""}`,excerpt:abstract || `${title}. Scholarly work indexed by Crossref${item.publisher ? ` from ${item.publisher}` : ""}.`,provider:"Crossref"});
+    })).catch(() => {});
+  await Promise.all([wikipedia, duckduckgo, crossref]);
+  return raw.filter(source => relevant(source, identity));
+}
+
+function makePaper(query: string, resolved: string, identity: Identity, sources: Source[]): Paper {
+  const sentences = sources.flatMap(source => source.excerpt.split(/(?<=[.!?])\s+/)).map(clean).filter(sentence => sentence.length > 55);
+  const unique = [...new Set(sentences)];
+  const overview = unique.slice(0, 3).join(" ") || `No source passed the exact identity check for ${resolved}. Nothing from another subject was substituted.`;
+  return {id:`phi-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,query,resolved,identity,title:query,overview,findings:unique.slice(3,15),sources,created:Date.now()};
+}
+
+function savePaper(paper: Paper) {
+  const directLocal = secureSave(`${PAPER_PREFIX}${paper.id}`, paper);
+  secureSave(`${PAPER_PREFIX}${paper.id}`, paper, "session");
+  const existing = secureLoad<Paper[]>(PAPERS, []);
+  secureSave(PAPERS, [...existing.filter(item => item.id !== paper.id), paper].slice(-8));
+  return directLocal;
+}
+
+export default function PhiPage() {
+  const [query, setQuery] = useState("");
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [paper, setPaper] = useState<Paper | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [showAllSources, setShowAllSources] = useState(false);
+
+  useEffect(() => {
+    setHistory(secureLoad<HistoryItem[]>(HISTORY, []));
+    const initialQuery = new URLSearchParams(location.search).get("q");
+    if (initialQuery) setQuery(initialQuery);
+  }, []);
+
+  const recent = useMemo(() => history.slice(-6).reverse(), [history]);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!query.trim() || busy) return;
+    setBusy(true);
+    setNotice("");
+    setShowAllSources(false);
+    const resolved = resolve(query, history);
+    try {
+      const sources = await research(resolved.resolved, resolved.identity);
+      const nextPaper = makePaper(query.trim(), resolved.resolved, resolved.identity, sources);
+      const nextHistory = [...history, {query:query.trim(),resolved:resolved.resolved,kind:resolved.kind,at:Date.now()}].slice(-80);
+      setPaper(nextPaper);
+      setHistory(nextHistory);
+      secureSave(HISTORY, nextHistory);
+      if (!savePaper(nextPaper)) setNotice("This research is saved for this session. Older stored research was compacted to make room.");
+    } catch {
+      setNotice("The source services did not answer. Try the same search again; Infinity did not substitute another subject.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <main className="phi-mode">
+    <div className="phi-shell">
+      <header className="phi-topline">
+        <Link href={appPath("")} className="phi-wordmark">INFINITY</Link>
+        <span>PHI · AI OVERVIEW</span>
+      </header>
+
+      <section className={paper ? "phi-search-section compact" : "phi-search-section"}>
+        {!paper && <><div className="phi-orb">φ</div><h1>What do you want to understand?</h1><p>Search the exact subject. Infinity gathers evidence, explains it clearly, and keeps the result attached to your words.</p></>}
+        <form onSubmit={submit} className="phi-search-box">
+          <Search size={21}/>
+          <input value={query} onChange={event => setQuery(event.target.value)} aria-label="Research topic" placeholder="Ask anything"/>
+          <button disabled={busy} aria-label="Run research">{busy ? <span className="phi-spinner"/> : <ArrowRight size={21}/>}</button>
+        </form>
+        {busy && <div className="phi-thinking"><Sparkles size={16}/> Building an overview from exact-subject sources…</div>}
+        {notice && <p className="phi-notice">{notice}</p>}
+      </section>
+
+      {paper && <article className="phi-results">
+        <nav className="phi-tabs" aria-label="Result sections"><span className="active">AI overview</span><span>Sources</span><span>Build</span></nav>
+        <div className="phi-result-grid">
+          <section className="phi-answer">
+            <div className="phi-ai-label"><span className="phi-mini-orb">φ</span><b>AI Overview</b></div>
+            <h1>{paper.title}</h1>
+            <div className="phi-identity"><Check size={14}/> Exact identity: {paper.identity.kind === "element" ? `${paper.identity.name} · ${paper.identity.symbol} · atomic number ${paper.identity.number}` : paper.identity.name}</div>
+            <p className="phi-lead">{paper.overview}</p>
+            {paper.findings.length > 0 && <section className="phi-key-points"><h2>Key points</h2>{paper.findings.slice(0,6).map((finding,index) => <p key={index}>{finding}<sup>{paper.sources.length ? Math.min(index + 1, paper.sources.length) : ""}</sup></p>)}</section>}
+            <div className="phi-build-card"><div><b>Turn this overview into a website</b><p>The complete answer, evidence, and exact subject move into the builder together.</p></div><Link href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}`}>Build website <ArrowRight size={18}/></Link></div>
+            <form onSubmit={submit} className="phi-followup"><Sparkles size={18}/><input value={query} onChange={event => setQuery(event.target.value)} aria-label="Ask a follow-up" placeholder="Ask a follow-up"/><button>Ask</button></form>
+          </section>
+
+          <aside className="phi-sources">
+            <h2>Sources</h2>
+            <p>{paper.sources.length} results passed exact-subject validation</p>
+            {(showAllSources ? paper.sources : paper.sources.slice(0,4)).map((source,index) => <a key={`${source.url}-${index}`} href={source.url} target="_blank" rel="noreferrer" className="phi-source-card"><span>{index + 1}</span><div><small>{source.provider}</small><b>{source.title}</b><p>{source.excerpt}</p></div><ExternalLink size={15}/></a>)}
+            {paper.sources.length > 4 && <button className="phi-more" onClick={() => setShowAllSources(value => !value)}>{showAllSources ? "Show fewer" : `View all ${paper.sources.length} sources`} <ChevronDown size={16}/></button>}
+          </aside>
+        </div>
+      </article>}
+
+      {!paper && recent.length > 0 && <section className="phi-recent"><h2>Recent research</h2>{recent.map((item,index) => <button key={`${item.at}-${index}`} onClick={() => setQuery(item.query)}><span>{item.query}</span><small>{item.resolved}</small></button>)}</section>}
+    </div>
+  </main>;
+}

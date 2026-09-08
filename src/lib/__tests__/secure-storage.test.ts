@@ -75,7 +75,7 @@ describe("secure-storage", () => {
     const stored = secureLoad<typeof big>(KEY, []);
     expect(stored.length).toBeGreaterThan(0);
     expect(stored.length).toBeLessThan(big.length);
-    expect(stored).toEqual(big.slice(0, stored.length));
+    expect(stored).toEqual(big.slice(-stored.length));
   });
 
   it("falls back to an in-memory store and still round-trips when storage keeps failing", () => {
