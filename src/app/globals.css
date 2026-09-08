@@ -270,6 +270,10 @@
   padding: 20px;
   border-radius: 20px;
   background: #eef3ff;
+  color: #17202b;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 .phi-build-card p {
   margin: 6px 0 0;
@@ -277,7 +281,7 @@
   font-size: 0.88rem;
   line-height: 1.4;
 }
-.phi-build-card a {
+.phi-build-orb {
   display: grid;
   place-items: center;
   flex: none;
@@ -286,7 +290,6 @@
   border-radius: 50%;
   background: #168b4c;
   color: #fff;
-  text-decoration: none;
   font-weight: 700;
   font-family: Georgia, serif;
   font-size: 1.65rem;
@@ -425,7 +428,7 @@
     align-items: flex-start;
     flex-direction: column;
   }
-  .phi-build-card a {
+  .phi-build-orb {
     width: 48px;
   }
   .phi-search-section.compact {
