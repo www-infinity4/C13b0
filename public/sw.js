@@ -1,4 +1,4 @@
-const CACHE = "infinity-shell-v7";
+const CACHE = "infinity-shell-v8";
 // Derive the base path from this service worker's own URL so the same script
 // works when served at "/C13b0/" (GitHub Pages) and at "/" (Capacitor Android).
 const BASE = new URL("./", self.location.href).pathname;
@@ -11,7 +11,6 @@ const SHELL = [
   BASE + "manifest.webmanifest",
   BASE + "infinity-icon-192.png",
   BASE + "infinity-icon-512.png",
-  BASE + "infinity-preview-v2.jpg",
   BASE + "infinity-main.png",
 ];
 self.addEventListener("install", (event) =>
@@ -50,7 +49,7 @@ self.addEventListener("fetch", (event) => {
       .catch(() =>
         caches
           .match(event.request)
-          .then((response) => response || caches.match(BASE + "spark/")),
+          .then((response) => response || caches.match(BASE + "phi/")),
       ),
   );
 });
