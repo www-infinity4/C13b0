@@ -32,8 +32,8 @@ function liveBuilderUrl(paper: Paper, focusedFinding: number | null) {
     resolved: paper.resolved,
     phone: "1",
     version: "20260908-absolute-builder",
+    focus: focusedFinding === null ? "-1" : String(focusedFinding),
   });
-  if (focusedFinding !== null) params.set("focus", String(focusedFinding));
   return `https://www-infinity4.github.io/C13b0/phi/build/?${params.toString()}`;
 }
 
