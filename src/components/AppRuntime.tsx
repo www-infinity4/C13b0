@@ -1,11 +1,10 @@
 "use client";
 import { useEffect } from "react";
 import {
-  secureLoad,
   secureLoadDurable,
-  secureSave,
   secureSaveDurable,
 } from "@/lib/secure-storage";
+import { connectOrCreateWallet } from "@/lib/wallet";
 const HANDOFF = "c13b0_infinity_spark_handoff_v3",
   DRAFTS = "c13b0_infinity_studio_drafts_v1",
   LEDGER = "c13b0_infinity_token_ledger_v3",
@@ -55,15 +54,6 @@ type PhiPaper = {
 declare global {
   interface Window {
     Capacitor?: { isNativePlatform?: () => boolean };
-    InfinityUnifiedWallet?: {
-      UnifiedInfinityWallet: new () => {
-        createWallet(input: { displayName: string }): WalletRecord;
-        snapshot(): {
-          currentWalletId: string | null;
-          wallets: Record<string, WalletRecord>;
-        };
-      };
-    };
   }
 }
 function uniqueTokens(tokens: Token[]) {
@@ -136,33 +126,9 @@ export async function bridgeInfinityState() {
     tokens = uniqueTokens([...(handoff.chain || []), token, ...tokens]);
     await secureSaveDurable(LEDGER, tokens);
   }
-  if (!window.InfinityUnifiedWallet) {
-    class UnifiedInfinityWallet {
-      snapshot() {
-        const c = secureLoad<WalletRecord | null>(WALLET, null);
-        return {
-          currentWalletId: c?.walletId || null,
-          wallets: c ? { [c.walletId]: c } : {},
-        };
-      }
-      createWallet(input: { displayName: string }) {
-        const e = secureLoad<WalletRecord | null>(WALLET, null);
-        if (e) return e;
-        const randomId =
-          typeof crypto.randomUUID === "function"
-            ? crypto.randomUUID()
-            : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-        const n = {
-          walletId: `infinity-${randomId}`,
-          displayName: input.displayName || "Infinity Wallet",
-        };
-        secureSave(WALLET, n);
-        return n;
-      }
-    }
-    window.InfinityUnifiedWallet = { UnifiedInfinityWallet };
-  }
-  wallet = secureLoad<WalletRecord | null>(WALLET, wallet);
+  // Keep one active identity across C13b0, StarQuest and Mint. This also
+  // promotes older C13b0-only wallets into the shared wallet store.
+  wallet = connectOrCreateWallet();
   await secureSaveDurable(STATE, {
     wallet,
     tokens,
@@ -176,7 +142,11 @@ export default function AppRuntime() {
   useEffect(() => {
     void bridgeInfinityState();
     const sync = (event: StorageEvent) => {
-      if ([HANDOFF, DRAFTS, LEDGER, WALLET].includes(event.key || ""))
+      if (
+        [HANDOFF, DRAFTS, LEDGER, WALLET, "infinity_unified_wallet_v1"].includes(
+          event.key || "",
+        )
+      )
         void bridgeInfinityState();
     };
     const direct = () => void bridgeInfinityState();
@@ -187,13 +157,24 @@ export default function AppRuntime() {
         ? window.Capacitor.isNativePlatform()
         : Boolean(window.Capacitor);
     document.documentElement.dataset.runtime = isNative ? "native" : "web";
+    const currentUrl = new URL(location.href);
+    if (currentUrl.searchParams.has("cache-repair")) {
+      currentUrl.searchParams.delete("cache-repair");
+      history.replaceState(history.state, "", currentUrl.href);
+    }
     if (!isNative && "serviceWorker" in navigator) {
       const base =
         location.pathname === "/C13b0" ||
         location.pathname.startsWith("/C13b0/")
           ? "/C13b0/"
           : "/";
-      void navigator.serviceWorker.register(`${base}sw.js`, { scope: base });
+      void navigator.serviceWorker
+        .register(`${base}sw.js?v=20260908-cache-repair-2`, {
+          scope: base,
+          updateViaCache: "none",
+        })
+        .then((registration) => registration.update())
+        .catch(() => undefined);
     }
     return () => {
       window.removeEventListener("storage", sync);
