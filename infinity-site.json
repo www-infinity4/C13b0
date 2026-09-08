@@ -2,14 +2,25 @@
   "schema": "infinity-site/v1",
   "siteId": "c13b0",
   "title": "Infinity OS — C13b0",
-  "purpose": "Bootstrap and build Infinity applications with deterministic media, site infrastructure, framework-aware adapters, and capability-routed repository reuse.",
+  "purpose": "Bootstrap and build Infinity applications with deterministic media, history-driven site variation, site infrastructure, framework-aware adapters, and capability-routed repository reuse.",
   "framework": "next-app",
   "canonicalUrl": "https://www-infinity4.github.io/C13b0/",
-  "preview": "public/infinity-preview-v2.jpg",
+  "preview": "public/infinity-phi-share.png",
+  "previewUrl": "https://www-infinity4.github.io/C13b0/infinity-phi-share.png",
   "wallet": { "required": true, "centralized": true },
   "share": { "required": true, "starCoinAware": true },
   "readme": { "required": true },
   "deployment": { "required": true },
+  "businessBuilder": {
+    "route": "/business/",
+    "historyDrivenStructuredScripts": true,
+    "styleEngine": "src/lib/business-generation.ts",
+    "storefrontConnectors": ["eBay", "Etsy", "Shopify", "custom"],
+    "storefrontState": "link-ready; authenticated import/publish requires provider connection",
+    "transferIntent": true,
+    "transferSettlement": "requires canonical Cloudflare ledger receipt",
+    "cloudflareMigration": "cloudflare/action-engine/migrations/0002_business_network.sql"
+  },
   "scanner": {
     "contract": "docs/INFINITY_SITE_CREATION_CONTRACT.md",
     "master": "tools/c13b0-master-scan.py",
@@ -29,7 +40,10 @@
     "token-engine",
     "scanner-manifest",
     "canonical-url",
-    "mobile-first"
+    "mobile-first",
+    "history-driven-site-variation",
+    "business-storefront-connector",
+    "cross-user-transfer-intent"
   ],
   "ai": { "mode": "capability-detected", "fallback": "server-required-when-local-unavailable" }
 }
