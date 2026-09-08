@@ -27,7 +27,7 @@ async function wikiExpansion(query: string): Promise<Source[]> {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), 4500);
   try {
-    const url = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=10&prop=extracts|info|pageimages&exintro=1&explaintext=1&inprop=url&pithumbsize=1600&format=json&origin=*`;
+    const url = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=8&prop=extracts|info|pageimages&exintro=1&explaintext=1&inprop=url&pithumbsize=900&format=json&origin=*`;
     const response = await fetch(url, { signal: controller.signal, cache: "no-store" });
     if (!response.ok) return [];
     const data = await response.json();
@@ -45,7 +45,10 @@ async function wikiExpansion(query: string): Promise<Source[]> {
 }
 
 async function expandResearch(paper: Paper): Promise<Source[]> {
-  const queries = [paper.resolved, `${paper.query} history`, `${paper.query} applications`];
+  const compactDevice = typeof navigator !== "undefined" && navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4;
+  const queries = compactDevice
+    ? [paper.resolved, `${paper.query} applications`]
+    : [paper.resolved, `${paper.query} history`, `${paper.query} applications`];
   const settled = await Promise.allSettled(queries.map((query) => wikiExpansion(query)));
   const existing = new Set(paper.sources.map((source) => source.url || source.title.toLowerCase()));
   const seen = new Set<string>();
@@ -57,7 +60,7 @@ async function expandResearch(paper: Paper): Promise<Source[]> {
       seen.add(key);
       return true;
     })
-    .slice(0, 18);
+    .slice(0, compactDevice ? 8 : 18);
 }
 
 export default function Build() {
@@ -67,6 +70,13 @@ export default function Build() {
   const [error, setError] = useState("");
   const [seed, setSeed] = useState(0);
   const [saved, setSaved] = useState(false);
+
+  function enrichAfterFirstPaint(value: Paper) {
+    setEnriching(true);
+    window.setTimeout(() => {
+      void expandResearch(value).then(setExpanded).finally(() => setEnriching(false));
+    }, 650);
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -86,8 +96,7 @@ export default function Build() {
       null;
     if (immediate) {
       setPaper(immediate);
-      setEnriching(true);
-      void expandResearch(immediate).then(setExpanded).finally(() => setEnriching(false));
+      enrichAfterFirstPaint(immediate);
       return;
     }
 
@@ -103,8 +112,7 @@ export default function Build() {
         created: Date.now(),
       };
       setPaper(fallback);
-      setEnriching(true);
-      void expandResearch(fallback).then(setExpanded).finally(() => setEnriching(false));
+      enrichAfterFirstPaint(fallback);
       return;
     }
 
@@ -125,20 +133,20 @@ export default function Build() {
         return;
       }
       setPaper(exact);
-      setEnriching(true);
-      void expandResearch(exact).then(setExpanded).finally(() => setEnriching(false));
+      enrichAfterFirstPaint(exact);
     })();
   }, []);
 
   const theme = THEMES[seed % THEMES.length];
   const allSources = useMemo(() => paper ? [...paper.sources, ...expanded] : [], [paper, expanded]);
   const visualSources = useMemo(() => {
+    const compactDevice = typeof navigator !== "undefined" && navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4;
     const seen = new Set<string>();
     return allSources.filter((source) => {
       if (!source.imageUrl || seen.has(source.imageUrl)) return false;
       seen.add(source.imageUrl);
       return true;
-    }).slice(0, 7);
+    }).slice(0, compactDevice ? 4 : 7);
   }, [allSources]);
   const heroImage = visualSources[0]?.imageUrl;
   const story = useMemo(() => {
@@ -208,7 +216,7 @@ export default function Build() {
 
       <article>
         <section className={heroImage ? "phi-pub-hero with-image" : "phi-pub-hero"}>
-          {heroImage && <img src={heroImage} alt={visualSources[0]?.title || paper.query} className="phi-pub-hero-image" />}
+          {heroImage && <img src={heroImage} alt={visualSources[0]?.title || paper.query} className="phi-pub-hero-image" decoding="async" />}
           <div className="phi-pub-hero-shade" />
           <div className="phi-pub-hero-copy">
             <small>{paper.query.toUpperCase()} · INFINITY RESEARCH PUBLICATION</small>
@@ -236,7 +244,7 @@ export default function Build() {
               <h2>Images drawn directly from the research</h2>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:14,marginTop:18}}>
                 {visualSources.slice(1, 7).map((source, index) => <a key={`${source.imageUrl}-${index}`} href={source.url} target="_blank" rel="noreferrer" style={{display:"block",overflow:"hidden",borderRadius:18,background:"var(--pub-soft)",color:"inherit",textDecoration:"none"}}>
-                  <img src={source.imageUrl} alt={source.title} style={{display:"block",width:"100%",height:180,objectFit:"cover"}} />
+                  <img src={source.imageUrl} alt={source.title} loading="lazy" decoding="async" style={{display:"block",width:"100%",height:180,objectFit:"cover"}} />
                   <div style={{padding:13}}><small style={{opacity:.7}}>{source.provider}</small><b style={{display:"block",marginTop:5,lineHeight:1.25}}>{source.title}</b></div>
                 </a>)}
               </div>
