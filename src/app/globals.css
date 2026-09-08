@@ -168,8 +168,8 @@
   padding: 13px 2px;
 }
 .phi-tabs .active {
-  border-bottom: 3px solid #e46c1a;
-  color: #c9520d;
+  border-bottom: 3px solid #3b68c8;
+  color: #1d4ca4;
   font-weight: 700;
 }
 .phi-result-grid {
@@ -182,7 +182,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #c9520d;
+  color: #2859b6;
 }
 .phi-mini-orb {
   width: 30px;

@@ -10,7 +10,11 @@ import {
   Share2,
 } from "lucide-react";
 import { appPath } from "@/lib/base-path";
-import { secureLoad, secureSave } from "@/lib/secure-storage";
+import {
+  secureLoad,
+  secureLoadDurable,
+  secureSaveDurable,
+} from "@/lib/secure-storage";
 
 type Source = {
   title: string;
@@ -88,23 +92,25 @@ export default function Build() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    const id = new URLSearchParams(location.search).get("id") || "";
-    const direct = id
-      ? secureLoad<Paper | null>(`${PAPER_PREFIX}${id}`, null)
-      : null;
-    const session = id
-      ? secureLoad<Paper | null>(`${PAPER_PREFIX}${id}`, null, "session")
-      : null;
-    const legacy = secureLoad<Paper[]>(PAPERS, []).find(
-      (item) => item.id === id,
-    );
-    const exact = direct || session || legacy;
-    if (!id) setError("No research package was supplied.");
-    else if (!exact)
-      setError(
-        "This research package is no longer available on this device. Run the research once more to rebuild it.",
+    void (async () => {
+      const id = new URLSearchParams(location.search).get("id") || "";
+      const direct = id
+        ? await secureLoadDurable<Paper | null>(`${PAPER_PREFIX}${id}`, null)
+        : null;
+      const session = id
+        ? secureLoad<Paper | null>(`${PAPER_PREFIX}${id}`, null, "session")
+        : null;
+      const legacy = (await secureLoadDurable<Paper[]>(PAPERS, [])).find(
+        (item) => item.id === id,
       );
-    else setPaper(exact);
+      const exact = direct || session || legacy;
+      if (!id) setError("No research package was supplied.");
+      else if (!exact)
+        setError(
+          "This research package is no longer available on this device. Run the research once more to rebuild it.",
+        );
+      else setPaper(exact);
+    })();
   }, []);
 
   const theme = THEMES[seed % THEMES.length];
@@ -132,7 +138,7 @@ export default function Build() {
     return unique.slice(0, 10);
   }, [paper]);
 
-  function save() {
+  async function save() {
     if (!paper) return;
     const updatedAt = new Date().toISOString();
     const site: SavedSite = {
@@ -144,13 +150,13 @@ export default function Build() {
       updatedAt,
       kind: "phi-publication",
     };
-    const sites = secureLoad<SavedSite[]>(SITES, []);
-    secureSave(
+    const sites = await secureLoadDurable<SavedSite[]>(SITES, []);
+    await secureSaveDurable(
       SITES,
       [...sites.filter((item) => item.id !== site.id), site].slice(-40),
     );
-    const pages = secureLoad<Record<string, SavedSite>>(PAGES, {});
-    secureSave(PAGES, { ...pages, [site.id]: site });
+    const pages = await secureLoadDurable<Record<string, SavedSite>>(PAGES, {});
+    await secureSaveDurable(PAGES, { ...pages, [site.id]: site });
     window.dispatchEvent(new Event("infinity-history-updated"));
     setSaved(true);
     window.setTimeout(() => setSaved(false), 2200);

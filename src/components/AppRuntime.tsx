@@ -1,6 +1,11 @@
 "use client";
 import { useEffect } from "react";
-import { secureLoad, secureSave } from "@/lib/secure-storage";
+import {
+  secureLoad,
+  secureLoadDurable,
+  secureSave,
+  secureSaveDurable,
+} from "@/lib/secure-storage";
 const HANDOFF = "c13b0_infinity_spark_handoff_v3",
   DRAFTS = "c13b0_infinity_studio_drafts_v1",
   LEDGER = "c13b0_infinity_token_ledger_v3",
@@ -78,12 +83,18 @@ function fingerprint(value: unknown) {
   }
   return (h >>> 0).toString(36);
 }
-export function bridgeInfinityState() {
-  const handoff = secureLoad<Handoff | null>(HANDOFF, null);
-  let drafts = secureLoad<Draft[]>(DRAFTS, []),
-    tokens = secureLoad<Token[]>(LEDGER, []),
-    wallet = secureLoad<WalletRecord | null>(WALLET, null);
-  const phiPapers = secureLoad<PhiPaper[]>(PHI_PAPERS, []);
+export async function bridgeInfinityState() {
+  const [handoff, savedDrafts, savedTokens, savedWallet, phiPapers] =
+    await Promise.all([
+      secureLoadDurable<Handoff | null>(HANDOFF, null),
+      secureLoadDurable<Draft[]>(DRAFTS, []),
+      secureLoadDurable<Token[]>(LEDGER, []),
+      secureLoadDurable<WalletRecord | null>(WALLET, null),
+      secureLoadDurable<PhiPaper[]>(PHI_PAPERS, []),
+    ]);
+  let drafts = savedDrafts,
+    tokens = savedTokens,
+    wallet = savedWallet;
   if (phiPapers.length) {
     const migrated = phiPapers
       .slice()
@@ -98,7 +109,7 @@ export function bridgeInfinityState() {
         units: 1,
       }));
     tokens = uniqueTokens([...migrated, ...tokens]).slice(0, 200);
-    secureSave(LEDGER, tokens);
+    await secureSaveDurable(LEDGER, tokens);
   }
   if (handoff?.token?.id) {
     const token = handoff.token,
@@ -121,9 +132,9 @@ export function bridgeInfinityState() {
         updatedAt: new Date().toISOString(),
       };
     drafts = [draft, ...drafts.filter((item) => item?.id !== draft.id)];
-    secureSave(DRAFTS, drafts);
+    await secureSaveDurable(DRAFTS, drafts);
     tokens = uniqueTokens([...(handoff.chain || []), token, ...tokens]);
-    secureSave(LEDGER, tokens);
+    await secureSaveDurable(LEDGER, tokens);
   }
   if (!window.InfinityUnifiedWallet) {
     class UnifiedInfinityWallet {
@@ -152,7 +163,7 @@ export function bridgeInfinityState() {
     window.InfinityUnifiedWallet = { UnifiedInfinityWallet };
   }
   wallet = secureLoad<WalletRecord | null>(WALLET, wallet);
-  secureSave(STATE, {
+  await secureSaveDurable(STATE, {
     wallet,
     tokens,
     drafts,
@@ -163,12 +174,12 @@ export function bridgeInfinityState() {
 }
 export default function AppRuntime() {
   useEffect(() => {
-    bridgeInfinityState();
+    void bridgeInfinityState();
     const sync = (event: StorageEvent) => {
       if ([HANDOFF, DRAFTS, LEDGER, WALLET].includes(event.key || ""))
-        bridgeInfinityState();
+        void bridgeInfinityState();
     };
-    const direct = () => bridgeInfinityState();
+    const direct = () => void bridgeInfinityState();
     window.addEventListener("storage", sync);
     window.addEventListener("infinity-handoff-ready", direct);
     const isNative =

@@ -17,13 +17,33 @@ declare global {
 }
 
 const LOCAL_WALLET = "c13b0_infinity_wallet_v1";
+const WALLET_COOKIE = "infinity_wallet_backup";
+
+function loadWalletCookie(): WalletRecord | null {
+  if (typeof document === "undefined") return null;
+  try {
+    const raw = document.cookie
+      .split("; ")
+      .find((item) => item.startsWith(`${WALLET_COOKIE}=`))
+      ?.slice(WALLET_COOKIE.length + 1);
+    return raw ? (JSON.parse(decodeURIComponent(raw)) as WalletRecord) : null;
+  } catch {
+    return null;
+  }
+}
 
 export function loadLocalWallet(): WalletRecord | null {
-  return secureLoad<WalletRecord | null>(LOCAL_WALLET, null);
+  return (
+    secureLoad<WalletRecord | null>(LOCAL_WALLET, null) || loadWalletCookie()
+  );
 }
 
 export function saveLocalWallet(wallet: WalletRecord): void {
   secureSave(LOCAL_WALLET, wallet);
+  if (typeof document !== "undefined") {
+    const secure = location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `${WALLET_COOKIE}=${encodeURIComponent(JSON.stringify(wallet))}; Max-Age=31536000; Path=/; SameSite=Lax${secure}`;
+  }
 }
 
 export function connectOrCreateWallet(

@@ -16,6 +16,8 @@
 
 const ENVELOPE_VERSION = 1;
 const memoryFallback = new Map<string, string>();
+const DURABLE_DB = "infinity-persistent-state";
+const DURABLE_STORE = "records";
 
 type Envelope = {
   v: number;
@@ -106,6 +108,85 @@ function memoryKey(area: StorageArea, key: string): string {
   return `${area}:${key}`;
 }
 
+function openDurableStore(): Promise<IDBDatabase | null> {
+  return new Promise((resolve) => {
+    if (typeof indexedDB === "undefined") return resolve(null);
+    try {
+      const request = indexedDB.open(DURABLE_DB, 1);
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains(DURABLE_STORE))
+          request.result.createObjectStore(DURABLE_STORE);
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function writeDurable(
+  key: string,
+  value: string,
+  area: StorageArea,
+): Promise<boolean> {
+  if (area !== "local") return false;
+  const database = await openDurableStore();
+  if (!database) return false;
+  return new Promise((resolve) => {
+    try {
+      const transaction = database.transaction(DURABLE_STORE, "readwrite");
+      transaction.objectStore(DURABLE_STORE).put(value, key);
+      transaction.oncomplete = () => {
+        database.close();
+        resolve(true);
+      };
+      transaction.onerror = () => {
+        database.close();
+        resolve(false);
+      };
+    } catch {
+      database.close();
+      resolve(false);
+    }
+  });
+}
+
+async function readDurable(key: string): Promise<string | null> {
+  const database = await openDurableStore();
+  if (!database) return null;
+  return new Promise((resolve) => {
+    try {
+      const transaction = database.transaction(DURABLE_STORE, "readonly");
+      const request = transaction.objectStore(DURABLE_STORE).get(key);
+      request.onsuccess = () => {
+        database.close();
+        resolve(typeof request.result === "string" ? request.result : null);
+      };
+      request.onerror = () => {
+        database.close();
+        resolve(null);
+      };
+    } catch {
+      database.close();
+      resolve(null);
+    }
+  });
+}
+
+async function removeDurable(key: string): Promise<void> {
+  const database = await openDurableStore();
+  if (!database) return;
+  try {
+    const transaction = database.transaction(DURABLE_STORE, "readwrite");
+    transaction.objectStore(DURABLE_STORE).delete(key);
+    transaction.oncomplete = () => database.close();
+    transaction.onerror = () => database.close();
+  } catch {
+    database.close();
+  }
+}
+
 function readRaw(key: string, area: StorageArea = "local"): string | null {
   const storage = getStorage(area);
   if (storage) {
@@ -151,6 +232,8 @@ export function secureSave<T>(
   value: T,
   area: StorageArea = "local",
 ): boolean {
+  const durableEnvelope = wrap(JSON.stringify(value));
+  void writeDurable(key, durableEnvelope, area);
   const attempt = (payload: T): boolean => {
     const envelope = wrap(JSON.stringify(payload));
     const ok = writeRaw(key, envelope, area);
@@ -165,9 +248,7 @@ export function secureSave<T>(
   if (Array.isArray(value) && value.length > 1) {
     // Keep the newest records. Keeping the first half could discard the
     // research package that had just been created.
-    let shrinking = value.slice(
-      -Math.max(1, Math.floor(value.length / 2)),
-    );
+    let shrinking = value.slice(-Math.max(1, Math.floor(value.length / 2)));
     while (shrinking.length > 0) {
       if (attempt(shrinking as unknown as T)) return true;
       shrinking = shrinking.slice(-Math.floor(shrinking.length / 2));
@@ -176,6 +257,21 @@ export function secureSave<T>(
 
   memoryFallback.set(memoryKey(area, key), wrap(JSON.stringify(value)));
   return false;
+}
+
+/** Save to both the fast local store and IndexedDB before continuing. */
+export async function secureSaveDurable<T>(
+  key: string,
+  value: T,
+  area: StorageArea = "local",
+): Promise<boolean> {
+  const localSaved = secureSave(key, value, area);
+  const durableSaved = await writeDurable(
+    key,
+    wrap(JSON.stringify(value)),
+    area,
+  );
+  return localSaved || durableSaved;
 }
 
 /**
@@ -202,6 +298,24 @@ export function secureLoad<T>(
   }
 }
 
+/** Restore the complete IndexedDB copy, with local/session storage fallback. */
+export async function secureLoadDurable<T>(
+  key: string,
+  fallback: T,
+  area: StorageArea = "local",
+): Promise<T> {
+  if (area === "session") return secureLoad(key, fallback, area);
+  const raw = await readDurable(key);
+  if (raw === null) return secureLoad(key, fallback, area);
+  const result = unwrap(raw);
+  if (result.status === "corrupt") return secureLoad(key, fallback, area);
+  try {
+    return JSON.parse(result.status === "ok" ? result.json : raw) as T;
+  } catch {
+    return secureLoad(key, fallback, area);
+  }
+}
+
 /** Remove a persisted value from both storage and the memory fallback. */
 export function secureRemove(key: string, area: StorageArea = "local"): void {
   const storage = getStorage(area);
@@ -213,4 +327,5 @@ export function secureRemove(key: string, area: StorageArea = "local"): void {
     }
   }
   memoryFallback.delete(memoryKey(area, key));
+  if (area === "local") void removeDurable(key);
 }

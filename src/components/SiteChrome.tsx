@@ -20,11 +20,11 @@ import {
   loadLocalWallet,
   type WalletRecord,
 } from "@/lib/wallet";
-import { secureLoad } from "@/lib/secure-storage";
+import { secureLoadDurable } from "@/lib/secure-storage";
 const LEDGER = "c13b0_infinity_token_ledger_v3",
   PAGES = "c13b0_infinity_puck_pages_v1";
 const links = [
-  { href: "", label: "Infinity home", icon: Search },
+  { href: "phi", label: "Infinity φ home", icon: Search },
   { href: "spark", label: "Search & research", icon: BookOpen },
   { href: "studio/build", label: "Website builder", icon: Wand2 },
 ];
@@ -63,14 +63,18 @@ export default function SiteChrome({
     [wallet, setWallet] = useState<WalletRecord | null>(null),
     [tokens, setTokens] = useState<Token[]>([]),
     [pages, setPages] = useState<Record<string, Page>>({});
-  function refresh() {
+  async function refresh() {
     setWallet(loadLocalWallet());
-    setTokens(secureLoad<Token[]>(LEDGER, []));
-    setPages(secureLoad<Record<string, Page>>(PAGES, {}));
+    const [savedTokens, savedPages] = await Promise.all([
+      secureLoadDurable<Token[]>(LEDGER, []),
+      secureLoadDurable<Record<string, Page>>(PAGES, {}),
+    ]);
+    setTokens(savedTokens);
+    setPages(savedPages);
   }
   useEffect(() => {
-    refresh();
-    const f = () => refresh();
+    void refresh();
+    const f = () => void refresh();
     window.addEventListener("storage", f);
     window.addEventListener("focus", f);
     window.addEventListener("infinity-history-updated", f);
@@ -83,7 +87,7 @@ export default function SiteChrome({
     };
   }, []);
   function show(p: "menu" | "wallet" | "history") {
-    refresh();
+    void refresh();
     setPanel(p);
     setOpen(true);
   }
@@ -104,7 +108,7 @@ export default function SiteChrome({
   );
   const tokenHref = (token: Token) =>
     token.researchId || token.id.startsWith("phi-")
-      ? `${appPath("phi/build")}?id=${encodeURIComponent(token.researchId || token.id)}`
+      ? `${appPath("phi")}?id=${encodeURIComponent(token.researchId || token.id)}`
       : `${appPath("studio/build")}?id=${encodeURIComponent(token.id)}&mode=preview`;
   const pageHref = (page: Page) =>
     page.kind === "phi-publication" && page.researchId

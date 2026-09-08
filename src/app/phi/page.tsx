@@ -2,7 +2,13 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, ExternalLink, Sparkles } from "lucide-react";
-import { secureLoad, secureSave } from "@/lib/secure-storage";
+import {
+  secureLoad,
+  secureLoadDurable,
+  secureSave,
+  secureSaveDurable,
+} from "@/lib/secure-storage";
+import { connectOrCreateWallet } from "@/lib/wallet";
 
 type HistoryItem = {
   query: string;
@@ -301,19 +307,36 @@ function makePaper(
   };
 }
 
-function savePaper(paper: Paper) {
-  const directLocal = secureSave(`${PAPER_PREFIX}${paper.id}`, paper);
+async function savePaper(paper: Paper) {
+  const durablePaper: Paper = {
+    ...paper,
+    findings: paper.findings.slice(0, 8),
+    sources: paper.sources.slice(0, 16).map((source) => ({
+      ...source,
+      excerpt: source.excerpt.slice(0, 1600),
+    })),
+  };
+  const directLocal = await secureSaveDurable(
+    `${PAPER_PREFIX}${paper.id}`,
+    durablePaper,
+  );
   secureSave(`${PAPER_PREFIX}${paper.id}`, paper, "session");
-  const existing = secureLoad<Paper[]>(PAPERS, []);
-  secureSave(
+  const existing = await secureLoadDurable<Paper[]>(PAPERS, []);
+  await secureSaveDurable(
     PAPERS,
-    [...existing.filter((item) => item.id !== paper.id), paper].slice(-8),
+    [...existing.filter((item) => item.id !== paper.id), durablePaper].slice(
+      -6,
+    ),
   );
   return directLocal;
 }
 
-function saveResearchToken(paper: Paper) {
-  const existing = secureLoad<Record<string, unknown>[]>(LEDGER, []);
+async function saveResearchToken(paper: Paper) {
+  const existing = await secureLoadDurable<Record<string, unknown>[]>(
+    LEDGER,
+    [],
+  );
+  const wallet = connectOrCreateWallet("Infinity Phi");
   const token = {
     id: paper.id,
     researchId: paper.id,
@@ -327,9 +350,10 @@ function saveResearchToken(paper: Paper) {
     query: paper.query,
     resolved: paper.resolved,
     sourceCount: paper.sources.length,
+    walletId: wallet.walletId,
     createdAt: new Date(paper.created).toISOString(),
   };
-  secureSave(
+  await secureSaveDurable(
     LEDGER,
     [token, ...existing.filter((item) => item.id !== paper.id)].slice(0, 200),
   );
@@ -346,9 +370,29 @@ export default function PhiPage() {
   const [focusedFinding, setFocusedFinding] = useState<number | null>(null);
 
   useEffect(() => {
-    setHistory(secureLoad<HistoryItem[]>(HISTORY, []));
-    const initialQuery = new URLSearchParams(location.search).get("q");
-    if (initialQuery) setQuery(initialQuery);
+    void (async () => {
+      const params = new URLSearchParams(location.search);
+      const initialQuery = params.get("q");
+      const id = params.get("id") || "";
+      const savedHistory = await secureLoadDurable<HistoryItem[]>(HISTORY, []);
+      setHistory(savedHistory);
+      if (initialQuery) setQuery(initialQuery);
+      if (id) {
+        const exact =
+          (await secureLoadDurable<Paper | null>(
+            `${PAPER_PREFIX}${id}`,
+            null,
+          )) ||
+          secureLoad<Paper | null>(`${PAPER_PREFIX}${id}`, null, "session") ||
+          (await secureLoadDurable<Paper[]>(PAPERS, [])).find(
+            (item) => item.id === id,
+          );
+        if (exact) {
+          setPaper(exact);
+          setQuery(exact.query);
+        }
+      }
+    })();
   }, []);
 
   const recent = useMemo(() => history.slice(-6).reverse(), [history]);
@@ -380,9 +424,9 @@ export default function PhiPage() {
       ].slice(-80);
       setPaper(nextPaper);
       setHistory(nextHistory);
-      secureSave(HISTORY, nextHistory);
-      saveResearchToken(nextPaper);
-      if (!savePaper(nextPaper))
+      await secureSaveDurable(HISTORY, nextHistory);
+      await saveResearchToken(nextPaper);
+      if (!(await savePaper(nextPaper)))
         setNotice(
           "This research is saved for this session. Older stored research was compacted to make room.",
         );
