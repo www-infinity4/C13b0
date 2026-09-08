@@ -162,19 +162,35 @@ export default function AppRuntime() {
       currentUrl.searchParams.delete("cache-repair");
       history.replaceState(history.state, "", currentUrl.href);
     }
-    if (!isNative && "serviceWorker" in navigator) {
-      const base =
-        location.pathname === "/C13b0" ||
-        location.pathname.startsWith("/C13b0/")
-          ? "/C13b0/"
-          : "/";
-      void navigator.serviceWorker
-        .register(`${base}sw.js?v=20260908-cache-repair-2`, {
-          scope: base,
-          updateViaCache: "none",
-        })
-        .then((registration) => registration.update())
-        .catch(() => undefined);
+    if (!isNative) {
+      // The web build is no longer an installable/offline PWA. Remove any
+      // previously installed C13b0 worker and every old Infinity shell cache.
+      if ("serviceWorker" in navigator) {
+        void navigator.serviceWorker
+          .getRegistrations()
+          .then((registrations) =>
+            Promise.all(
+              registrations
+                .filter((registration) =>
+                  new URL(registration.scope).pathname.startsWith("/C13b0/"),
+                )
+                .map((registration) => registration.unregister()),
+            ),
+          )
+          .catch(() => undefined);
+      }
+      if ("caches" in window) {
+        void caches
+          .keys()
+          .then((keys) =>
+            Promise.all(
+              keys
+                .filter((key) => key.startsWith("infinity-shell-"))
+                .map((key) => caches.delete(key)),
+            ),
+          )
+          .catch(() => undefined);
+      }
     }
     return () => {
       window.removeEventListener("storage", sync);
