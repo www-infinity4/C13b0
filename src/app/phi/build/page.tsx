@@ -13,6 +13,27 @@ const PAPERS = "infinity_phi_research_v1";
 const PAPER_PREFIX = "infinity_phi_paper_v2_";
 const SITES = "infinity_phi_sites_v2";
 const PAGES = "c13b0_infinity_puck_pages_v1";
+const SECTION_WORK = "infinity_phi_section_work_v1";
+const TOKEN_AMENDMENTS = "c13b0_infinity_token_amendments_v1";
+
+type SectionWork = { prompt: string; sources: Source[]; updatedAt: string };
+type SectionWorkStore = Record<string, Record<string, SectionWork>>;
+type TokenRevision = {
+  id: string;
+  action: "DETAILS_UPDATED" | "MATERIAL_ADDED";
+  at: string;
+  materialId?: string;
+  previous?: { title: string; description: string };
+  next?: { title: string; description: string };
+};
+type TokenAmendmentStore = Record<string, {
+  tokenId: string;
+  title?: string;
+  description?: string;
+  materials: { id: string; title: string; url?: string; note?: string; addedAt: string }[];
+  revisions: TokenRevision[];
+  updatedAt?: string;
+}>;
 
 const THEMES = [
   { name: "Midnight", ink: "#f5f1e8", paper: "#071a2e", accent: "#ed4339", soft: "#0d2944", body: "#c7d5e2", serif: "Georgia,serif" },
@@ -49,11 +70,13 @@ async function wikiExpansion(query: string): Promise<Source[]> {
   }
 }
 
-async function expandResearch(paper: Paper): Promise<Source[]> {
+async function expandResearch(paper: Paper, focus: string | null): Promise<Source[]> {
   const compactDevice = isPhone();
-  const queries = compactDevice
-    ? [paper.resolved, `${paper.query} applications`]
-    : [paper.resolved, `${paper.query} history`, `${paper.query} applications`];
+  const aims = focus ? [focus] : paper.findings.slice(0, compactDevice ? 4 : 7);
+  const queries = focus
+    ? [`${paper.query} ${focus}`, `${focus} explained`, `${focus} applications`]
+    : [paper.resolved, ...aims.map((aim) => `${paper.query} ${aim}`), `${paper.query} applications`]
+        .slice(0, compactDevice ? 5 : 10);
   const settled = await Promise.allSettled(queries.map((query) => wikiExpansion(query)));
   const existing = new Set(paper.sources.map((source) => source.url || source.title.toLowerCase()));
   const seen = new Set<string>();
@@ -75,16 +98,19 @@ export default function Build() {
   const [error, setError] = useState("");
   const [seed, setSeed] = useState(0);
   const [saved, setSaved] = useState(false);
+  const [focus, setFocus] = useState<string | null>(null);
+  const [focusIndex, setFocusIndex] = useState<number | null>(null);
+  const [sectionWork, setSectionWork] = useState<Record<string, SectionWork>>({});
+  const [sectionPrompts, setSectionPrompts] = useState<Record<string, string>>({});
+  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [sectionBusy, setSectionBusy] = useState<string | null>(null);
+  const [sectionNotice, setSectionNotice] = useState<Record<string, string>>({});
 
-  function enrichAfterFirstPaint(value: Paper) {
-    if (isPhone()) {
-      setEnriching(false);
-      return;
-    }
+  function enrichAfterFirstPaint(value: Paper, selectedFocus: string | null) {
     setEnriching(true);
     window.setTimeout(() => {
-      void expandResearch(value).then(setExpanded).finally(() => setEnriching(false));
-    }, 650);
+      void expandResearch(value, selectedFocus).then(setExpanded).finally(() => setEnriching(false));
+    }, 450);
   }
 
   useEffect(() => {
@@ -92,6 +118,7 @@ export default function Build() {
     const id = params.get("id") || "";
     const query = clean(params.get("q"));
     const resolved = clean(params.get("resolved")) || query;
+    const focusIndex = Number(params.get("focus"));
     if (!id) {
       setError("No research package was supplied.");
       return;
@@ -104,8 +131,11 @@ export default function Build() {
       secureLoad<Paper[]>(PAPERS, []).find((item) => item.id === id) ||
       null;
     if (immediate) {
+      const selectedFocus = Number.isInteger(focusIndex) && focusIndex >= 0 ? immediate.findings[focusIndex] || null : null;
+      setFocus(selectedFocus);
+      setFocusIndex(selectedFocus ? focusIndex : null);
       setPaper(immediate);
-      enrichAfterFirstPaint(immediate);
+      enrichAfterFirstPaint(immediate, selectedFocus);
       return;
     }
 
@@ -120,8 +150,10 @@ export default function Build() {
         sources: [],
         created: Date.now(),
       };
+      setFocus(null);
+      setFocusIndex(null);
       setPaper(fallback);
-      enrichAfterFirstPaint(fallback);
+      enrichAfterFirstPaint(fallback, null);
       return;
     }
 
@@ -141,10 +173,22 @@ export default function Build() {
         setError("The research package did not open in time. Return to the result and tap Build website again.");
         return;
       }
+      const selectedFocus = Number.isInteger(focusIndex) && focusIndex >= 0 ? exact.findings[focusIndex] || null : null;
+      setFocus(selectedFocus);
+      setFocusIndex(selectedFocus ? focusIndex : null);
       setPaper(exact);
-      enrichAfterFirstPaint(exact);
+      enrichAfterFirstPaint(exact, selectedFocus);
     })();
   }, []);
+
+  useEffect(() => {
+    if (!paper?.id) return;
+    void secureLoadDurable<SectionWorkStore>(SECTION_WORK, {}).then((store) => {
+      const savedWork = store[paper.id] || {};
+      setSectionWork(savedWork);
+      setSectionPrompts(Object.fromEntries(Object.entries(savedWork).map(([key, value]) => [key, value.prompt])));
+    });
+  }, [paper?.id]);
 
   const theme = THEMES[seed % THEMES.length];
   const allSources = useMemo(() => paper ? [...paper.sources, ...expanded] : [], [paper, expanded]);
@@ -159,6 +203,12 @@ export default function Build() {
     }).slice(0, compactDevice ? 3 : 7);
   }, [allSources]);
   const heroImage = visualSources[0]?.imageUrl;
+  const aims = useMemo(() => {
+    if (!paper) return [];
+    if (focus) return [focus];
+    const findings = paper.findings.slice(0, 6).map(clean).filter(Boolean);
+    return findings.length ? findings : sentences(paper.overview).slice(0, 4);
+  }, [paper, focus]);
   const story = useMemo(() => {
     if (!paper) return [];
     const lines = [
@@ -174,6 +224,79 @@ export default function Build() {
       return true;
     }).slice(0, 18);
   }, [paper, expanded]);
+  const visualBeats = useMemo(() => aims.map((aim, index) => {
+    const key = String(focus ? focusIndex ?? index : index);
+    const custom = sectionWork[key];
+    const source = custom?.sources[0] || expanded[index % Math.max(1, expanded.length)] || allSources[index % Math.max(1, allSources.length)];
+    const visual = custom?.sources.find((item) => item.imageUrl) || visualSources[index % Math.max(1, visualSources.length)];
+    const supportSources = custom?.sources.length ? custom.sources : source ? [source] : [];
+    const support = supportSources.flatMap((item) => sentences(item.excerpt).slice(0, focus ? 4 : 2)).slice(0, focus ? 8 : 4);
+    return { key, aim, source, visual, support, prompt: custom?.prompt || "" };
+  }), [aims, expanded, allSources, visualSources, focus, focusIndex, sectionWork]);
+
+  async function researchSection(key: string, aim: string) {
+    if (!paper) return;
+    const prompt = clean(sectionPrompts[key]) || aim;
+    setSectionBusy(key);
+    setSectionNotice((current) => ({ ...current, [key]: "Researching this exact section…" }));
+    const found = await wikiExpansion(`${paper.query} ${aim} ${prompt}`);
+    const work: SectionWork = { prompt, sources: found, updatedAt: new Date().toISOString() };
+    const nextWork = { ...sectionWork, [key]: work };
+    setSectionWork(nextWork);
+    setExpanded((current) => {
+      const seen = new Set<string>();
+      return [...found, ...current].filter((source) => {
+        const identity = source.url || `${source.provider}:${source.title}`;
+        if (seen.has(identity)) return false;
+        seen.add(identity);
+        return true;
+      });
+    });
+    const store = await secureLoadDurable<SectionWorkStore>(SECTION_WORK, {});
+    await secureSaveDurable(SECTION_WORK, { ...store, [paper.id]: nextWork });
+    setSectionBusy(null);
+    setSectionNotice((current) => ({ ...current, [key]: found.length ? `${found.length} focused research cards added` : "No matching source returned yet; refine the direction and try again" }));
+  }
+
+  async function attachSectionToToken(key: string, aim: string) {
+    if (!paper) return;
+    const work = sectionWork[key];
+    const prompt = clean(sectionPrompts[key]) || work?.prompt || aim;
+    const store = await secureLoadDurable<TokenAmendmentStore>(TOKEN_AMENDMENTS, {});
+    const previous = store[paper.id] || { tokenId: paper.id, materials: [], revisions: [] };
+    const now = new Date().toISOString();
+    const materialId = crypto.randomUUID();
+    const material = {
+      id: materialId,
+      title: `Phi section: ${aim}`,
+      url: work?.sources[0]?.url || undefined,
+      note: [prompt, ...((work?.sources || []).slice(0, 3).map((source) => sentences(source.excerpt)[0]).filter(Boolean))].join("\n\n"),
+      addedAt: now,
+    };
+    const revision: TokenRevision = {
+      id: crypto.randomUUID(),
+      action: "MATERIAL_ADDED",
+      at: now,
+      materialId,
+    };
+    await secureSaveDurable(TOKEN_AMENDMENTS, {
+      ...store,
+      [paper.id]: {
+        ...previous,
+        materials: [...previous.materials, material],
+        revisions: [...previous.revisions, revision],
+        updatedAt: now,
+      },
+    });
+    window.dispatchEvent(new Event("infinity-history-updated"));
+    setSectionNotice((current) => ({ ...current, [key]: "This section and its research are attached to the token" }));
+  }
+
+  function focusWebsite(key: string) {
+    if (!paper) return;
+    const params = new URLSearchParams({ id: paper.id, q: paper.query, resolved: paper.resolved, phone: "1", focus: key });
+    location.assign(`${appPath("phi/build")}?${params}`);
+  }
 
   async function save() {
     if (!paper) return;
@@ -229,10 +352,10 @@ export default function Build() {
           {heroImage && <img src={heroImage} alt={visualSources[0]?.title || paper.query} className="phi-pub-hero-image" decoding="async" />}
           <div className="phi-pub-hero-shade" />
           <div className="phi-pub-hero-copy">
-            <small>{paper.query.toUpperCase()} · INFINITY RESEARCH PUBLICATION</small>
-            <h1>{paper.query}</h1>
-            <p>{paper.overview}</p>
-            <div><span>{allSources.length} research sources</span><span>{visualSources.length} live visuals</span><span>Exact subject retained</span></div>
+            <small>{paper.query.toUpperCase()} · {focus ? "FOCUSED VISUAL SCRIPT" : "COMPLETE VISUAL SCRIPT"}</small>
+            <h1>{focus || paper.query}</h1>
+            <p>{focus || paper.overview}</p>
+            <div><span>{allSources.length} research sources</span><span>{visualSources.length} live visuals</span><span>{focus ? "One aim expanded deeply" : `${aims.length} aims developed`}</span></div>
           </div>
         </section>
 
@@ -241,24 +364,41 @@ export default function Build() {
             <span>Research package</span><b>{paper.id}</b>
             <span>Identity</span><b>{paper.resolved}</b>
             <span>Published</span><b>{new Date(paper.created).toLocaleDateString()}</b>
-            <span>Builder status</span><b>{enriching ? "Adding research" : "Expanded"}</b>
+            <span>Build scope</span><b>{focus ? "Selected card only" : "Every research card"}</b>
+            <span>Builder status</span><b>{enriching ? "Adding research and illustrations" : "Expanded"}</b>
           </aside>
 
           <div className="phi-pub-story">
-            <p className="phi-pub-kicker">Overview</p>
-            <h2>What the evidence shows</h2>
-            {story.slice(0, 4).map((item, index) => <p key={index} className={index === 0 ? "lead" : ""}>{item}<sup>{allSources.length ? Math.min(index + 1, allSources.length) : ""}</sup></p>)}
-
-            {visualSources.length > 1 && <section style={{margin:"42px 0"}}>
-              <p className="phi-pub-kicker">Visual field guide</p>
-              <h2>Images drawn directly from the research</h2>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:14,marginTop:18}}>
-                {visualSources.slice(1, 7).map((source, index) => <a key={`${source.imageUrl}-${index}`} href={source.url} target="_blank" rel="noreferrer" style={{display:"block",overflow:"hidden",borderRadius:18,background:"var(--pub-soft)",color:"inherit",textDecoration:"none"}}>
-                  <img src={source.imageUrl} alt={source.title} loading="lazy" decoding="async" style={{display:"block",width:"100%",height:180,objectFit:"cover"}} />
-                  <div style={{padding:13}}><small style={{opacity:.7}}>{source.provider}</small><b style={{display:"block",marginTop:5,lineHeight:1.25}}>{source.title}</b></div>
-                </a>)}
-              </div>
-            </section>}
+            <p className="phi-pub-kicker">Illustrated learning script</p>
+            <h2>{focus ? "One idea, opened all the way" : "Every idea becomes a visual path"}</h2>
+            <p className="lead">{focus || paper.overview}</p>
+            <section className="phi-visual-script">
+              {visualBeats.map((beat, index) => <article key={`${beat.aim}-${index}`}>
+                <div className="phi-visual-media">
+                  {beat.visual?.imageUrl ? <img src={beat.visual.imageUrl} alt={beat.visual.title || beat.aim} loading={index ? "lazy" : "eager"} decoding="async" /> : <div className="phi-visual-pending"><Sparkles /><span>{enriching ? "Finding the matching illustration…" : "Visual research card"}</span></div>}
+                  <button className="phi-inline-button on-visual" onClick={() => setActiveSection(activeSection === beat.key ? null : beat.key)} aria-label={`Open Phi tools for illustration ${index + 1}`}>φ</button>
+                </div>
+                <div>
+                  <div className="phi-script-heading"><small>ILLUSTRATED AIM {String(index + 1).padStart(2, "0")}</small><button className="phi-inline-button" onClick={() => setActiveSection(activeSection === beat.key ? null : beat.key)} aria-label={`Open Phi tools for ${beat.aim}`}>φ</button></div>
+                  <h3>{beat.aim}</h3>
+                  <details open={Boolean(focus)}>
+                    <summary>{focus ? "Expanded research for this aim" : "Open this aim’s research cards"}</summary>
+                    {beat.support.length ? beat.support.map((line, lineIndex) => <div className="phi-script-line" key={lineIndex}><p>{line}</p><button className="phi-inline-button" onClick={() => setActiveSection(beat.key)} aria-label="Ask Phi about this explanation">φ</button></div>) : <div className="phi-script-line"><p>This concept remains attached to the complete research package and can receive additional sources, illustrations, tools, and token amendments.</p><button className="phi-inline-button" onClick={() => setActiveSection(beat.key)} aria-label="Ask Phi about this explanation">φ</button></div>}
+                    {beat.source?.url && <a href={beat.source.url} target="_blank" rel="noreferrer">Open supporting source <ExternalLink size={15} /></a>}
+                  </details>
+                  {activeSection === beat.key && <section className="phi-inline-workspace">
+                    <div><span className="phi-inline-orb">φ</span><div><b>Work inside this section</b><small>Research, add, change, or build from this exact point.</small></div></div>
+                    <textarea value={sectionPrompts[beat.key] || ""} onChange={(event) => setSectionPrompts((current) => ({ ...current, [beat.key]: event.target.value }))} placeholder={`Example: expand ${beat.aim} with Canadian nickels, dates, metals, images, and collector context`} />
+                    <div className="phi-inline-actions">
+                      <button disabled={sectionBusy === beat.key} onClick={() => void researchSection(beat.key, beat.aim)}>{sectionBusy === beat.key ? "Researching…" : "Research this section"}</button>
+                      <button onClick={() => void attachSectionToToken(beat.key, beat.aim)}>Add to token</button>
+                      <button onClick={() => focusWebsite(beat.key)}>Build only this aim</button>
+                    </div>
+                    {sectionNotice[beat.key] && <p>{sectionNotice[beat.key]}</p>}
+                  </section>}
+                </div>
+              </article>)}
+            </section>
 
             {story[4] && <section className="phi-pub-callout"><small>KEY FINDING</small><blockquote>{story[4]}</blockquote></section>}
 
