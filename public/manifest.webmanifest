@@ -1,13 +1,13 @@
 {
-  "name": "Infinity",
-  "short_name": "Infinity",
+  "name": "Infinity Phi Search",
+  "short_name": "Infinity Phi",
   "description": "Search, research, model, and build from one query.",
-  "start_url": "./spark/",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "portrait-primary",
-  "id": "./spark/",
+  "id": "./",
   "background_color": "#061d35",
   "theme_color": "#071f38",
   "icons": [
@@ -17,7 +17,7 @@
   ],
   "categories": ["productivity", "utilities"],
   "shortcuts": [
-    {"name": "Search with Spark", "short_name": "Search", "url": "./spark/", "icons": [{"src": "./infinity-icon-192.png", "sizes": "192x192"}]},
+    {"name": "Infinity Phi Search", "short_name": "Search", "url": "./", "icons": [{"src": "./infinity-icon-192.png", "sizes": "192x192"}]},
     {"name": "Infinity Studio", "short_name": "Studio", "url": "./studio/", "icons": [{"src": "./infinity-icon-192.png", "sizes": "192x192"}]}
   ]
 }
