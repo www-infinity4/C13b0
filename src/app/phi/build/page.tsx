@@ -69,7 +69,10 @@ export default function Build() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    const id = new URLSearchParams(location.search).get("id") || "";
+    const params = new URLSearchParams(location.search);
+    const id = params.get("id") || "";
+    const query = clean(params.get("q"));
+    const resolved = clean(params.get("resolved")) || query;
     if (!id) {
       setError("No research package was supplied.");
       return;
@@ -85,6 +88,23 @@ export default function Build() {
       setPaper(immediate);
       setEnriching(true);
       void expandResearch(immediate).then(setExpanded).finally(() => setEnriching(false));
+      return;
+    }
+
+    if (query) {
+      const fallback: Paper = {
+        id,
+        query,
+        resolved,
+        title: query,
+        overview: `Infinity Phi is rebuilding the complete research publication for ${query}.`,
+        findings: [],
+        sources: [],
+        created: Date.now(),
+      };
+      setPaper(fallback);
+      setEnriching(true);
+      void expandResearch(fallback).then(setExpanded).finally(() => setEnriching(false));
       return;
     }
 

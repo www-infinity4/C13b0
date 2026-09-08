@@ -310,15 +310,20 @@ export default function PhiPage() {
                 </div>
               </section>}
 
-              <a
-                className="phi-build-card"
-                href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}`}
-                onClick={() => secureSave(`${PAPER_PREFIX}${paper.id}`, paper, "session")}
-                aria-label="Build full website from this research"
+              <form
+                className="phi-build-form"
+                action={appPath("phi/build")}
+                method="get"
+                onSubmit={() => secureSave(`${PAPER_PREFIX}${paper.id}`, paper, "session")}
               >
-                <span className="phi-build-copy"><b>Turn this overview into a website</b><span>The complete answer, evidence, images, and expanded research move into the builder together.</span></span>
-                <span className="phi-build-action"><span>Build website</span><i aria-hidden="true">φ</i></span>
-              </a>
+                <input type="hidden" name="id" value={paper.id} />
+                <input type="hidden" name="q" value={paper.query} />
+                <input type="hidden" name="resolved" value={paper.resolved} />
+                <button type="submit" className="phi-build-card" aria-label="Build full website from this research">
+                  <span className="phi-build-copy"><b>Turn this overview into a website</b><span>The complete answer, evidence, images, and expanded research move into the builder together.</span></span>
+                  <span className="phi-build-action"><span>Build website</span><i aria-hidden="true">φ</i></span>
+                </button>
+              </form>
 
               <form onSubmit={submit} className="phi-followup"><Sparkles size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ask a follow-up" /><button>Ask</button></form>
             </section>
