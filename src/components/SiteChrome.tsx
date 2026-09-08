@@ -11,6 +11,7 @@ import {
   BookOpen,
   ChevronLeft,
   Share2,
+  ExternalLink,
 } from "lucide-react";
 import Navigation from "@/components/Navigation";
 import { appPath } from "@/lib/base-path";
@@ -27,6 +28,7 @@ const links = [
   { href: "phi", label: "Infinity φ home", icon: Search },
   { href: "spark", label: "Search & research", icon: BookOpen },
   { href: "studio/build", label: "Website builder", icon: Wand2 },
+  { href: "wallet", label: "Token wallet", icon: Wallet },
 ];
 type Token = {
   id: string;
@@ -55,7 +57,8 @@ export default function SiteChrome({
       pathname === "/C13b0" ||
       pathname.includes("/spark") ||
       phiWorkspace ||
-      pathname.includes("/studio"),
+      pathname.includes("/studio") ||
+      pathname.includes("/wallet"),
     builder =
       pathname.includes("/studio/build") || pathname.includes("/phi/build"),
     [open, setOpen] = useState(false),
@@ -202,7 +205,7 @@ export default function SiteChrome({
                   </nav>
                 )}
                 {panel === "wallet" && (
-                  <section className="mt-6">
+                  <section className="mt-6 min-h-0 flex-1 overflow-y-auto">
                     <p className="text-xs font-black uppercase tracking-[.18em] text-blue-200/60">
                       Unified Infinity wallet
                     </p>
@@ -216,6 +219,9 @@ export default function SiteChrome({
                           {tokens.length}
                         </p>
                         <p className="text-sm text-white/55">saved tokens</p>
+                        <a href={appPath("wallet")} onClick={() => setOpen(false)} className="mt-5 flex items-center justify-center gap-2 rounded-xl bg-[#f0bd55] px-4 py-3 font-black text-[#071a34]">
+                          Open token workspace <ExternalLink size={17} />
+                        </a>
                       </div>
                     ) : (
                       <button
@@ -224,6 +230,18 @@ export default function SiteChrome({
                       >
                         Connect unified wallet
                       </button>
+                    )}
+                    {!!wallet && !!tokens.length && (
+                      <div className="mt-5 grid gap-2">
+                        <p className="text-xs font-black uppercase tracking-[.18em] text-blue-200/60">Itemized tokens</p>
+                        {tokens.slice(0, 25).map((token) => (
+                          <a key={token.id} href={`${appPath("wallet")}?token=${encodeURIComponent(token.id)}`} onClick={() => setOpen(false)} className="rounded-xl border border-white/10 bg-white/5 p-4">
+                            <small className="font-bold uppercase text-[#f0bd55]">{token.stage || "token"}</small>
+                            <b className="mt-1 block text-sm">{token.title || token.query || "Infinity token"}</b>
+                            <small className="mt-1 block truncate font-mono text-white/40">{token.id}</small>
+                          </a>
+                        ))}
+                      </div>
                     )}
                   </section>
                 )}
