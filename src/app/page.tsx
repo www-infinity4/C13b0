@@ -40,8 +40,6 @@ export default function HomePage() {
             <summary aria-label="Open menu" style={{cursor:"pointer",listStyle:"none",fontSize:30,lineHeight:1,border:"1px solid #ffffff55",borderRadius:999,width:58,height:58,display:"grid",placeItems:"center",fontFamily:"Arial,Helvetica,sans-serif"}}>☰</summary>
             <nav style={{position:"absolute",right:0,marginTop:8,width:220,padding:16,borderRadius:18,background:"#fff",color:"#07111f",zIndex:20,boxShadow:"0 20px 60px #0008"}}>
               <Link href={route("/")} style={{display:"block",color:"#1467d8",fontWeight:900,textDecoration:"none"}}>Infinity Phi</Link>
-              <Link href={route("/infinity-index/")} style={{display:"block",marginTop:14,color:"#243b53",fontWeight:800,textDecoration:"none"}}>Infinity Index</Link>
-              <Link href={route("/legacy-spark/")} style={{display:"block",marginTop:14,color:"#64788c",fontWeight:800,textDecoration:"none"}}>Legacy Spark</Link>
             </nav>
           </details>
         </header>
