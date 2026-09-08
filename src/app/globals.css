@@ -281,6 +281,10 @@
   font-size: 0.88rem;
   line-height: 1.4;
 }
+.phi-build-wait {
+  cursor: wait;
+  opacity: 0.76;
+}
 .phi-build-orb {
   display: grid;
   place-items: center;
