@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import {
   ArrowLeft,
   Check,
@@ -175,14 +174,14 @@ export default function Build() {
   if (error)
     return (
       <main className="phi-build-error">
-        <Link href={appPath("phi")}>
+        <a href={appPath("phi")}>
           <ArrowLeft size={18} /> Back to research
-        </Link>
+        </a>
         <section>
           <div className="phi-mini-orb">φ</div>
           <h1>Research package unavailable</h1>
           <p>{error}</p>
-          <Link href={appPath("phi")}>Start the research again</Link>
+          <a href={appPath("phi")}>Start the research again</a>
         </section>
       </main>
     );
@@ -207,9 +206,9 @@ export default function Build() {
       }
     >
       <header className="phi-builder-bar">
-        <Link href={appPath("phi")} aria-label="Back to research">
+        <a href={appPath("phi")} aria-label="Back to research">
           <ArrowLeft size={20} />
-        </Link>
+        </a>
         <div>
           <b>Infinity Builder</b>
           <small>{theme.name} design</small>

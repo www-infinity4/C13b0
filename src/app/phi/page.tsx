@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import {
   ArrowRight,
   Check,
@@ -406,9 +405,6 @@ export default function PhiPage() {
     <main className="phi-mode">
       <div className="phi-shell">
         <header className="phi-topline">
-          <Link href={appPath("")} className="phi-wordmark">
-            INFINITY
-          </Link>
           <span>PHI · AI OVERVIEW</span>
         </header>
 
@@ -496,11 +492,11 @@ export default function PhiPage() {
                       the builder together.
                     </p>
                   </div>
-                  <Link
+                  <a
                     href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}`}
                   >
                     Build website <ArrowRight size={18} />
-                  </Link>
+                  </a>
                 </div>
                 <form onSubmit={submit} className="phi-followup">
                   <Sparkles size={18} />

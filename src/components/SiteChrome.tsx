@@ -49,11 +49,12 @@ export default function SiteChrome({
   children: React.ReactNode;
 }) {
   const pathname = usePathname().replace(/\/+$/, "") || "/",
+    phiWorkspace = pathname.includes("/phi"),
     focused =
       pathname === "/" ||
       pathname === "/C13b0" ||
       pathname.includes("/spark") ||
-      pathname.includes("/phi") ||
+      phiWorkspace ||
       pathname.includes("/studio"),
     builder =
       pathname.includes("/studio/build") || pathname.includes("/phi/build"),
@@ -117,10 +118,13 @@ export default function SiteChrome({
           <button
             type="button"
             onClick={() => show("menu")}
-            className={`fixed z-[70] grid place-items-center rounded-full border border-white/20 bg-[#071a34]/95 text-white shadow-lg transition-all ${builder ? "right-3 top-[max(5.25rem,calc(env(safe-area-inset-top)+4.25rem))] size-11" : "left-4 top-[max(1rem,env(safe-area-inset-top))] size-14"}`}
+            className={`fixed z-[70] flex items-center justify-center border border-white/20 bg-[#071a34]/95 text-white shadow-lg transition-all ${builder ? "right-3 top-[max(5.25rem,calc(env(safe-area-inset-top)+4.25rem))] size-11 rounded-full" : phiWorkspace ? "left-3 top-[max(.7rem,env(safe-area-inset-top))] h-12 gap-2 rounded-2xl px-4" : "left-4 top-[max(1rem,env(safe-area-inset-top))] size-14 rounded-full"}`}
             aria-label="Open Infinity menu"
           >
             <Menu size={builder ? 22 : 27} />
+            {phiWorkspace && !builder && (
+              <span className="font-serif text-lg font-black">Infinity</span>
+            )}
           </button>
           {open && (
             <div
