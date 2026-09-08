@@ -225,6 +225,7 @@ export default function PhiPage() {
     const id = `phi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const shell = makePaper(q, resolved.resolved, resolved.identity, [], id);
     shell.overview = `Searching live sources for ${q}…`;
+    secureSave(`${PAPER_PREFIX}${shell.id}`, shell, "session");
     setPaper(shell);
     setBusy(true);
     setNotice("");
@@ -235,6 +236,7 @@ export default function PhiPage() {
     try {
       const sources = (await hardTimeout(research(resolved.resolved, resolved.identity), 7000)) || [];
       const next = makePaper(q, resolved.resolved, resolved.identity, sources, id);
+      secureSave(`${PAPER_PREFIX}${next.id}`, next, "session");
       setPaper(next);
       setBusy(false);
       if (!sources.length) setNotice("Live source providers timed out. The search page stayed active instead of freezing; retry to make a fresh source pass.");
@@ -312,7 +314,7 @@ export default function PhiPage() {
 
               <div className="phi-build-card">
                 <div><b>Turn this overview into a website</b><p>The complete answer, evidence, images, and expanded research move into the builder together.</p></div>
-                <a href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}`} onClick={() => secureSave(`${PAPER_PREFIX}${paper.id}`, paper, "session")} aria-label="Build full website from this research">φ</a>
+                <a href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}`} aria-label="Build full website from this research">φ</a>
               </div>
 
               <form onSubmit={submit} className="phi-followup"><Sparkles size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ask a follow-up" /><button>Ask</button></form>
