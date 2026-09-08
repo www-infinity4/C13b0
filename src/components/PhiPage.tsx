@@ -312,10 +312,10 @@ export default function PhiPage() {
                 </div>
               </section>}
 
-              <div className="phi-build-card">
+              <a className="phi-build-card" href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}`} aria-label="Build full website from this research">
                 <div><b>Turn this overview into a website</b><p>The complete answer, evidence, images, and expanded research move into the builder together.</p></div>
-                <a href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}`} aria-label="Build full website from this research">φ</a>
-              </div>
+                <span className="phi-build-orb" aria-hidden="true">φ</span>
+              </a>
 
               <form onSubmit={submit} className="phi-followup"><Sparkles size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ask a follow-up" /><button>Ask</button></form>
             </section>
