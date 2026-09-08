@@ -15,6 +15,21 @@ self.addEventListener("activate", (event) => {
       );
       await self.clients.claim();
       await self.registration.unregister();
+      // A page already delivered by the retired cache will not repair itself
+      // until it navigates again. Move every open C13b0 tab to one cache-busted
+      // network request; the marker prevents a reload loop.
+      const clients = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+      await Promise.all(
+        clients.map((client) => {
+          const url = new URL(client.url);
+          if (url.searchParams.get("cache-repair") === "2") return undefined;
+          url.searchParams.set("cache-repair", "2");
+          return client.navigate(url.href);
+        }),
+      );
     })(),
   );
 });
