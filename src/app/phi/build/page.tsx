@@ -1,9 +1,25 @@
 "use client";
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  ArrowLeft,
+  Check,
+  ExternalLink,
+  LayoutTemplate,
+  Save,
+  Share2,
+} from "lucide-react";
 import { appPath } from "@/lib/base-path";
 import { secureLoad, secureSave } from "@/lib/secure-storage";
-type Src = { title: string; url: string; excerpt: string; provider: string };
+
+type Source = {
+  title: string;
+  url: string;
+  excerpt: string;
+  provider: string;
+  imageUrl?: string;
+};
 type Paper = {
   id: string;
   query: string;
@@ -11,58 +27,42 @@ type Paper = {
   title: string;
   overview: string;
   findings: string[];
-  sources: Src[];
+  sources: Source[];
   created: number;
 };
-type Beat = {
+type SavedSite = {
   id: string;
-  text: string;
-  mode: "image" | "diagram" | "chart" | "motion" | "cutout";
-  layout: "wide" | "left" | "right";
-  prompt: string;
+  researchId: string;
+  title: string;
+  subject: string;
+  seed: number;
+  updatedAt: string;
 };
-const PAPERS = "infinity_phi_research_v1",
-  PAPER_PREFIX = "infinity_phi_paper_v2_",
-  SITES = "infinity_phi_sites_v1";
-function hash(s: string) {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
+
+const PAPERS = "infinity_phi_research_v1";
+const PAPER_PREFIX = "infinity_phi_paper_v2_";
+const SITES = "infinity_phi_sites_v2";
+const PAGES = "c13b0_infinity_puck_pages_v1";
+
+const THEMES = [
+  { name: "Midnight", ink: "#f5f1e8", paper: "#071a2e", accent: "#ed4339", soft: "#0d2944", body: "#c7d5e2", serif: "Georgia,serif" },
+  { name: "Journal", ink: "#17202b", paper: "#f6f3eb", accent: "#245fa8", soft: "#e8edf2", body: "#3e4b58", serif: "Georgia,serif" },
+  { name: "Signal", ink: "#10251f", paper: "#edf4ef", accent: "#ce312d", soft: "#dbe9df", body: "#355148", serif: "Arial,Helvetica,sans-serif" },
+];
+
+function paragraphs(text: string) {
+  return String(text || "")
+    .split(/(?<=[.!?])\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
-function storyboard(p: Paper, seed: number): Beat[] {
-  const sentences = [p.overview, ...p.findings]
-    .flatMap((x) => String(x || "").split(/(?<=[.!?])\s+/))
-    .map((x) => x.trim())
-    .filter((x) => x.length > 45);
-  return sentences.map((text, i) => {
-    const t = text.toLowerCase();
-    let mode: Beat["mode"] =
-      /schematic|structure|architecture|circuit|wire|atomic|molecule/.test(t)
-        ? "diagram"
-        : /data|measure|compare|rate|number|percent|temperature|density/.test(t)
-          ? "chart"
-          : /process|move|change|transform|flow|reaction|produce/.test(t)
-            ? "motion"
-            : /object|device|tool|sample|crystal|metal/.test(t)
-              ? "cutout"
-              : "image";
-    const layouts: Beat["layout"][] = ["wide", "left", "right"];
-    return {
-      id: `beat-${i + 1}`,
-      text,
-      mode,
-      layout: layouts[hash(p.id + seed + i) % layouts.length],
-      prompt: `${mode} visual for ${p.resolved}: ${text}. Editorial, technically accurate, no decorative filler.`,
-    };
-  });
-}
+
 export default function Build() {
-  const [paper, setPaper] = useState<Paper | null>(null),
-    [error, setError] = useState(""),
-    [seed, setSeed] = useState(0);
+  const [paper, setPaper] = useState<Paper | null>(null);
+  const [error, setError] = useState("");
+  const [seed, setSeed] = useState(0);
+  const [saved, setSaved] = useState(false);
+
   useEffect(() => {
     const id = new URLSearchParams(location.search).get("id") || "";
     const direct = id
@@ -71,308 +71,168 @@ export default function Build() {
     const session = id
       ? secureLoad<Paper | null>(`${PAPER_PREFIX}${id}`, null, "session")
       : null;
-    const legacy = secureLoad<Paper[]>(PAPERS, []).find((x) => x.id === id);
+    const legacy = secureLoad<Paper[]>(PAPERS, []).find(
+      (item) => item.id === id,
+    );
     const exact = direct || session || legacy;
-    if (!id) setError("No ResearchPackage ID was supplied.");
+    if (!id) setError("No research package was supplied.");
     else if (!exact)
       setError(
-        `ResearchPackage ${id} could not be recovered on this device. No substitute subject was used.`,
+        "This research package is no longer available on this device. Run the research once more to rebuild it.",
       );
     else setPaper(exact);
   }, []);
-  const beats = useMemo(
-    () => (paper ? storyboard(paper, seed) : []),
-    [paper, seed],
+
+  const theme = THEMES[seed % THEMES.length];
+  const heroImage = useMemo(
+    () => paper?.sources.find((source) => source.imageUrl)?.imageUrl,
+    [paper],
   );
+  const story = useMemo(() => {
+    if (!paper) return [];
+    const lines = [...paragraphs(paper.overview), ...paper.findings];
+    const unique = lines.filter(
+      (line, index) =>
+        lines.findIndex(
+          (candidate) =>
+            candidate.slice(0, 120).toLowerCase() ===
+            line.slice(0, 120).toLowerCase(),
+        ) === index,
+    );
+    return unique.slice(0, 10);
+  }, [paper]);
+
   function save() {
     if (!paper) return;
-    const site = {
-      id: `site-${Date.now()}`,
+    const updatedAt = new Date().toISOString();
+    const site: SavedSite = {
+      id: `site-${paper.id}`,
       researchId: paper.id,
+      title: paper.query,
       subject: paper.resolved,
       seed,
-      beats,
-      created: Date.now(),
+      updatedAt,
     };
-    const all = secureLoad<typeof site[]>(SITES, []);
-    secureSave(SITES, [...all, site].slice(-40));
+    const sites = secureLoad<SavedSite[]>(SITES, []);
+    secureSave(SITES, [
+      ...sites.filter((item) => item.id !== site.id),
+      site,
+    ].slice(-40));
+    const pages = secureLoad<Record<string, SavedSite>>(PAGES, {});
+    secureSave(PAGES, { ...pages, [site.id]: site });
+    window.dispatchEvent(new Event("infinity-history-updated"));
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 2200);
   }
+
+  async function share() {
+    if (!paper) return;
+    try {
+      if (navigator.share)
+        await navigator.share({
+          title: paper.query,
+          text: paper.overview,
+          url: location.href,
+        });
+      else await navigator.clipboard.writeText(location.href);
+    } catch {
+      // Closing the native share panel is not an error.
+    }
+  }
+
   if (error)
     return (
-      <main
-        style={{
-          minHeight: "100dvh",
-          background: "#06172b",
-          color: "white",
-          padding: 24,
-          fontFamily: "system-ui",
-        }}
-      >
-        <Link href={appPath("phi")} style={{ color: "white" }}>
-          ← Phi research
-        </Link>
-        <div
-          style={{
-            maxWidth: 700,
-            margin: "15vh auto",
-            padding: 24,
-            border: "1px solid #ffffff30",
-            borderRadius: 22,
-          }}
-        >
-          <h1>Build stopped safely</h1>
+      <main className="phi-build-error">
+        <Link href={appPath("phi")}><ArrowLeft size={18}/> Back to research</Link>
+        <section>
+          <div className="phi-mini-orb">φ</div>
+          <h1>Research package unavailable</h1>
           <p>{error}</p>
-          <p style={{ color: "#a9bfd3" }}>
-            This builder only accepts an exact research-package ID. It will
-            never recover by matching a similar title or grabbing the latest
-            unrelated research.
-          </p>
-        </div>
+          <Link href={appPath("phi")}>Start the research again</Link>
+        </section>
       </main>
     );
+
   if (!paper)
-    return (
-      <main
-        style={{
-          minHeight: "100dvh",
-          background: "#06172b",
-          color: "white",
-          padding: 24,
-        }}
-      >
-        Loading exact research package…
-      </main>
-    );
+    return <main className="phi-build-loading">Opening exact research package…</main>;
+
   return (
     <main
-      style={{
-        minHeight: "100dvh",
-        background: "#f4f1e9",
-        color: "#111923",
-        fontFamily: "Georgia,serif",
-      }}
+      className="phi-publication"
+      style={
+        {
+          "--pub-ink": theme.ink,
+          "--pub-paper": theme.paper,
+          "--pub-accent": theme.accent,
+          "--pub-soft": theme.soft,
+          "--pub-body": theme.body,
+          "--pub-serif": theme.serif,
+        } as React.CSSProperties
+      }
     >
-      <header
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 5,
-          display: "flex",
-          gap: 10,
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "12px 18px",
-          background: "#07192c",
-          color: "white",
-          fontFamily: "system-ui",
-        }}
-      >
-        <Link
-          href={appPath("phi")}
-          style={{ color: "white", textDecoration: "none", fontWeight: 900 }}
-        >
-          INFINITY φ
-        </Link>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={() => setSeed((x) => x + 1)}
-            style={{
-              border: 0,
-              borderRadius: 999,
-              padding: "9px 12px",
-              fontWeight: 800,
-            }}
-          >
-            New design
-          </button>
-          <button
-            onClick={save}
-            style={{
-              border: 0,
-              borderRadius: 999,
-              padding: "9px 12px",
-              background: "#e3322b",
-              color: "white",
-              fontWeight: 900,
-            }}
-          >
-            Save site
-          </button>
-        </div>
+      <header className="phi-builder-bar">
+        <Link href={appPath("phi")} aria-label="Back to research"><ArrowLeft size={20}/></Link>
+        <div><b>Infinity Builder</b><small>{theme.name} design</small></div>
+        <nav>
+          <button onClick={() => setSeed((value) => value + 1)}><LayoutTemplate size={18}/><span>Design</span></button>
+          <button onClick={() => void share()}><Share2 size={18}/><span>Share</span></button>
+          <button className="primary" onClick={save}>{saved ? <Check size={18}/> : <Save size={18}/>}<span>{saved ? "Saved" : "Save"}</span></button>
+        </nav>
       </header>
+
       <article>
-        <section
-          style={{
-            minHeight: "72vh",
-            display: "grid",
-            alignContent: "end",
-            padding: "clamp(28px,7vw,72px)",
-            background: "linear-gradient(135deg,#07192c,#173c5b)",
-            color: "white",
-          }}
-        >
-          <div style={{ maxWidth: 920 }}>
-            <div
-              style={{
-                fontFamily: "system-ui",
-                fontSize: 12,
-                letterSpacing: 2,
-                color: "#8fc6ee",
-                fontWeight: 900,
-              }}
-            >
-              RESEARCH PACKAGE {paper.id}
-            </div>
-            <h1
-              style={{
-                fontSize: "clamp(48px,12vw,112px)",
-                lineHeight: 0.88,
-                letterSpacing: -4,
-                margin: "18px 0",
-              }}
-            >
-              {paper.query}
-            </h1>
-            <p
-              style={{
-                maxWidth: 760,
-                fontSize: "clamp(19px,4vw,28px)",
-                lineHeight: 1.45,
-                color: "#d4e4f1",
-              }}
-            >
-              {paper.overview}
-            </p>
+        <section className={heroImage ? "phi-pub-hero with-image" : "phi-pub-hero"}>
+          {heroImage && <img src={heroImage} alt="" className="phi-pub-hero-image"/>}
+          <div className="phi-pub-hero-shade"/>
+          <div className="phi-pub-hero-copy">
+            <small>INFINITY · RESEARCH PUBLICATION</small>
+            <h1>{paper.query}</h1>
+            <p>{paper.overview}</p>
+            <div><span>{paper.sources.length} verified sources</span><span>Exact subject retained</span></div>
           </div>
         </section>
-        <section
-          style={{ maxWidth: 1050, margin: "auto", padding: "50px 20px 90px" }}
-        >
-          <div
-            style={{
-              fontFamily: "system-ui",
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 8,
-              marginBottom: 38,
-            }}
-          >
-            <span
-              style={{
-                padding: "7px 10px",
-                border: "1px solid #aeb8bd",
-                borderRadius: 999,
-              }}
-            >
-              Exact subject: {paper.resolved}
-            </span>
-            <span
-              style={{
-                padding: "7px 10px",
-                border: "1px solid #aeb8bd",
-                borderRadius: 999,
-              }}
-            >
-              {paper.sources.length} retained records
-            </span>
-            <span
-              style={{
-                padding: "7px 10px",
-                border: "1px solid #aeb8bd",
-                borderRadius: 999,
-              }}
-            >
-              Design {seed + 1}
-            </span>
-          </div>
-          {beats.map((b, i) => (
-            <section
-              key={b.id}
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  b.layout === "wide"
-                    ? "1fr"
-                    : "repeat(auto-fit,minmax(260px,1fr))",
-                gap: 28,
-                alignItems: "center",
-                margin: "0 0 70px",
-              }}
-            >
-              <div style={{ order: b.layout === "left" ? 2 : 1 }}>
-                <div
-                  style={{
-                    fontFamily: "system-ui",
-                    fontSize: 11,
-                    letterSpacing: 2,
-                    fontWeight: 900,
-                    color: "#456b82",
-                  }}
-                >
-                  {String(i + 1).padStart(2, "0")} · {b.mode.toUpperCase()}
-                </div>
-                <p
-                  style={{
-                    fontSize: "clamp(22px,4vw,34px)",
-                    lineHeight: 1.45,
-                    margin: "10px 0",
-                  }}
-                >
-                  {b.text}
-                </p>
-              </div>
-              <div
-                aria-label={b.prompt}
-                style={{
-                  order: b.layout === "left" ? 1 : 2,
-                  minHeight: b.layout === "wide" ? 300 : 260,
-                  borderRadius: 26,
-                  background: "linear-gradient(145deg,#d7e0df,#9fb6bd)",
-                  display: "grid",
-                  placeItems: "center",
-                  padding: 28,
-                  fontFamily: "system-ui",
-                  textAlign: "center",
-                  color: "#294653",
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: 42, marginBottom: 12 }}>
-                    {b.mode === "diagram"
-                      ? "◇"
-                      : b.mode === "chart"
-                        ? "▥"
-                        : b.mode === "motion"
-                          ? "▶"
-                          : b.mode === "cutout"
-                            ? "◉"
-                            : "▣"}
-                  </div>
-                  <b>{b.mode} scene planned</b>
-                  <p style={{ fontSize: 13, lineHeight: 1.5 }}>
-                    Visual generation adapter will render this storyboard
-                    prompt; the research text remains visible and intact
-                    meanwhile.
-                  </p>
-                </div>
-              </div>
+
+        <section className="phi-pub-body">
+          <aside>
+            <span>Research package</span>
+            <b>{paper.id}</b>
+            <span>Identity</span>
+            <b>{paper.resolved}</b>
+            <span>Published</span>
+            <b>{new Date(paper.created).toLocaleDateString()}</b>
+          </aside>
+
+          <div className="phi-pub-story">
+            <p className="phi-pub-kicker">Overview</p>
+            <h2>What the evidence shows</h2>
+            {story.slice(0, 3).map((item, index) => <p key={index} className={index === 0 ? "lead" : ""}>{item}<sup>{paper.sources.length ? Math.min(index + 1, paper.sources.length) : ""}</sup></p>)}
+
+            {story.length > 3 && <section className="phi-pub-callout">
+              <small>KEY FINDING</small>
+              <blockquote>{story[3]}</blockquote>
+            </section>}
+
+            {story.length > 4 && <section className="phi-pub-findings">
+              <p className="phi-pub-kicker">Detailed findings</p>
+              <h2>Research notes</h2>
+              {story.slice(4).map((item, index) => <div key={index}><span>{String(index + 1).padStart(2, "0")}</span><p>{item}</p></div>)}
+            </section>}
+
+            <section className="phi-pub-sources">
+              <p className="phi-pub-kicker">Evidence</p>
+              <h2>Sources used in this publication</h2>
+              {paper.sources.map((source, index) => (
+                <a key={`${source.url}-${index}`} href={source.url} target="_blank" rel="noreferrer">
+                  <span>{index + 1}</span>
+                  <div><small>{source.provider}</small><b>{source.title}</b><p>{source.excerpt}</p></div>
+                  <ExternalLink size={17}/>
+                </a>
+              ))}
             </section>
-          ))}
-          <footer
-            style={{
-              borderTop: "1px solid #b9c1c3",
-              paddingTop: 28,
-              fontFamily: "system-ui",
-            }}
-          >
-            <b>Provenance</b>
-            <p style={{ color: "#53636d" }}>
-              This site is bound to ResearchPackage {paper.id}. Design changes
-              alter composition only; they cannot replace the research subject.
-            </p>
-          </footer>
+          </div>
         </section>
       </article>
+      <footer className="phi-pub-footer"><b>Infinity</b><span>This page remains bound to {paper.id}. Design changes cannot change its subject.</span></footer>
     </main>
   );
 }
