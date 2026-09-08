@@ -1,10 +1,36 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-export const metadata: Metadata = { title:"Infinity Phi", description:"Context-first Infinity research and website generation." };
+export const metadata: Metadata = {
+  title: "Infinity Phi",
+  description: "Infinity Phi search, research, and build engine.",
+};
 
-export default function HomePage(){return <main style={{minHeight:"100dvh",background:"linear-gradient(180deg,#06172b,#0a2747 60%,#07111f)",color:"white",fontFamily:"system-ui,-apple-system,sans-serif",padding:"max(24px,env(safe-area-inset-top)) 22px 48px"}}><div style={{maxWidth:760,margin:"auto"}}>
-<header style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><strong style={{letterSpacing:5}}>INFINITY</strong><details><summary style={{cursor:"pointer",listStyle:"none",fontSize:27,border:"1px solid #ffffff44",borderRadius:999,padding:"7px 13px"}}>☰</summary><nav style={{position:"absolute",right:22,marginTop:8,width:210,padding:14,borderRadius:18,background:"white",color:"#07111f",zIndex:5}}><Link href="/phi" style={{display:"block",color:"#0a4d87",fontWeight:800}}>Phi search</Link><Link href="/legacy-spark" style={{display:"block",marginTop:12,color:"#64788c"}}>Legacy Spark</Link></nav></details></header>
-<section style={{padding:"16vh 0 8vh",textAlign:"center"}}><Link href="/phi" aria-label="Open Phi search" style={{width:108,height:108,borderRadius:999,margin:"0 auto 28px",display:"grid",placeItems:"center",background:"#e3322b",color:"white",textDecoration:"none",boxShadow:"0 0 0 16px #e3322b16,0 28px 80px #0006",font:"50px Georgia"}}>φ</Link><h1 style={{fontSize:"clamp(40px,12vw,76px)",lineHeight:.96,letterSpacing:-2,margin:"0 0 18px"}}>Infinity Phi</h1><p style={{maxWidth:610,margin:"0 auto 34px",fontSize:19,lineHeight:1.55,color:"#c8d9eb"}}>Context first. Research stays attached to its subject. Research becomes a visual script. The script becomes the website.</p><form action="/phi" method="get" style={{display:"flex",background:"white",borderRadius:999,padding:7,boxShadow:"0 22px 70px #0005"}}><input name="q" aria-label="Search Infinity Phi" placeholder="Search anything…" style={{minWidth:0,flex:1,border:0,outline:0,padding:"12px 15px",fontSize:17,borderRadius:999}}/><button style={{border:0,borderRadius:999,padding:"12px 19px",background:"#e3322b",color:"white",fontWeight:900,fontSize:16}}>Search</button></form><p style={{marginTop:15,fontSize:13,color:"#8fa9c2"}}>The primary search path now enters the new Phi engine, not Spark.</p></section>
-<section style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12}}>{[["01","Context","Resolve meaning before retrieval."],["02","Research","Bind a complete package to the exact subject."],["03","Storyboard","Turn the research into a visual script."],["04","Build","Compose the site from that same package."]].map(([n,t,d])=><article key={n} style={{padding:18,border:"1px solid #ffffff20",borderRadius:20,background:"#ffffff0d"}}><div style={{fontSize:12,color:"#78bff4",fontWeight:900}}>{n}</div><h2 style={{fontSize:18,margin:"8px 0"}}>{t}</h2><p style={{fontSize:14,lineHeight:1.5,color:"#b9cce0",margin:0}}>{d}</p></article>)}</section>
-</div></main>}
+export default function HomePage() {
+  return (
+    <main style={{minHeight:"100dvh",background:"radial-gradient(circle at 50% 42%,#12375c 0,#082744 28%,#06192d 58%,#040d18 100%)",color:"white",fontFamily:"Arial Black,Arial,Helvetica,sans-serif",padding:"max(22px,env(safe-area-inset-top)) 22px 48px"}}>
+      <div style={{maxWidth:760,margin:"0 auto"}}>
+        <header style={{display:"flex",justifyContent:"space-between",alignItems:"center",minHeight:64}}>
+          <Link href="/" style={{color:"white",textDecoration:"none",fontSize:22,fontWeight:900,letterSpacing:6,lineHeight:1}}>INFINITY</Link>
+          <details style={{position:"relative"}}>
+            <summary aria-label="Open menu" style={{cursor:"pointer",listStyle:"none",fontSize:30,lineHeight:1,border:"1px solid #ffffff55",borderRadius:999,width:58,height:58,display:"grid",placeItems:"center",fontFamily:"Arial,Helvetica,sans-serif"}}>☰</summary>
+            <nav style={{position:"absolute",right:0,marginTop:8,width:220,padding:16,borderRadius:18,background:"#fff",color:"#07111f",zIndex:20,boxShadow:"0 20px 60px #0008"}}>
+              <Link href="/phi/" style={{display:"block",color:"#0a4d87",fontWeight:900,textDecoration:"none"}}>Phi Search</Link>
+              <Link href="/infinity-index/" style={{display:"block",marginTop:14,color:"#243b53",fontWeight:800,textDecoration:"none"}}>Infinity Index</Link>
+              <Link href="/legacy-spark/" style={{display:"block",marginTop:14,color:"#64788c",fontWeight:800,textDecoration:"none"}}>Legacy Spark</Link>
+            </nav>
+          </details>
+        </header>
+
+        <section style={{minHeight:"calc(100dvh - 150px)",display:"flex",flexDirection:"column",justifyContent:"center",textAlign:"center",padding:"4vh 0 10vh"}}>
+          <Link href="/phi/" aria-label="Open Infinity Phi" style={{width:132,height:132,borderRadius:999,margin:"0 auto 30px",display:"grid",placeItems:"center",background:"#ed302b",color:"white",textDecoration:"none",boxShadow:"0 0 0 16px #ed302b12,0 30px 90px #0008",font:"64px Georgia,serif"}}>φ</Link>
+          <h1 style={{fontSize:"clamp(48px,14vw,84px)",fontWeight:900,lineHeight:.9,letterSpacing:-4,margin:"0 0 38px",textShadow:"0 8px 35px #0008"}}>Infinity Phi</h1>
+          <form action="./phi/" method="get" style={{display:"flex",alignItems:"center",background:"#fff",border:"3px solid #fff",borderRadius:999,padding:6,boxShadow:"0 22px 70px #0007"}}>
+            <input name="q" aria-label="Search Infinity Phi" autoComplete="off" placeholder="Search anything" style={{minWidth:0,flex:1,border:0,outline:0,padding:"15px 18px",fontSize:19,fontWeight:700,borderRadius:999,background:"#fff",color:"#07111f",caretColor:"#ed302b",fontFamily:"Arial,Helvetica,sans-serif"}} />
+            <button type="submit" style={{border:0,borderRadius:999,padding:"15px 22px",background:"#ed302b",color:"white",fontWeight:900,fontSize:17,cursor:"pointer"}}>Search</button>
+          </form>
+        </section>
+      </div>
+    </main>
+  );
+}
