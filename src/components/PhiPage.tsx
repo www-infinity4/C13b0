@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { Check, ChevronDown, ExternalLink, Sparkles } from "lucide-react";
-import { appPath } from "@/lib/base-path";
 import { secureLoad, secureLoadDurable, secureSave, secureSaveDurable } from "@/lib/secure-storage";
 import { connectOrCreateWallet } from "@/lib/wallet";
 
@@ -25,6 +24,17 @@ const HISTORY = "infinity_phi_context_v1";
 const PAPERS = "infinity_phi_research_v1";
 const PAPER_PREFIX = "infinity_phi_paper_v2_";
 const LEDGER = "c13b0_infinity_token_ledger_v3";
+
+function liveBuilderUrl(paper: Paper) {
+  const params = new URLSearchParams({
+    id: paper.id,
+    q: paper.query,
+    resolved: paper.resolved,
+    phone: "1",
+    version: "20260908-absolute-builder",
+  });
+  return `https://www-infinity4.github.io/C13b0/phi/build/?${params.toString()}`;
+}
 
 const ELEMENTS: Record<string, { symbol: string; number: number }> = {
   hydrogen: { symbol: "H", number: 1 }, helium: { symbol: "He", number: 2 },
@@ -312,7 +322,7 @@ export default function PhiPage() {
                 </div>
               </section>}
 
-              <a className="phi-build-card" href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}`} aria-label="Build full website from this research">
+              <a className="phi-build-card" href={liveBuilderUrl(paper)} target="_self" aria-label="Build full website from this research">
                 <div><b>Turn this overview into a website</b><p>The complete answer, evidence, images, and expanded research move into the builder together.</p></div>
                 <span className="phi-build-orb" aria-hidden="true">φ</span>
               </a>
