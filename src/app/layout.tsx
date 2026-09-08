@@ -28,5 +28,37 @@ export const metadata: Metadata = {
     images: [phiPreview],
   },
 };
-export const viewport:Viewport={themeColor:"#071f38",viewportFit:"cover"};
-export default function RootLayout({children}:Readonly<{children:React.ReactNode}>){return <html lang="en" className="scroll-smooth"><body className="min-h-screen antialiased" style={{background:"var(--background)"}}><AppRuntime/><SiteChrome>{children}</SiteChrome><Script src="https://www-infinity4.github.io/Mint-For-Infinity/unified-wallet.js?v=20260831-game-rewards1" strategy="afterInteractive"/></body></html>}
+
+export const viewport: Viewport = { themeColor: "#071f38", viewportFit: "cover" };
+
+const phiChatBarCss = `
+  .phi-search-box {
+    background: linear-gradient(135deg, #e6322d, #c51f24) !important;
+    border-color: #ff655d !important;
+    box-shadow: 0 10px 32px rgba(198,31,36,.22) !important;
+  }
+  .phi-search-box:focus-within {
+    border-color: #ffd85a !important;
+    box-shadow: 0 10px 36px rgba(198,31,36,.3) !important;
+  }
+  .phi-search-box input {
+    color: #ffdc57 !important;
+    caret-color: #ffdc57 !important;
+  }
+  .phi-search-box input::placeholder {
+    color: rgba(255,220,87,.72) !important;
+  }
+`;
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="en" className="scroll-smooth">
+      <head><style>{phiChatBarCss}</style></head>
+      <body className="min-h-screen antialiased" style={{ background: "var(--background)" }}>
+        <AppRuntime />
+        <SiteChrome>{children}</SiteChrome>
+        <Script src="https://www-infinity4.github.io/Mint-For-Infinity/unified-wallet.js?v=20260831-game-rewards1" strategy="afterInteractive" />
+      </body>
+    </html>
+  );
+}
