@@ -69,23 +69,32 @@ export default function Build() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    void (async () => {
-      const id = new URLSearchParams(location.search).get("id") || "";
-      if (!id) { setError("No research package was supplied."); return; }
+    const id = new URLSearchParams(location.search).get("id") || "";
+    if (!id) {
+      setError("No research package was supplied.");
+      return;
+    }
 
-      const session = secureLoad<Paper | null>(`${PAPER_PREFIX}${id}`, null, "session");
+    const session = secureLoad<Paper | null>(`${PAPER_PREFIX}${id}`, null, "session");
+    if (session) {
+      setPaper(session);
+      setEnriching(true);
+      void expandResearch(session).then(setExpanded).finally(() => setEnriching(false));
+      return;
+    }
+
+    void (async () => {
       let direct: Paper | null = null;
       let legacy: Paper | undefined;
       try { direct = await secureLoadDurable<Paper | null>(`${PAPER_PREFIX}${id}`, null); } catch {}
-      if (!direct && !session) {
+      if (!direct) {
         try { legacy = (await secureLoadDurable<Paper[]>(PAPERS, [])).find((item) => item.id === id); } catch {}
       }
-      const exact = session || direct || legacy || null;
+      const exact = direct || legacy || null;
       if (!exact) {
         setError("This research package is unavailable. Return to the result and tap Build again.");
         return;
       }
-
       setPaper(exact);
       setEnriching(true);
       void expandResearch(exact).then(setExpanded).finally(() => setEnriching(false));
@@ -149,8 +158,8 @@ export default function Build() {
 
   if (error) return (
     <main className="phi-build-error">
-      <a href={appPath("")}><ArrowLeft size={18} /> Back to research</a>
-      <section><div className="phi-mini-orb">φ</div><h1>Research package unavailable</h1><p>{error}</p><a href={appPath("")}>Return to Infinity Phi</a></section>
+      <a href={appPath("phi")}><ArrowLeft size={18} /> Back to research</a>
+      <section><div className="phi-mini-orb">φ</div><h1>Research package unavailable</h1><p>{error}</p><a href={appPath("phi")}>Return to Infinity Phi</a></section>
     </main>
   );
 
@@ -159,7 +168,7 @@ export default function Build() {
   return (
     <main className="phi-publication" style={{ "--pub-ink": theme.ink, "--pub-paper": theme.paper, "--pub-accent": theme.accent, "--pub-soft": theme.soft, "--pub-body": theme.body, "--pub-serif": theme.serif } as React.CSSProperties}>
       <header className="phi-builder-bar">
-        <a href={`${appPath("")}?id=${encodeURIComponent(paper.id)}`} aria-label="Back to research"><ArrowLeft size={20} /></a>
+        <a href={`${appPath("phi")}?id=${encodeURIComponent(paper.id)}`} aria-label="Back to research"><ArrowLeft size={20} /></a>
         <div><b>Infinity Builder</b><small>{enriching ? "Expanding research and visuals…" : `${theme.name} · ${allSources.length} sources · ${visualSources.length} visuals`}</small></div>
         <nav>
           <button onClick={() => setSeed((value) => value + 1)}><LayoutTemplate size={18} /><span>Design</span></button>
