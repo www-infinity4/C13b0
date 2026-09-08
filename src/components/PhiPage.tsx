@@ -217,7 +217,6 @@ export default function PhiPage() {
   const [notice, setNotice] = useState("");
   const [showAllSources, setShowAllSources] = useState(false);
   const [focusedFinding, setFocusedFinding] = useState<number | null>(null);
-  const [openingBuilder, setOpeningBuilder] = useState(false);
 
   async function runSearch(raw: string, currentHistory: HistoryItem[] = []) {
     const q = raw.trim();
@@ -275,23 +274,6 @@ export default function PhiPage() {
     await runSearch(query, history);
   }
 
-  async function buildWebsite() {
-    if (!paper || openingBuilder) return;
-    setOpeningBuilder(true);
-    setNotice("");
-    try {
-      const key = `${PAPER_PREFIX}${paper.id}`;
-      secureSave(key, paper, "session");
-      await secureSaveDurable(key, paper);
-      window.location.assign(
-        `${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}`,
-      );
-    } catch {
-      setOpeningBuilder(false);
-      setNotice("The website builder could not open. Please tap Build website again.");
-    }
-  }
-
   return (
     <main className="phi-mode">
       <div className="phi-shell">
@@ -328,16 +310,15 @@ export default function PhiPage() {
                 </div>
               </section>}
 
-              <button
-                type="button"
+              <a
                 className="phi-build-card"
-                onClick={() => void buildWebsite()}
-                disabled={openingBuilder}
+                href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}`}
+                onClick={() => secureSave(`${PAPER_PREFIX}${paper.id}`, paper, "session")}
                 aria-label="Build full website from this research"
               >
                 <span className="phi-build-copy"><b>Turn this overview into a website</b><span>The complete answer, evidence, images, and expanded research move into the builder together.</span></span>
-                <span className="phi-build-action"><span>{openingBuilder ? "Opening…" : "Build website"}</span><i aria-hidden="true">φ</i></span>
-              </button>
+                <span className="phi-build-action"><span>Build website</span><i aria-hidden="true">φ</i></span>
+              </a>
 
               <form onSubmit={submit} className="phi-followup"><Sparkles size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ask a follow-up" /><button>Ask</button></form>
             </section>

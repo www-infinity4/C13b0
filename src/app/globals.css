@@ -274,6 +274,7 @@
   background: #eef3ff;
   color: #17202b;
   text-align: left;
+  text-decoration: none;
   font: inherit;
   cursor: pointer;
   transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
@@ -285,10 +286,6 @@
   box-shadow: 0 16px 34px rgba(21, 67, 110, 0.16);
   outline: 3px solid rgba(22, 139, 76, 0.25);
   outline-offset: 2px;
-}
-.phi-build-card:disabled {
-  cursor: wait;
-  opacity: 0.78;
 }
 .phi-build-copy {
   display: block;
