@@ -4,20 +4,22 @@ import "./globals.css";
 import SiteChrome from "@/components/SiteChrome";
 import AppRuntime from "@/components/AppRuntime";
 
-const phiPreview = "https://raw.githubusercontent.com/www-infinity4/C13b0/main/file_00000000cae081f598f9518633245d1f.png";
+const siteUrl = "https://www-infinity4.github.io/C13b0/";
+const phiPreview = `${siteUrl}infinity-phi-share.png?v=20260908-phi-share-1`;
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www-infinity4.github.io/C13b0/"),
+  metadataBase: new URL(siteUrl),
   title: "Infinity Phi Search — C13b0",
   applicationName: "Infinity Phi Search",
   description: "Infinity Phi Search — indexing, extraction, higher-context decisions and transfer into your world.",
-  alternates: { canonical: "https://www-infinity4.github.io/C13b0/" },
+  alternates: { canonical: siteUrl },
   openGraph: {
     type: "website",
-    url: "https://www-infinity4.github.io/C13b0/",
+    url: siteUrl,
+    siteName: "Infinity Phi Search",
     title: "Infinity Phi Search — C13b0",
     description: "All knowledge. All perspectives. One search. A deeper internet, a clearer tomorrow.",
-    images: [{ url: phiPreview, width: 1536, height: 1024, alt: "Infinity Phi Search C13b0" }],
+    images: [{ url: phiPreview, width: 1536, height: 1024, alt: "Infinity Phi Search C13b0 — indexing, extraction, decision and transfer" }],
   },
   twitter: {
     card: "summary_large_image",
