@@ -305,14 +305,34 @@ export async function secureLoadDurable<T>(
   area: StorageArea = "local",
 ): Promise<T> {
   if (area === "session") return secureLoad(key, fallback, area);
+
+  // localStorage is written synchronously before the IndexedDB mirror. Read
+  // that copy first so a fast route change cannot resurrect an older durable
+  // snapshot while the asynchronous mirror write is still finishing.
+  const localRaw = readRaw(key, area);
+  if (localRaw !== null) {
+    const localResult = unwrap(localRaw);
+    if (localResult.status !== "corrupt") {
+      try {
+        const value = JSON.parse(
+          localResult.status === "ok" ? localResult.json : localRaw,
+        ) as T;
+        void writeDurable(key, localRaw, area);
+        return value;
+      } catch {
+        // A valid IndexedDB mirror may still recover a malformed legacy copy.
+      }
+    }
+  }
+
   const raw = await readDurable(key);
-  if (raw === null) return secureLoad(key, fallback, area);
+  if (raw === null) return fallback;
   const result = unwrap(raw);
-  if (result.status === "corrupt") return secureLoad(key, fallback, area);
+  if (result.status === "corrupt") return fallback;
   try {
     return JSON.parse(result.status === "ok" ? result.json : raw) as T;
   } catch {
-    return secureLoad(key, fallback, area);
+    return fallback;
   }
 }
 

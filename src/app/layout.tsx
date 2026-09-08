@@ -9,9 +9,7 @@ const phiPreview = "https://raw.githubusercontent.com/www-infinity4/C13b0/main/f
 export const metadata: Metadata = {
   metadataBase: new URL("https://www-infinity4.github.io/C13b0/"),
   title: "Infinity Phi Search — C13b0",
-  manifest: "manifest.webmanifest",
   applicationName: "Infinity Phi Search",
-  appleWebApp: { capable: true, title: "Infinity Phi Search", statusBarStyle: "black-translucent" },
   description: "Infinity Phi Search — indexing, extraction, higher-context decisions and transfer into your world.",
   alternates: { canonical: "https://www-infinity4.github.io/C13b0/" },
   openGraph: {
