@@ -22,7 +22,11 @@ const THEMES = [
 
 const clean = (value: unknown) => String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 const sentences = (text: string) => clean(text).split(/(?<=[.!?])\s+/).map((item) => item.trim()).filter((item) => item.length > 45);
-const isPhone = () => typeof window !== "undefined" && (window.matchMedia("(max-width: 900px)").matches || /Android|Mobile/i.test(navigator.userAgent));
+const isPhone = () => typeof window !== "undefined" && (
+  new URLSearchParams(window.location.search).get("phone") === "1" ||
+  window.matchMedia("(max-width: 900px)").matches ||
+  /Android|Mobile/i.test(navigator.userAgent)
+);
 
 async function wikiExpansion(query: string): Promise<Source[]> {
   const controller = new AbortController();
