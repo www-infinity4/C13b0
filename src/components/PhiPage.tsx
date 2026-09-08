@@ -101,7 +101,7 @@ function sourceScore(source: Source, identity: Identity) {
 }
 
 async function wikipedia(query: string): Promise<Source[]> {
-  const url = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=18&prop=extracts|info|pageimages&exintro=1&explaintext=1&inprop=url&pithumbsize=1400&format=json&origin=*`;
+  const url = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=14&prop=extracts|info|pageimages&exintro=1&explaintext=1&inprop=url&pithumbsize=720&format=json&origin=*`;
   const data = await hardTimeout(fetch(url, { cache: "no-store" }).then((r) => {
     if (!r.ok) throw new Error("Wikipedia request failed");
     return r.json();
