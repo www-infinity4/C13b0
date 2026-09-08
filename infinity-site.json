@@ -15,11 +15,18 @@
     "route": "/business/",
     "historyDrivenStructuredScripts": true,
     "styleEngine": "src/lib/business-generation.ts",
+    "capabilityLattice": "src/lib/capability-lattice.ts",
+    "forkedProductionCapabilityCount": 15,
+    "localComposer": "C13b0:@puckeditor/core",
     "storefrontConnectors": ["eBay", "Etsy", "Shopify", "custom"],
     "storefrontState": "link-ready; authenticated import/publish requires provider connection",
     "transferIntent": true,
     "transferSettlement": "requires canonical Cloudflare ledger receipt",
-    "cloudflareMigration": "cloudflare/action-engine/migrations/0002_business_network.sql"
+    "cloudflareWorker": "cloudflare/action-engine/worker.js",
+    "cloudflareMigrations": [
+      "cloudflare/action-engine/migrations/0001_action_engine.sql",
+      "cloudflare/action-engine/migrations/0002_business_network.sql"
+    ]
   },
   "scanner": {
     "contract": "docs/INFINITY_SITE_CREATION_CONTRACT.md",
@@ -42,8 +49,10 @@
     "canonical-url",
     "mobile-first",
     "history-driven-site-variation",
+    "phi-capability-lattice",
     "business-storefront-connector",
-    "cross-user-transfer-intent"
+    "cross-user-transfer-intent",
+    "canonical-ledger-transfer-receipt"
   ],
   "ai": { "mode": "capability-detected", "fallback": "server-required-when-local-unavailable" }
 }
