@@ -4,16 +4,29 @@ import "./globals.css";
 import SiteChrome from "@/components/SiteChrome";
 import AppRuntime from "@/components/AppRuntime";
 
+const phiPreview = "https://raw.githubusercontent.com/www-infinity4/C13b0/main/file_00000000cae081f598f9518633245d1f.png";
+
 export const metadata: Metadata = {
   metadataBase: new URL("https://www-infinity4.github.io/C13b0/"),
-  title: "C13b0 — Infinity Site Builder & Crown Index",
+  title: "Infinity Phi Search — C13b0",
   manifest: "manifest.webmanifest",
-  applicationName: "Infinity",
-  appleWebApp: { capable: true, title: "Infinity", statusBarStyle: "black-translucent" },
-  description: "Infinity research-to-website builder and Crown Index.",
+  applicationName: "Infinity Phi Search",
+  appleWebApp: { capable: true, title: "Infinity Phi Search", statusBarStyle: "black-translucent" },
+  description: "Infinity Phi Search — indexing, extraction, higher-context decisions and transfer into your world.",
   alternates: { canonical: "https://www-infinity4.github.io/C13b0/" },
-  openGraph: { type:"website",url:"https://www-infinity4.github.io/C13b0/",title:"C13b0 — Infinity Site Builder & Crown Index",description:"Research, compose and preserve unique Infinity websites.",images:[{url:"https://www-infinity4.github.io/C13b0/infinity-preview-v2.jpg",width:1200,height:630,alt:"C13b0 Infinity builder"}] },
-  twitter:{card:"summary_large_image",title:"C13b0 — Infinity Site Builder & Crown Index",description:"Research, compose and preserve unique Infinity websites.",images:["https://www-infinity4.github.io/C13b0/infinity-preview-v2.jpg"]},
+  openGraph: {
+    type: "website",
+    url: "https://www-infinity4.github.io/C13b0/",
+    title: "Infinity Phi Search — C13b0",
+    description: "All knowledge. All perspectives. One search. A deeper internet, a clearer tomorrow.",
+    images: [{ url: phiPreview, width: 1536, height: 1024, alt: "Infinity Phi Search C13b0" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Infinity Phi Search — C13b0",
+    description: "All knowledge. All perspectives. One search. A deeper internet, a clearer tomorrow.",
+    images: [phiPreview],
+  },
 };
 export const viewport:Viewport={themeColor:"#071f38",viewportFit:"cover"};
 export default function RootLayout({children}:Readonly<{children:React.ReactNode}>){return <html lang="en" className="scroll-smooth"><body className="min-h-screen antialiased" style={{background:"var(--background)"}}><AppRuntime/><SiteChrome>{children}</SiteChrome><Script src="https://www-infinity4.github.io/Mint-For-Infinity/unified-wallet.js?v=20260831-game-rewards1" strategy="afterInteractive"/></body></html>}
