@@ -78,11 +78,13 @@ export default function SiteChrome({
     window.addEventListener("storage", f);
     window.addEventListener("focus", f);
     window.addEventListener("infinity-history-updated", f);
+    window.addEventListener("infinity-wallet-updated", f);
     const timer = window.setInterval(f, 2000);
     return () => {
       window.removeEventListener("storage", f);
       window.removeEventListener("focus", f);
       window.removeEventListener("infinity-history-updated", f);
+      window.removeEventListener("infinity-wallet-updated", f);
       window.clearInterval(timer);
     };
   }, []);
