@@ -150,6 +150,23 @@ function relevant(source: Source, identity: Identity) {
   );
 }
 
+function sourceScore(source: Source, identity: Identity) {
+  if (identity.kind !== "element") return 0;
+  const title = source.title.toLowerCase();
+  const excerpt = source.excerpt.toLowerCase();
+  const name = identity.name.toLowerCase();
+  const exactTitle = title === name || title === `${name} (element)`;
+  let score = 0;
+  if (exactTitle) score += 200;
+  if (new RegExp(`\\b${name}\\b`, "i").test(title)) score += 80;
+  if (new RegExp(`\\b${name}\\b`, "i").test(excerpt.slice(0, 420)))
+    score += 35;
+  if (excerpt.includes(`atomic number ${identity.number}`)) score += 40;
+  if (source.provider === "Wikipedia") score += 15;
+  if (source.imageUrl && exactTitle) score += 25;
+  return score;
+}
+
 async function research(query: string, identity: Identity): Promise<Source[]> {
   const raw: Source[] = [];
   const add = (source: Source) => {
@@ -223,7 +240,12 @@ async function research(query: string, identity: Identity): Promise<Source[]> {
     )
     .catch(() => {});
   await Promise.all([wikipedia, duckduckgo, crossref]);
-  return raw.filter((source) => relevant(source, identity));
+  return raw
+    .filter((source) => relevant(source, identity))
+    .sort(
+      (left, right) =>
+        sourceScore(right, identity) - sourceScore(left, identity),
+    );
 }
 
 function makePaper(
@@ -232,14 +254,49 @@ function makePaper(
   identity: Identity,
   sources: Source[],
 ): Paper {
-  const sentences = sources
-    .flatMap((source) => source.excerpt.split(/(?<=[.!?])\s+/))
-    .map(clean)
-    .filter((sentence) => sentence.length > 55);
-  const unique = [...new Set(sentences)];
+  const sentenceRecords = sources
+    .flatMap((source, sourceIndex) =>
+      source.excerpt
+        .split(/(?<=[.!?])\s+/)
+        .map((text) => ({ text: clean(text), sourceIndex })),
+    )
+    .filter(({ text }) => text.length > 55);
+  const subjectPattern = new RegExp(`\\b${identity.name}\\b`, "i");
+  const primaryTitle = sources[0]?.title.trim().toLowerCase() || "";
+  const primaryTitleExact =
+    primaryTitle === identity.name.trim().toLowerCase() ||
+    primaryTitle === `${identity.name.trim().toLowerCase()} (element)`;
+  const primarySentences = sentenceRecords
+    .filter(
+      ({ text, sourceIndex }) =>
+        sourceIndex === 0 &&
+        (identity.kind !== "element" ||
+          primaryTitleExact ||
+          subjectPattern.test(text) ||
+          text.toLowerCase().includes(`atomic number ${identity.number}`)),
+    )
+    .map(({ text }) => text);
+  const allSentences = sentenceRecords
+    .sort((left, right) => {
+      const score = (record: { text: string; sourceIndex: number }) =>
+        (subjectPattern.test(record.text) ? 50 : 0) +
+        (record.text.toLowerCase().includes(`atomic number ${identity.number}`)
+          ? 35
+          : 0) +
+        (record.sourceIndex === 0 ? 25 : 0);
+      return score(right) - score(left);
+    })
+    .map(({ text }) => text);
+  const unique = [...new Set([...primarySentences, ...allSentences])];
   const overview =
     unique.slice(0, 3).join(" ") ||
     `No source passed the exact identity check for ${resolved}. Nothing from another subject was substituted.`;
+  const overviewSet = new Set(unique.slice(0, 3));
+  const findings = allSentences
+    .map(clean)
+    .filter((sentence, index, all) => all.indexOf(sentence) === index)
+    .filter((sentence) => !overviewSet.has(sentence))
+    .slice(0, 12);
   return {
     id: `phi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     query,
@@ -247,7 +304,7 @@ function makePaper(
     identity,
     title: query,
     overview,
-    findings: unique.slice(3, 15),
+    findings,
     sources,
     created: Date.now(),
   };

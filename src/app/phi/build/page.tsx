@@ -85,7 +85,13 @@ export default function Build() {
 
   const theme = THEMES[seed % THEMES.length];
   const heroImage = useMemo(
-    () => paper?.sources.find((source) => source.imageUrl)?.imageUrl,
+    () =>
+      paper?.sources.find(
+        (source) =>
+          source.imageUrl &&
+          source.title.trim().toLowerCase() ===
+            paper.query.trim().toLowerCase(),
+      )?.imageUrl,
     [paper],
   );
   const story = useMemo(() => {
@@ -185,7 +191,7 @@ export default function Build() {
           {heroImage && <img src={heroImage} alt="" className="phi-pub-hero-image"/>}
           <div className="phi-pub-hero-shade"/>
           <div className="phi-pub-hero-copy">
-            <small>INFINITY · RESEARCH PUBLICATION</small>
+            <small>{paper.query.toUpperCase()} · RESEARCH PUBLICATION</small>
             <h1>{paper.query}</h1>
             <p>{paper.overview}</p>
             <div><span>{paper.sources.length} verified sources</span><span>Exact subject retained</span></div>
