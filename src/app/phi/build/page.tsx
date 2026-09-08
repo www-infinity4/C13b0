@@ -75,24 +75,33 @@ export default function Build() {
       return;
     }
 
-    const session = secureLoad<Paper | null>(`${PAPER_PREFIX}${id}`, null, "session");
-    if (session) {
-      setPaper(session);
+    const key = `${PAPER_PREFIX}${id}`;
+    const immediate =
+      secureLoad<Paper | null>(key, null, "session") ||
+      secureLoad<Paper | null>(key, null) ||
+      secureLoad<Paper[]>(PAPERS, []).find((item) => item.id === id) ||
+      null;
+    if (immediate) {
+      setPaper(immediate);
       setEnriching(true);
-      void expandResearch(session).then(setExpanded).finally(() => setEnriching(false));
+      void expandResearch(immediate).then(setExpanded).finally(() => setEnriching(false));
       return;
     }
 
     void (async () => {
-      let direct: Paper | null = null;
-      let legacy: Paper | undefined;
-      try { direct = await secureLoadDurable<Paper | null>(`${PAPER_PREFIX}${id}`, null); } catch {}
-      if (!direct) {
-        try { legacy = (await secureLoadDurable<Paper[]>(PAPERS, [])).find((item) => item.id === id); } catch {}
-      }
-      const exact = direct || legacy || null;
+      const timeout = new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 2500));
+      const durable = (async () => {
+        let direct: Paper | null = null;
+        let legacy: Paper | undefined;
+        try { direct = await secureLoadDurable<Paper | null>(key, null); } catch {}
+        if (!direct) {
+          try { legacy = (await secureLoadDurable<Paper[]>(PAPERS, [])).find((item) => item.id === id); } catch {}
+        }
+        return direct || legacy || null;
+      })();
+      const exact = await Promise.race([durable, timeout]);
       if (!exact) {
-        setError("This research package is unavailable. Return to the result and tap Build again.");
+        setError("The research package did not open in time. Return to the result and tap Build website again.");
         return;
       }
       setPaper(exact);
