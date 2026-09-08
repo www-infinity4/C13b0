@@ -25,7 +25,7 @@ const PAPERS = "infinity_phi_research_v1";
 const PAPER_PREFIX = "infinity_phi_paper_v2_";
 const LEDGER = "c13b0_infinity_token_ledger_v3";
 
-function liveBuilderUrl(paper: Paper) {
+function liveBuilderUrl(paper: Paper, focusedFinding: number | null) {
   const params = new URLSearchParams({
     id: paper.id,
     q: paper.query,
@@ -33,6 +33,7 @@ function liveBuilderUrl(paper: Paper) {
     phone: "1",
     version: "20260908-absolute-builder",
   });
+  if (focusedFinding !== null) params.set("focus", String(focusedFinding));
   return `https://www-infinity4.github.io/C13b0/phi/build/?${params.toString()}`;
 }
 
@@ -318,7 +319,12 @@ export default function PhiPage() {
               {paper.findings.length > 0 && <section className="phi-key-points">
                 <h2>Key points</h2>
                 <div className={`phi-finding-grid${focusedFinding !== null ? " has-focus" : ""}`}>
-                  {paper.findings.slice(0, 6).map((finding, index) => <button type="button" key={index} className={focusedFinding === index ? "focused" : ""} onClick={() => setFocusedFinding((current) => current === index ? null : index)}>{finding}</button>)}
+                  {paper.findings.slice(0, 6).map((finding, index) => <button type="button" key={index} aria-pressed={focusedFinding === index} className={focusedFinding === index ? "focused" : ""} onClick={() => setFocusedFinding((current) => current === index ? null : index)}><small>{focusedFinding === index ? "Selected website aim" : `Aim ${index + 1}`}</small>{finding}</button>)}
+                </div>
+                <div className="phi-build-scope">
+                  <b>{focusedFinding === null ? "Build every aim" : "Focused build selected"}</b>
+                  <p>{focusedFinding === null ? "No card is selected, so the builder will develop every orange card into its own illustrated website section." : "The selected card becomes the website’s main subject, with deeper research, visual explanations, and supporting cards of its own."}</p>
+                  {focusedFinding !== null && <button type="button" onClick={() => setFocusedFinding(null)}>Clear selection and build everything</button>}
                 </div>
               </section>}
 
@@ -328,8 +334,8 @@ export default function PhiPage() {
                   <span className="phi-spinner" aria-hidden="true" />
                 </div>
               ) : (
-                <a className="phi-build-card" href={liveBuilderUrl(paper)} target="_self" aria-label="Build full website from this research">
-                  <div><b>Turn this overview into a website</b><p>The complete answer, evidence, images, and expanded research move into the builder together.</p></div>
+                <a className="phi-build-card" href={liveBuilderUrl(paper, focusedFinding)} target="_self" aria-label="Build full website from this research">
+                  <div><b>{focusedFinding === null ? "Build the complete illustrated website" : "Build the selected aim in depth"}</b><p>{focusedFinding === null ? "Every orange card becomes an illustrated section with research cards of its own." : "The chosen card becomes a focused visual script with deeper explanations, evidence, and expansion points."}</p></div>
                   <span className="phi-build-orb" aria-hidden="true">φ</span>
                 </a>
               )}
