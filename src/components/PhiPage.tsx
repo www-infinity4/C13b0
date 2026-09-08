@@ -250,11 +250,11 @@ export default function PhiPage() {
       setPaper(next);
       setBusy(false);
       if (!sources.length) setNotice("Live source providers timed out. The search page stayed active instead of freezing; retry to make a fresh source pass.");
-      void persistAfterRender(next, nextHistory);
+      window.setTimeout(() => void persistAfterRender(next, nextHistory), 1000);
     } catch {
       setBusy(false);
       setNotice("The live source pass stopped safely instead of freezing the page. Retry the search to start a fresh pass.");
-      void persistAfterRender(shell, nextHistory);
+      window.setTimeout(() => void persistAfterRender(shell, nextHistory), 1000);
     }
   }
 
@@ -322,10 +322,17 @@ export default function PhiPage() {
                 </div>
               </section>}
 
-              <a className="phi-build-card" href={liveBuilderUrl(paper)} target="_self" aria-label="Build full website from this research">
-                <div><b>Turn this overview into a website</b><p>The complete answer, evidence, images, and expanded research move into the builder together.</p></div>
-                <span className="phi-build-orb" aria-hidden="true">φ</span>
-              </a>
+              {busy ? (
+                <div className="phi-build-card phi-build-wait" aria-live="polite">
+                  <div><b>Finishing the research package…</b><p>The website button activates as soon as this result stops changing.</p></div>
+                  <span className="phi-spinner" aria-hidden="true" />
+                </div>
+              ) : (
+                <a className="phi-build-card" href={liveBuilderUrl(paper)} target="_self" aria-label="Build full website from this research">
+                  <div><b>Turn this overview into a website</b><p>The complete answer, evidence, images, and expanded research move into the builder together.</p></div>
+                  <span className="phi-build-orb" aria-hidden="true">φ</span>
+                </a>
+              )}
 
               <form onSubmit={submit} className="phi-followup"><Sparkles size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ask a follow-up" /><button>Ask</button></form>
             </section>
