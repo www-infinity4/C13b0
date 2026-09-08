@@ -22,6 +22,7 @@ const THEMES = [
 
 const clean = (value: unknown) => String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 const sentences = (text: string) => clean(text).split(/(?<=[.!?])\s+/).map((item) => item.trim()).filter((item) => item.length > 45);
+const isPhone = () => typeof window !== "undefined" && (window.matchMedia("(max-width: 900px)").matches || /Android|Mobile/i.test(navigator.userAgent));
 
 async function wikiExpansion(query: string): Promise<Source[]> {
   const controller = new AbortController();
@@ -45,7 +46,7 @@ async function wikiExpansion(query: string): Promise<Source[]> {
 }
 
 async function expandResearch(paper: Paper): Promise<Source[]> {
-  const compactDevice = typeof navigator !== "undefined" && navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4;
+  const compactDevice = isPhone();
   const queries = compactDevice
     ? [paper.resolved, `${paper.query} applications`]
     : [paper.resolved, `${paper.query} history`, `${paper.query} applications`];
@@ -72,6 +73,10 @@ export default function Build() {
   const [saved, setSaved] = useState(false);
 
   function enrichAfterFirstPaint(value: Paper) {
+    if (isPhone()) {
+      setEnriching(false);
+      return;
+    }
     setEnriching(true);
     window.setTimeout(() => {
       void expandResearch(value).then(setExpanded).finally(() => setEnriching(false));
@@ -139,14 +144,15 @@ export default function Build() {
 
   const theme = THEMES[seed % THEMES.length];
   const allSources = useMemo(() => paper ? [...paper.sources, ...expanded] : [], [paper, expanded]);
+  const displayedSources = isPhone() ? allSources.slice(0, 10) : allSources;
   const visualSources = useMemo(() => {
-    const compactDevice = typeof navigator !== "undefined" && navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4;
+    const compactDevice = isPhone();
     const seen = new Set<string>();
     return allSources.filter((source) => {
       if (!source.imageUrl || seen.has(source.imageUrl)) return false;
       seen.add(source.imageUrl);
       return true;
-    }).slice(0, compactDevice ? 4 : 7);
+    }).slice(0, compactDevice ? 3 : 7);
   }, [allSources]);
   const heroImage = visualSources[0]?.imageUrl;
   const story = useMemo(() => {
@@ -272,9 +278,10 @@ export default function Build() {
             <section className="phi-pub-sources">
               <p className="phi-pub-kicker">Evidence</p>
               <h2>Sources used in this publication</h2>
-              {allSources.map((source, index) => <a key={`${source.url}-${index}`} href={source.url} target="_blank" rel="noreferrer">
+              {displayedSources.map((source, index) => <a key={`${source.url}-${index}`} href={source.url} target="_blank" rel="noreferrer">
                 <span>{index + 1}</span><div><small>{source.provider}</small><b>{source.title}</b><p>{source.excerpt}</p></div><ExternalLink size={17} />
               </a>)}
+              {displayedSources.length < allSources.length && <p>Showing the first {displayedSources.length} sources on this phone to keep the builder responsive.</p>}
             </section>
           </div>
         </section>
