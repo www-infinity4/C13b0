@@ -1,15 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import {
-  ArrowRight,
-  Check,
-  ChevronDown,
-  ExternalLink,
-  Search,
-  Sparkles,
-} from "lucide-react";
-import { appPath } from "@/lib/base-path";
+import { Check, ChevronDown, ExternalLink, Sparkles } from "lucide-react";
 import { secureLoad, secureSave } from "@/lib/secure-storage";
 
 type HistoryItem = {
@@ -405,7 +397,7 @@ export default function PhiPage() {
     <main className="phi-mode">
       <div className="phi-shell">
         <header className="phi-topline">
-          <span>PHI · AI OVERVIEW</span>
+          <span>Built with ChatGPT</span>
         </header>
 
         <section
@@ -416,26 +408,24 @@ export default function PhiPage() {
           {!paper && (
             <>
               <div className="phi-orb">φ</div>
-              <h1>What do you want to understand?</h1>
-              <p>
-                Search the exact subject. Infinity gathers evidence, explains it
-                clearly, and keeps the result attached to your words.
-              </p>
+              <h1>Infinity φ</h1>
+              <p>Your query, structured into a complete webpage.</p>
             </>
           )}
           <form onSubmit={submit} className="phi-search-box">
-            <Search size={21} />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               aria-label="Research topic"
-              placeholder="Ask anything"
+              placeholder="Search"
             />
             <button disabled={busy} aria-label="Run research">
               {busy ? (
                 <span className="phi-spinner" />
               ) : (
-                <ArrowRight size={21} />
+                <span className="phi-pi" aria-hidden="true">
+                  π
+                </span>
               )}
             </button>
           </form>
@@ -493,9 +483,10 @@ export default function PhiPage() {
                     </p>
                   </div>
                   <a
-                    href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}`}
+                    href={`./build/?id=${encodeURIComponent(paper.id)}`}
+                    aria-label="Build this overview into a website"
                   >
-                    Build website <ArrowRight size={18} />
+                    φ
                   </a>
                 </div>
                 <form onSubmit={submit} className="phi-followup">
@@ -565,6 +556,10 @@ export default function PhiPage() {
             ))}
           </section>
         )}
+        <footer className="phi-credits">
+          Research: Wikipedia, DuckDuckGo &amp; Crossref · Built with ChatGPT
+          and Next.js · Hosted by GitHub Pages
+        </footer>
       </div>
     </main>
   );
