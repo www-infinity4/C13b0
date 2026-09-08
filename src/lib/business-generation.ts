@@ -1,3 +1,5 @@
+import { planWebsiteCapabilities, type PhiCapability } from "@/lib/capability-lattice";
+
 export type BusinessHistorySignal = {
   query?: string;
   resolved?: string;
@@ -16,9 +18,11 @@ export type BusinessStyleProfile = {
   historyTerms: string[];
   sectionPlan: string[];
   variationNonce: number;
+  capabilityModes: string[];
+  capabilities: PhiCapability[];
 };
 
-type StyleTemplate = Omit<BusinessStyleProfile, 'fingerprint' | 'historyTerms' | 'sectionPlan' | 'variationNonce'>;
+type StyleTemplate = Pick<BusinessStyleProfile, 'name' | 'layout' | 'hero' | 'rhythm' | 'voice' | 'density'>;
 
 const STYLE_LIBRARY: StyleTemplate[] = [
   {
@@ -138,6 +142,42 @@ function orderedSections(seed: number, siteType: string, terms: string[]): strin
   return selected;
 }
 
+function capabilityPlan(subject: string, siteType: string, terms: string[], seed: number) {
+  const context = `${subject} ${siteType} ${terms.join(' ')}`.toLowerCase();
+  const science3d = /\b(hydrogen|atom|atomic|molecule|molecular|element|material|metal|oxide|ion|electron|orbital|space|planet|machine|engine|architecture|structure|geometry|3d)\b/.test(context);
+  const documentHeavy = /\b(research|learning|paper|document|history|manual|study|source|archive|book)\b/.test(context) || /research|learning/i.test(siteType);
+  const explicitVideo = /\b(video|film|movie|motion|animation|tour|demo|show|music|concert)\b/.test(context);
+  const explicitInteractive = /\b(interactive|tool|application|simulator|game|map|explore|model|storefront|shop|catalog)\b/.test(context) || /tool|application|product/i.test(siteType);
+
+  // Variation changes optional media emphasis while subject-critical modes stay
+  // stable. That makes repeat builds meaningfully different without routing a
+  // scientific subject away from the capabilities it actually needs.
+  const hasVideo = explicitVideo || seed % 5 === 0;
+  const wants3d = science3d || seed % 7 === 0;
+  const interactive = explicitInteractive || (wants3d && seed % 2 === 0);
+  const needsSegmentation = /\b(product|object|part|component|photo|image|diagram|material)\b/.test(context) || seed % 3 === 0;
+
+  const capabilities = planWebsiteCapabilities({
+    hasImages: true,
+    hasVideo,
+    wants3d,
+    documentHeavy,
+    interactive,
+    needsSegmentation,
+  });
+
+  const modes = [
+    'image',
+    ...(hasVideo ? ['video'] : []),
+    ...(wants3d ? ['3d'] : []),
+    ...(documentHeavy ? ['document'] : []),
+    ...(interactive ? ['interactive'] : []),
+    ...(needsSegmentation ? ['segment'] : []),
+  ];
+
+  return { capabilities, modes };
+}
+
 export function buildBusinessStyleProfile(input: {
   businessName: string;
   siteType: string;
@@ -161,6 +201,7 @@ export function buildBusinessStyleProfile(input: {
   const seed = hashString(seedText);
   const template = STYLE_LIBRARY[seed % STYLE_LIBRARY.length];
   const fingerprint = `${template.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${seed.toString(36)}-${variationNonce.toString(36)}`;
+  const routed = capabilityPlan(input.researchQuery, input.siteType, terms, seed);
 
   return {
     ...template,
@@ -168,5 +209,7 @@ export function buildBusinessStyleProfile(input: {
     historyTerms: terms,
     sectionPlan: orderedSections(seed, input.siteType, terms),
     variationNonce,
+    capabilityModes: routed.modes,
+    capabilities: routed.capabilities,
   };
 }
