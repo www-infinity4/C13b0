@@ -26,8 +26,9 @@
   justify-content: flex-end;
   align-items: center;
   min-height: 48px;
-  color: #677281;
+  color: #16804a;
   font-size: 0.75rem;
+  font-weight: 800;
   letter-spacing: 0.13em;
 }
 .phi-wordmark {
@@ -117,15 +118,16 @@
   height: 48px;
   border: 0;
   border-radius: 50%;
-  background: #071a34;
-  color: #ffdc57;
+  background: #168b4c;
+  color: #fff;
 }
 .phi-search-box button:disabled {
   opacity: 0.7;
 }
-.phi-pi {
-  font-family: Georgia, serif;
-  font-size: 1.75rem;
+.phi-omni {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
   line-height: 1;
 }
 .phi-spinner {
@@ -166,8 +168,8 @@
   padding: 13px 2px;
 }
 .phi-tabs .active {
-  border-bottom: 3px solid #3b68c8;
-  color: #1d4ca4;
+  border-bottom: 3px solid #e46c1a;
+  color: #c9520d;
   font-weight: 700;
 }
 .phi-result-grid {
@@ -180,7 +182,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #354052;
+  color: #c9520d;
 }
 .phi-mini-orb {
   width: 30px;
@@ -220,21 +222,44 @@
   margin: 0 0 16px;
   font-size: 1.35rem;
 }
-.phi-key-points p {
-  font-size: 1.02rem;
-  line-height: 1.65;
-  margin: 0 0 18px;
+.phi-finding-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
-.phi-key-points sup {
-  display: inline-grid;
-  place-items: center;
-  min-width: 18px;
-  height: 18px;
-  margin-left: 5px;
-  border-radius: 50%;
-  background: #e7effd;
-  color: #2655a3;
-  font-size: 0.65rem;
+.phi-finding-grid button {
+  min-height: 132px;
+  padding: 20px;
+  border: 1px solid #f19552;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #d95f17, #a83a0b);
+  box-shadow: 0 8px 22px rgba(164, 57, 10, 0.14);
+  color: #fff3c7;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.55;
+  text-align: left;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+.phi-finding-grid button:hover,
+.phi-finding-grid button:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(164, 57, 10, 0.22);
+  outline: 3px solid rgba(22, 139, 76, 0.3);
+  outline-offset: 2px;
+}
+.phi-finding-grid.has-focus button:not(.focused) {
+  opacity: 0.48;
+}
+.phi-finding-grid button.focused {
+  grid-column: 1 / -1;
+  min-height: 164px;
+  transform: scale(1.015);
+  box-shadow: 0 18px 42px rgba(164, 57, 10, 0.28);
 }
 .phi-build-card {
   display: flex;
@@ -259,7 +284,7 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: #2859b6;
+  background: #168b4c;
   color: #fff;
   text-decoration: none;
   font-weight: 700;
@@ -389,6 +414,12 @@
   .phi-sources {
     border-top: 1px solid #dde3e9;
     padding-top: 28px;
+  }
+  .phi-finding-grid {
+    grid-template-columns: 1fr;
+  }
+  .phi-finding-grid button.focused {
+    grid-column: auto;
   }
   .phi-build-card {
     align-items: flex-start;

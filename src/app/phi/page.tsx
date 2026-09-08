@@ -343,6 +343,7 @@ export default function PhiPage() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [showAllSources, setShowAllSources] = useState(false);
+  const [focusedFinding, setFocusedFinding] = useState<number | null>(null);
 
   useEffect(() => {
     setHistory(secureLoad<HistoryItem[]>(HISTORY, []));
@@ -358,6 +359,7 @@ export default function PhiPage() {
     setBusy(true);
     setNotice("");
     setShowAllSources(false);
+    setFocusedFinding(null);
     const resolved = resolve(query, history);
     try {
       const sources = await research(resolved.resolved, resolved.identity);
@@ -409,7 +411,7 @@ export default function PhiPage() {
             <>
               <div className="phi-orb">φ</div>
               <h1>Infinity φ</h1>
-              <p>Your query, structured into a complete webpage.</p>
+              <p>Structured futures from endless results.</p>
             </>
           )}
           <form onSubmit={submit} className="phi-search-box">
@@ -419,12 +421,12 @@ export default function PhiPage() {
               aria-label="Research topic"
               placeholder="Search"
             />
-            <button disabled={busy} aria-label="Run research">
+            <button disabled={busy} aria-label="Search all sources">
               {busy ? (
                 <span className="phi-spinner" />
               ) : (
-                <span className="phi-pi" aria-hidden="true">
-                  π
+                <span className="phi-omni" aria-hidden="true">
+                  ⊙
                 </span>
               )}
             </button>
@@ -462,16 +464,26 @@ export default function PhiPage() {
                 {paper.findings.length > 0 && (
                   <section className="phi-key-points">
                     <h2>Key points</h2>
-                    {paper.findings.slice(0, 6).map((finding, index) => (
-                      <p key={index}>
-                        {finding}
-                        <sup>
-                          {paper.sources.length
-                            ? Math.min(index + 1, paper.sources.length)
-                            : ""}
-                        </sup>
-                      </p>
-                    ))}
+                    <div
+                      className={`phi-finding-grid${focusedFinding !== null ? " has-focus" : ""}`}
+                    >
+                      {paper.findings.slice(0, 6).map((finding, index) => (
+                        <button
+                          type="button"
+                          key={index}
+                          className={focusedFinding === index ? "focused" : ""}
+                          aria-pressed={focusedFinding === index}
+                          aria-label={`Focus finding: ${finding}`}
+                          onClick={() =>
+                            setFocusedFinding((current) =>
+                              current === index ? null : index,
+                            )
+                          }
+                        >
+                          {finding}
+                        </button>
+                      ))}
+                    </div>
                   </section>
                 )}
                 <div className="phi-build-card">

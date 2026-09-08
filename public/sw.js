@@ -1,4 +1,4 @@
-const CACHE = "infinity-shell-v6";
+const CACHE = "infinity-shell-v7";
 // Derive the base path from this service worker's own URL so the same script
 // works when served at "/C13b0/" (GitHub Pages) and at "/" (Capacitor Android).
 const BASE = new URL("./", self.location.href).pathname;
