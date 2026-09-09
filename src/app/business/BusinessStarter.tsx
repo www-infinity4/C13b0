@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Check, Download, Plus, ShieldCheck, Store, Wallet, X } from "lucide-react";
+import { cloudflareBuilderConfigured, saveCloudflareStorefront } from "@/lib/cloudflare-builder";
 import { secureLoad, secureSave } from "@/lib/secure-storage";
 
 type Product = {
@@ -46,6 +47,8 @@ export default function BusinessStarter() {
   const [products, setProducts] = useState<Product[]>([newProduct("product-1")]);
   const [wallet, setWallet] = useState<WalletRecord | null>(null);
   const [saved, setSaved] = useState(false);
+  const [cloudNotice, setCloudNotice] = useState("");
+  const [saving, setSaving] = useState(false);
   const [agreed, setAgreed] = useState({ lawful: false, infinityOnly: false, noAdult: false, truthful: false });
 
   useEffect(() => {
@@ -71,7 +74,9 @@ export default function BusinessStarter() {
       }
       else setTokenId(crypto.randomUUID());
       const incomingQuery = new URLSearchParams(window.location.search).get("query");
+      const incomingToken = new URLSearchParams(window.location.search).get("token");
       if (incomingQuery && !draft?.research?.query) setSparkQuery(incomingQuery);
+      if (incomingToken) setTokenId(incomingToken);
       let handoff = window.__infinitySparkHandoff ? JSON.parse(window.__infinitySparkHandoff) : null;
       if (!handoff) handoff = secureLoad(HANDOFF_KEY, null, "session") ?? secureLoad(HANDOFF_KEY, null, "local");
       if (handoff && !draft?.research?.query) {
@@ -90,7 +95,7 @@ export default function BusinessStarter() {
     } catch { /* A damaged local draft starts clean. */ }
   }, []);
 
-  const complete = useMemo(() => Boolean(wallet && sparkQuery.trim() && report.trim() && sources.trim() && businessName.trim() && description.trim() && products.some(p => p.name.trim() && Number(p.price) > 0) && Object.values(agreed).every(Boolean)), [wallet, sparkQuery, report, sources, businessName, description, products, agreed]);
+  const complete = useMemo(() => Boolean(wallet && tokenId && sparkQuery.trim() && businessName.trim() && description.trim() && products.some(p => p.name.trim() && Number(p.price) > 0) && Object.values(agreed).every(Boolean)), [wallet, tokenId, sparkQuery, businessName, description, products, agreed]);
 
   function collectWallet() {
     if (!window.InfinityUnifiedWallet) return;
@@ -116,10 +121,33 @@ export default function BusinessStarter() {
     };
   }
 
-  function saveDraft() {
+  async function saveDraft() {
     const value = payload();
     secureSave(DRAFT_KEY, value, "session");
     secureSave(DRAFT_KEY, value);
+    setSaving(true);
+    if (cloudflareBuilderConfigured()) {
+      try {
+        await saveCloudflareStorefront({
+          tokenId,
+          query: sparkQuery.trim(),
+          aims: [],
+          history: [],
+          upgrades: ["business", "storefront"],
+          business: {
+            name: businessName.trim(),
+            description: description.trim(),
+            catalog: products.filter(p => p.name.trim()).map(p => ({ ...p, priceInfinity: Number(p.price) })),
+          },
+        });
+        setCloudNotice("Storefront upgrade saved to the shared Cloudflare record");
+      } catch (error) {
+        setCloudNotice(error instanceof Error ? error.message : "The shared Cloudflare record is unavailable");
+      }
+    } else {
+      setCloudNotice("Draft saved. Deploy the Cloudflare builder to make this upgrade shared between users.");
+    }
+    setSaving(false);
     setSaved(true);
     window.setTimeout(() => setSaved(false), 2200);
   }
@@ -137,7 +165,7 @@ export default function BusinessStarter() {
     <main className="min-h-screen bg-[#e8edf3] px-4 py-8 text-[#172432] sm:px-8">
       <div className="mx-auto max-w-7xl">
         <header className="mb-8 grid gap-6 rounded-[2rem] border border-slate-300 bg-[#172432] p-6 text-white shadow-2xl sm:p-9 lg:grid-cols-[1fr_auto] lg:items-end">
-          <div><p className="text-sm font-black uppercase tracking-[.24em] text-cyan-300">Infinity Business Pages</p><h1 className="mt-3 text-4xl font-black tracking-[-.04em] sm:text-6xl">Build a useful business. Accept Infinity.</h1><p className="mt-4 max-w-3xl text-lg leading-8 text-white/70">Start a lawful product or service page, collect your unified wallet, and prepare a transparent record for review. No cash, Bitcoin, cryptocurrency, pornography, or illegal goods.</p></div>
+          <div><p className="text-sm font-black uppercase tracking-[.24em] text-cyan-300">Business upgrade</p><h1 className="mt-3 text-4xl font-black tracking-[-.04em] sm:text-6xl">Turn this website into your storefront.</h1><p className="mt-4 max-w-3xl text-lg leading-8 text-white/70">Keep the original research, illustrations, token, and structure. Add the person or organization, products, services, catalog, and Infinity wallet as a capability layer.</p></div>
           <div className="rounded-2xl border border-white/10 bg-black/30 p-4 text-sm"><div className="text-white/50">Payment rail</div><div className="mt-1 text-xl font-black text-emerald-300">Infinity only</div></div>
         </header>
 
@@ -178,7 +206,7 @@ export default function BusinessStarter() {
 
             <section className="rounded-[1.75rem] border border-cyan-400/20 bg-cyan-400/[.05] p-6"><h2 className="text-xl font-black">Review record</h2><div className="mt-4 space-y-3 text-sm">{[["Local policy check","Ready","text-emerald-300"],["Infinity review","Planned","text-amber-300"],["ChatGPT review","Planned","text-amber-300"],["IBM watsonx review","Planned","text-amber-300"],["Human approval","Required","text-cyan-300"]].map(([name,status,color])=><div key={name} className="flex justify-between gap-3 border-b border-white/10 pb-2"><span className="text-white/65">{name}</span><strong className={color}>{status}</strong></div>)}</div><p className="mt-4 text-sm leading-6 text-white/50">Future AI services must disclose what information they receive. They advise and cross-check; publication and purchases still require visible human confirmation.</p></section>
 
-            <div className="grid gap-3"><button onClick={saveDraft} disabled={!complete} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 py-4 font-black text-[#00150b] hover:bg-white disabled:cursor-not-allowed disabled:opacity-40">{saved?<Check size={19}/>:<Store size={19}/>} {saved?"Draft saved on this device":"Save business-page draft"}</button><button onClick={exportDraft} disabled={!complete} className="flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 font-bold text-white/75 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"><Download size={18}/> Export portable record</button><p className="text-center text-xs leading-5 text-white/40">Saving creates a draft, not a public store. Server review, verified balances, checkout settlement, and publication remain separate future steps.</p></div>
+            <div className="grid gap-3"><button onClick={() => void saveDraft()} disabled={!complete || saving} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 py-4 font-black text-[#00150b] hover:bg-white disabled:cursor-not-allowed disabled:opacity-40">{saved?<Check size={19}/>:<Store size={19}/>} {saving?"Saving upgrade…":saved?"Storefront upgrade saved":"Save storefront upgrade"}</button><button onClick={exportDraft} disabled={!complete} className="flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 font-bold text-white/75 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"><Download size={18}/> Export portable record</button>{cloudNotice&&<p className="rounded-xl border border-cyan-300/20 bg-cyan-300/[.06] p-3 text-center text-sm leading-5 text-cyan-100">{cloudNotice}</p>}<p className="text-center text-xs leading-5 text-white/40">The upgrade remains attached to the original website token. Publishing listings or transferring value still requires an authenticated server action.</p></div>
           </aside>
         </div>
       </div>

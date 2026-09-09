@@ -53,3 +53,18 @@ site have been verified.
 The `/builder` page makes the workflow visible. The next implementation pass should connect these
 records to live GitHub inventory scanning, branch creation, isolated previews, browser verification,
 and Crown Index provenance updates.
+
+## Personalized Cloudflare build layer
+
+`cloudflare/infinity-builder/worker.ts` and `src/lib/site-variation.ts` add the durable generation layer:
+
+- each user has an ordered research/build history in D1;
+- current subject, chosen aims, added search terms, token identity, requested upgrades, and prior site fingerprints become generation inputs;
+- layout, palette, typography, narrative order, interaction pattern, illustration direction, and plugin route form the variation fingerprint;
+- the duplicate detector retries when a new fingerprint is more than 20% similar to the closest prior site, forcing at least four of the six major design axes to change;
+- history contributes secondary context but cannot silently replace the requested subject;
+- Business and Storefront are optional upgrades attached to the existing site token;
+- the server stores structured scripts and provenance for later rendering and review;
+- wallet-to-wallet transfers use an immutable double-entry D1 ledger with idempotency and overdraft protection.
+
+The fifteen plugin roles are stable orchestration slots. Their actual fork endpoints must be configured explicitly; an empty slot is never reported as having executed.

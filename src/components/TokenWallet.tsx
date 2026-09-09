@@ -9,10 +9,12 @@ import {
   History,
   Save,
   Search,
+  Send,
   ShieldCheck,
   Wallet,
 } from "lucide-react";
 import { appPath } from "@/lib/base-path";
+import { cloudflareBuilderConfigured, transferCloudflareTokens } from "@/lib/cloudflare-builder";
 import { connectOrCreateWallet, formatWalletId, type WalletRecord } from "@/lib/wallet";
 import { secureLoadDurable, secureSaveDurable } from "@/lib/secure-storage";
 
@@ -122,6 +124,10 @@ export default function TokenWallet() {
   const [materialUrl, setMaterialUrl] = useState("");
   const [materialNote, setMaterialNote] = useState("");
   const [notice, setNotice] = useState("");
+  const [recipientWalletId, setRecipientWalletId] = useState("");
+  const [transferUnits, setTransferUnits] = useState("");
+  const [transferMemo, setTransferMemo] = useState("");
+  const [transferring, setTransferring] = useState(false);
 
   async function refresh() {
     const activeWallet = connectOrCreateWallet();
@@ -262,6 +268,33 @@ export default function TokenWallet() {
     setNotice("Material added to token");
   }
 
+  async function transferTokens() {
+    const units = Number(transferUnits);
+    if (!wallet || !recipientWalletId.trim() || !Number.isSafeInteger(units) || units <= 0) {
+      setNotice("Enter a recipient wallet and a positive whole-token amount");
+      return;
+    }
+    setTransferring(true);
+    try {
+      const result = await transferCloudflareTokens({
+        senderWalletId: wallet.walletId,
+        recipientWalletId: recipientWalletId.trim(),
+        units,
+        tokenId: selectedId || undefined,
+        memo: transferMemo.trim() || undefined,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      setRecipientWalletId("");
+      setTransferUnits("");
+      setTransferMemo("");
+      setNotice(`Transfer completed. Server balance: ${result.senderBalance} tokens`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Token transfer failed");
+    } finally {
+      setTransferring(false);
+    }
+  }
+
   const selected = tokens.find((token) => token.id === selectedId) || null;
   const amendment = selected ? amendments[selected.id] : undefined;
   const visibleTokens = useMemo(() => {
@@ -349,6 +382,17 @@ export default function TokenWallet() {
                     <Field label="Source URL (optional)"><input value={materialUrl} onChange={(event) => setMaterialUrl(event.target.value)} inputMode="url" placeholder="https://" /></Field>
                     <Field label="What this adds"><textarea value={materialNote} onChange={(event) => setMaterialNote(event.target.value)} /></Field>
                     <button onClick={() => void addMaterial()} className="flex items-center justify-center gap-2 rounded-xl bg-[#168b4c] px-5 py-3 font-black text-white"><FilePlus2 size={18} /> Add material</button>
+                  </div>
+                </section>
+
+                <section className="border-t border-slate-200 pt-7">
+                  <h2 className="flex items-center gap-2 font-serif text-2xl font-black"><Send /> Transfer tokens</h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">Transfers use the Cloudflare ledger as authority. Changing this page’s browser storage cannot change a server balance.</p>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <Field label="Recipient wallet ID"><input value={recipientWalletId} onChange={(event) => setRecipientWalletId(event.target.value)} placeholder="infinity-…" /></Field>
+                    <Field label="Whole tokens"><input value={transferUnits} onChange={(event) => setTransferUnits(event.target.value)} inputMode="numeric" placeholder="1" /></Field>
+                    <span className="sm:col-span-2"><Field label="Transfer note (optional)"><input value={transferMemo} onChange={(event) => setTransferMemo(event.target.value)} placeholder="What this transfer is for" /></Field></span>
+                    <button onClick={() => void transferTokens()} disabled={transferring || !cloudflareBuilderConfigured()} className="flex items-center justify-center gap-2 rounded-xl bg-[#a74613] px-5 py-3 font-black text-white disabled:opacity-45 sm:col-span-2"><Send size={18} />{transferring ? "Transferring…" : cloudflareBuilderConfigured() ? "Transfer through Cloudflare" : "Cloudflare ledger deployment required"}</button>
                   </div>
                 </section>
 

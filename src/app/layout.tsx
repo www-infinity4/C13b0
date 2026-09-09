@@ -4,7 +4,7 @@ import "./globals.css";
 import SiteChrome from "@/components/SiteChrome";
 import AppRuntime from "@/components/AppRuntime";
 
-const phiPreview = "https://raw.githubusercontent.com/www-infinity4/C13b0/main/file_00000000cae081f598f9518633245d1f.png";
+const phiPreview = "https://www-infinity4.github.io/C13b0/infinity-phi-search-preview.png";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www-infinity4.github.io/C13b0/"),
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Infinity Phi Search — C13b0",
     description: "All knowledge. All perspectives. One search. A deeper internet, a clearer tomorrow.",
-    images: [phiPreview],
+    images: [{ url: phiPreview, alt: "Infinity Phi Search C13b0" }],
   },
 };
 

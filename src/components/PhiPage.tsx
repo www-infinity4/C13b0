@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Check, ChevronDown, ExternalLink, Sparkles } from "lucide-react";
 import { secureLoad, secureLoadDurable, secureSave, secureSaveDurable } from "@/lib/secure-storage";
 import { connectOrCreateWallet } from "@/lib/wallet";
+import { appBase, appPath } from "@/lib/base-path";
 
 type HistoryItem = { query: string; resolved: string; kind: string; at: number };
 type Source = { title: string; url: string; excerpt: string; provider: string; imageUrl?: string };
@@ -288,21 +289,25 @@ export default function PhiPage() {
   }
 
   return (
-    <main className="phi-mode">
+    <main className={`phi-mode${paper ? "" : " phi-home"}`}>
       <div className="phi-shell">
         <header className="phi-topline"><span>Built with ChatGPT</span></header>
         <section className={paper ? "phi-search-section compact" : "phi-search-section"}>
-          {!paper && <>
-            <div className="phi-orb">φ</div>
-            <h1>Infinity φ</h1>
-            <p>Structured futures from endless results.</p>
-          </>}
+          {!paper && <div className="phi-index-art">
+            <img src={`${appBase()}/infinity-phi-search-preview.png`} alt="Infinity Phi Search: indexing, extraction, decisions, and transfer through a connected knowledge world" />
+            <h1 className="phi-visually-hidden">Infinity Phi Search</h1>
+          </div>}
           <form onSubmit={submit} className="phi-search-box">
             <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Research topic" placeholder="Search" />
             <button disabled={busy} aria-label="Search all sources">
               {busy ? <span className="phi-spinner" /> : <span className="phi-omni" aria-hidden="true">⊙</span>}
             </button>
           </form>
+          {!paper && <nav className="phi-index-links" aria-label="Infinity index">
+            <a href={appPath("wallet")}>Token wallet</a>
+            <a href={appPath("business")}>Business upgrade</a>
+            <a href={appPath("crown-index")}>Crown Index</a>
+          </nav>}
           {busy && <div className="phi-thinking"><Sparkles size={16} /> Researching live sources without blocking the page…</div>}
           {notice && <p className="phi-notice">{notice}</p>}
         </section>

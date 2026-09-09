@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Check, ExternalLink, LayoutTemplate, Save, Share2, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, ExternalLink, LayoutTemplate, Save, Share2, Sparkles, Store } from "lucide-react";
 import { appPath } from "@/lib/base-path";
+import { cloudflareBuilderConfigured, requestCloudflareBuild } from "@/lib/cloudflare-builder";
 import { secureLoad, secureLoadDurable, secureSaveDurable } from "@/lib/secure-storage";
+import { createVariationPlan, type VariationPlan } from "@/lib/site-variation";
+import { loadLocalWallet } from "@/lib/wallet";
 
 type Source = { title: string; url: string; excerpt: string; provider: string; imageUrl?: string };
 type Paper = { id: string; query: string; resolved: string; title: string; overview: string; findings: string[]; sources: Source[]; created: number };
-type SavedSite = { id: string; researchId: string; title: string; subject: string; seed: number; updatedAt: string; kind: "phi-publication" };
+type SavedSite = { id: string; researchId: string; title: string; subject: string; seed: number; updatedAt: string; kind: "phi-publication"; variation?: VariationPlan };
+type HistoryItem = { query: string; resolved?: string; kind?: string; at?: number };
 
 const PAPERS = "infinity_phi_research_v1";
 const PAPER_PREFIX = "infinity_phi_paper_v2_";
@@ -15,6 +19,7 @@ const SITES = "infinity_phi_sites_v2";
 const PAGES = "c13b0_infinity_puck_pages_v1";
 const SECTION_WORK = "infinity_phi_section_work_v1";
 const TOKEN_AMENDMENTS = "c13b0_infinity_token_amendments_v1";
+const HISTORY = "infinity_phi_context_v1";
 
 type SectionWork = { prompt: string; sources: Source[]; updatedAt: string };
 type SectionWorkStore = Record<string, Record<string, SectionWork>>;
@@ -39,6 +44,11 @@ const THEMES = [
   { name: "Midnight", ink: "#f5f1e8", paper: "#071a2e", accent: "#ed4339", soft: "#0d2944", body: "#c7d5e2", serif: "Georgia,serif" },
   { name: "Journal", ink: "#17202b", paper: "#f6f3eb", accent: "#245fa8", soft: "#e8edf2", body: "#3e4b58", serif: "Georgia,serif" },
   { name: "Signal", ink: "#10251f", paper: "#edf4ef", accent: "#ce312d", soft: "#dbe9df", body: "#355148", serif: "Arial,Helvetica,sans-serif" },
+  { name: "Cobalt", ink: "#f7fbff", paper: "#07152f", accent: "#39a7ff", soft: "#102a51", body: "#c8dcf2", serif: "'Trebuchet MS',Arial,sans-serif" },
+  { name: "Copper", ink: "#2c1711", paper: "#fff7ec", accent: "#a83f16", soft: "#f0d5bf", body: "#5f4035", serif: "Georgia,serif" },
+  { name: "Ultraviolet", ink: "#f8f2ff", paper: "#180b2a", accent: "#c968ff", soft: "#32164f", body: "#e0c9f0", serif: "Arial,Helvetica,sans-serif" },
+  { name: "Mineral", ink: "#09252a", paper: "#edfafa", accent: "#007d8b", soft: "#cfe9e7", body: "#31585b", serif: "Georgia,serif" },
+  { name: "Solar", ink: "#fff8dc", paper: "#282108", accent: "#f4b72b", soft: "#4a3c0c", body: "#e8d89d", serif: "'Trebuchet MS',Arial,sans-serif" },
 ];
 
 const clean = (value: unknown) => String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
@@ -105,6 +115,8 @@ export default function Build() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [sectionBusy, setSectionBusy] = useState<string | null>(null);
   const [sectionNotice, setSectionNotice] = useState<Record<string, string>>({});
+  const [variation, setVariation] = useState<VariationPlan | null>(null);
+  const [cloudNotice, setCloudNotice] = useState("");
 
   function enrichAfterFirstPaint(value: Paper, selectedFocus: string | null) {
     setEnriching(true);
@@ -190,7 +202,26 @@ export default function Build() {
     });
   }, [paper?.id]);
 
-  const theme = THEMES[seed % THEMES.length];
+  useEffect(() => {
+    if (!paper) return;
+    void Promise.all([
+      secureLoadDurable<HistoryItem[]>(HISTORY, []),
+      secureLoadDurable<SavedSite[]>(SITES, []),
+    ]).then(([history, sites]) => {
+      setVariation(createVariationPlan({
+        userId: loadLocalWallet()?.walletId || "anonymous-device",
+        tokenId: paper.id,
+        query: paper.query,
+        aims: focus ? [focus] : paper.findings,
+        history: history.map((item) => ({ query: item.query, action: item.kind, occurredAt: item.at ? new Date(item.at).toISOString() : undefined })),
+        priorFingerprints: sites.flatMap((site) => site.variation?.fingerprint ? [site.variation.fingerprint] : []),
+        upgrades: ["illustration"],
+      }));
+    });
+  }, [paper, focus]);
+
+  const variationSeed = variation ? [...variation.fingerprint].reduce((total, character) => total + character.charCodeAt(0), 0) : 0;
+  const theme = THEMES[(variationSeed + seed) % THEMES.length];
   const allSources = useMemo(() => paper ? [...paper.sources, ...expanded] : [], [paper, expanded]);
   const displayedSources = isPhone() ? allSources.slice(0, 10) : allSources;
   const visualSources = useMemo(() => {
@@ -308,11 +339,31 @@ export default function Build() {
       seed,
       updatedAt: new Date().toISOString(),
       kind: "phi-publication",
+      variation: variation || undefined,
     };
     const sites = await secureLoadDurable<SavedSite[]>(SITES, []);
     await secureSaveDurable(SITES, [...sites.filter((item) => item.id !== site.id), site].slice(-40));
     const pages = await secureLoadDurable<Record<string, SavedSite>>(PAGES, {});
     await secureSaveDurable(PAGES, { ...pages, [site.id]: site });
+    if (cloudflareBuilderConfigured()) {
+      setCloudNotice("Saving the personalized build to Cloudflare…");
+      try {
+        const history = await secureLoadDurable<HistoryItem[]>(HISTORY, []);
+        const cloud = await requestCloudflareBuild({
+          tokenId: paper.id,
+          query: paper.query,
+          aims,
+          history: history.map((item) => ({ query: item.query, action: item.kind, occurredAt: item.at ? new Date(item.at).toISOString() : undefined })),
+          upgrades: ["illustration"],
+        });
+        setVariation(cloud.plan);
+        setCloudNotice("Personalized build recorded in the Cloudflare history ledger");
+      } catch (cloudError) {
+        setCloudNotice(cloudError instanceof Error ? cloudError.message : "Cloudflare save is unavailable");
+      }
+    } else {
+      setCloudNotice("Saved on this device. Cloudflare deployment is required for shared history.");
+    }
     window.dispatchEvent(new Event("infinity-history-updated"));
     setSaved(true);
     window.setTimeout(() => setSaved(false), 2200);
@@ -336,12 +387,13 @@ export default function Build() {
   if (!paper) return <main className="phi-build-loading">Opening exact research package…</main>;
 
   return (
-    <main className="phi-publication" style={{ "--pub-ink": theme.ink, "--pub-paper": theme.paper, "--pub-accent": theme.accent, "--pub-soft": theme.soft, "--pub-body": theme.body, "--pub-serif": theme.serif } as React.CSSProperties}>
+    <main className="phi-publication" data-layout={variation?.layout || "editorial-spine"} style={{ "--pub-ink": theme.ink, "--pub-paper": theme.paper, "--pub-accent": theme.accent, "--pub-soft": theme.soft, "--pub-body": theme.body, "--pub-serif": theme.serif } as React.CSSProperties}>
       <header className="phi-builder-bar">
         <a href={`${appPath("phi")}?id=${encodeURIComponent(paper.id)}`} aria-label="Back to research"><ArrowLeft size={20} /></a>
         <div><b>Infinity Builder</b><small>{enriching ? "Expanding research and visuals…" : `${theme.name} · ${allSources.length} sources · ${visualSources.length} visuals`}</small></div>
         <nav>
           <button onClick={() => setSeed((value) => value + 1)}><LayoutTemplate size={18} /><span>Design</span></button>
+          <a href={`${appPath("business")}?query=${encodeURIComponent(paper.query)}&token=${encodeURIComponent(paper.id)}`}><Store size={18} /><span>Business</span></a>
           <button onClick={() => void share()}><Share2 size={18} /><span>Share</span></button>
           <button className="primary" onClick={() => void save()}>{saved ? <Check size={18} /> : <Save size={18} />}<span>{saved ? "Saved" : "Save"}</span></button>
         </nav>
@@ -365,6 +417,7 @@ export default function Build() {
             <span>Identity</span><b>{paper.resolved}</b>
             <span>Published</span><b>{new Date(paper.created).toLocaleDateString()}</b>
             <span>Build scope</span><b>{focus ? "Selected card only" : "Every research card"}</b>
+            <span>Unique structure</span><b>{variation ? `${variation.layout} · ${Math.round((1 - variation.similarityToClosestPrior) * 100)}% distinct` : "Reading history"}</b>
             <span>Builder status</span><b>{enriching ? "Adding research and illustrations" : "Expanded"}</b>
           </aside>
 
@@ -401,6 +454,7 @@ export default function Build() {
             </section>
 
             {story[4] && <section className="phi-pub-callout"><small>KEY FINDING</small><blockquote>{story[4]}</blockquote></section>}
+            {cloudNotice && <p className="phi-cloud-notice">{cloudNotice}</p>}
 
             {story.length > 5 && <section className="phi-pub-findings">
               <p className="phi-pub-kicker">Detailed findings</p>

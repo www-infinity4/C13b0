@@ -5,7 +5,7 @@
   "purpose": "Bootstrap and build Infinity applications with deterministic media, site infrastructure, framework-aware adapters, and capability-routed repository reuse.",
   "framework": "next-app",
   "canonicalUrl": "https://www-infinity4.github.io/C13b0/",
-  "preview": "public/infinity-preview-v2.jpg",
+  "preview": "public/infinity-phi-search-preview.png",
   "wallet": { "required": true, "centralized": true },
   "share": { "required": true, "starCoinAware": true },
   "readme": { "required": true },
@@ -31,5 +31,10 @@
     "canonical-url",
     "mobile-first"
   ],
-  "ai": { "mode": "capability-detected", "fallback": "server-required-when-local-unavailable" }
+  "ai": { "mode": "cloudflare-worker-with-deterministic-fallback", "fallback": "local-history-aware-variation-plan" },
+  "cloudflare": {
+    "worker": "cloudflare/infinity-builder/worker.ts",
+    "d1Migration": "cloudflare/infinity-builder/migrations/0001_infinity_builder.sql",
+    "capabilities": ["personalized-build-history", "site-variation", "storefront-upgrades", "token-transfers", "plugin-orchestration"]
+  }
 }
