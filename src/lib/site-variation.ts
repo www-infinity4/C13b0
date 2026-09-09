@@ -1,3 +1,5 @@
+import { PLUGIN_ROLES, selectPluginRoutes } from "./plugin-index";
+
 export type SiteUpgrade =
   | "business"
   | "storefront"
@@ -29,23 +31,7 @@ export type VariationPlan = {
   similarityToClosestPrior: number;
 };
 
-export const BUILDER_PLUGIN_SLOTS = [
-  "source-scout",
-  "claim-verifier",
-  "history-context",
-  "script-architect",
-  "illustration-planner",
-  "layout-composer",
-  "typography-director",
-  "color-director",
-  "interaction-designer",
-  "accessibility-auditor",
-  "business-personalizer",
-  "storefront-catalog",
-  "token-provenance",
-  "duplicate-detector",
-  "deployment-review",
-] as const;
+export const BUILDER_PLUGIN_SLOTS = PLUGIN_ROLES;
 
 const AXES = {
   layout: ["editorial-spine", "visual-atlas", "modular-laboratory", "guided-timeline", "radial-field-guide", "split-documentary", "catalog-workbench", "layered-notebook"],
@@ -122,18 +108,7 @@ export function createVariationPlan(input: {
     const fingerprint = values.join("|");
     closest = prior.reduce((score, candidate) => Math.max(score, fingerprintSimilarity(fingerprint, candidate)), 0);
     if (closest <= 0.2 || attempt === 47) {
-      const mandatory = ["source-scout", "claim-verifier", "history-context", "token-provenance", "duplicate-detector"];
-      const upgradePlugins = [
-        ...(upgrades.includes("business") ? ["business-personalizer"] : []),
-        ...(upgrades.includes("storefront") ? ["storefront-catalog"] : []),
-        ...(upgrades.includes("illustration") ? ["illustration-planner"] : []),
-      ];
-      const rotating = [
-        BUILDER_PLUGIN_SLOTS[3 + (hash(`${seed}:plugin:1`) % 7)],
-        BUILDER_PLUGIN_SLOTS[3 + (hash(`${seed}:plugin:2`) % 7)],
-        "accessibility-auditor",
-        "deployment-review",
-      ];
+      const plugins = selectPluginRoutes({ query: input.query, aims: input.aims, upgrades }).map((item) => item.role);
       return {
         version: "infinity/site-variation/v1",
         fingerprint,
@@ -145,7 +120,7 @@ export function createVariationPlan(input: {
         interaction: values[4],
         illustration: values[5],
         historyTerms,
-        plugins: [...new Set([...mandatory, ...upgradePlugins, ...rotating])],
+        plugins,
         upgrades,
         similarityToClosestPrior: Number(closest.toFixed(3)),
       };

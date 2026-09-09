@@ -6,10 +6,12 @@ import { appPath } from "@/lib/base-path";
 import { cloudflareBuilderConfigured, requestCloudflareBuild } from "@/lib/cloudflare-builder";
 import { secureLoad, secureLoadDurable, secureSaveDurable } from "@/lib/secure-storage";
 import { createVariationPlan, type VariationPlan } from "@/lib/site-variation";
+import { routesForRoles, type PluginReceipt } from "@/lib/plugin-index";
 import { loadLocalWallet } from "@/lib/wallet";
 import type { SemanticColor, SemanticTerm } from "@/lib/semantic-index";
 
 type Source = { title: string; url: string; excerpt: string; provider: string; imageUrl?: string };
+type WikiPage = { title?: unknown; extract?: unknown; fullurl?: string; thumbnail?: { source?: string } };
 type Paper = { id: string; query: string; resolved: string; title: string; overview: string; findings: string[]; sources: Source[]; created: number };
 type SavedSite = { id: string; researchId: string; title: string; subject: string; seed: number; updatedAt: string; kind: "phi-publication"; variation?: VariationPlan };
 type HistoryItem = { query: string; resolved?: string; kind?: string; at?: number };
@@ -87,7 +89,7 @@ async function wikiExpansion(query: string): Promise<Source[]> {
     const response = await fetch(url, { signal: controller.signal, cache: "no-store" });
     if (!response.ok) return [];
     const data = await response.json();
-    return Object.values(data?.query?.pages || {}).flatMap((page: any) => {
+    return Object.values((data?.query?.pages || {}) as Record<string, WikiPage>).flatMap((page) => {
       const title = clean(page.title);
       const excerpt = clean(page.extract);
       if (!title || !excerpt) return [];
@@ -139,6 +141,7 @@ export default function Build() {
   const [variation, setVariation] = useState<VariationPlan | null>(null);
   const [cloudNotice, setCloudNotice] = useState("");
   const [semantic, setSemantic] = useState<SemanticDirective[]>([]);
+  const [pluginReceipts, setPluginReceipts] = useState<Record<string, PluginReceipt>>({});
 
   function enrichAfterFirstPaint(value: Paper, selectedFocus: string | null, directives: SemanticDirective[] = []) {
     setEnriching(true);
@@ -257,6 +260,7 @@ export default function Build() {
   }, [paper, focus, semantic]);
 
   const variationSeed = variation ? [...variation.fingerprint].reduce((total, character) => total + character.charCodeAt(0), 0) : 0;
+  const pluginRoutes = useMemo(() => routesForRoles(variation?.plugins || []), [variation]);
   const theme = THEMES[(variationSeed + seed) % THEMES.length];
   const allSources = useMemo(() => paper ? [...paper.sources, ...expanded] : [], [paper, expanded]);
   const displayedSources = isPhone() ? allSources.slice(0, 10) : allSources;
@@ -415,7 +419,11 @@ export default function Build() {
           upgrades: ["illustration"],
         });
         setVariation(cloud.plan);
-        setCloudNotice("Personalized build recorded in the Cloudflare history ledger");
+        setPluginReceipts(cloud.pluginResults || {});
+        const executed = Object.values(cloud.pluginResults || {}).filter((receipt) => receipt.status === "EXECUTED").length;
+        setCloudNotice(executed
+          ? `Personalized build recorded; ${executed} capability ${executed === 1 ? "endpoint" : "endpoints"} executed`
+          : "Personalized build recorded; selected forks are indexed and ready for service endpoints");
       } catch (cloudError) {
         setCloudNotice(cloudError instanceof Error ? cloudError.message : "Cloudflare save is unavailable");
       }
@@ -514,6 +522,19 @@ export default function Build() {
 
             {story[4] && <section className="phi-pub-callout"><small>KEY FINDING</small><blockquote>{story[4]}</blockquote></section>}
             {cloudNotice && <p className="phi-cloud-notice">{cloudNotice}</p>}
+
+            {pluginRoutes.length > 0 && <details className="phi-capability-route">
+              <summary><span>Capability route</span><b>{pluginRoutes.length} of 15 forks called up</b></summary>
+              <p>Indexed means the fork informs this build contract. Executed means its deployed endpoint returned a result.</p>
+              <div>{pluginRoutes.map((route) => {
+                const receipt = pluginReceipts[route.role];
+                const status = receipt?.status || "INDEXED_REFERENCE";
+                return <a key={route.role} href={`https://github.com/${route.fork}`} target="_blank" rel="noreferrer">
+                  <span>{route.label}<small>{route.phase} · {route.purpose}</small></span>
+                  <b data-status={status}>{status === "INDEXED_REFERENCE" ? "INDEXED" : status}</b>
+                </a>;
+              })}</div>
+            </details>}
 
             {story.length > 5 && <section className="phi-pub-findings">
               <p className="phi-pub-kicker">Detailed findings</p>

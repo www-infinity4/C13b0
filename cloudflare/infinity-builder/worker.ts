@@ -1,4 +1,5 @@
 import { BUILDER_PLUGIN_SLOTS, createVariationPlan, type BuildHistorySignal, type SiteUpgrade, type VariationPlan } from "../../src/lib/site-variation";
+import { pluginCapability, type PluginPhase, type PluginReceipt, type PluginRole } from "../../src/lib/plugin-index";
 
 type D1Result<T = Record<string, unknown>> = { results?: T[]; success: boolean; meta?: { changes?: number } };
 type Statement = { bind(...values: unknown[]): Statement; first<T = Record<string, unknown>>(): Promise<T | null>; all<T = Record<string, unknown>>(): Promise<D1Result<T>>; run(): Promise<D1Result> };
@@ -94,20 +95,53 @@ async function generateScript(env: Env, query: string, aims: string[], plan: Var
   return env.AI.run(env.AI_MODEL, { messages: [{ role: "user", content: JSON.stringify(prompt) }], response_format: { type: "json_object" } });
 }
 
-async function runPlugins(env: Env, plan: VariationPlan, payload: Json): Promise<Record<string, unknown>> {
+async function runPlugins(env: Env, plan: VariationPlan, payload: Json): Promise<Record<string, PluginReceipt>> {
   let configured: Record<string, string> = {};
   try { configured = JSON.parse(env.PLUGIN_ENDPOINTS_JSON || "{}"); } catch {}
-  const selected = plan.plugins.filter((name) => BUILDER_PLUGIN_SLOTS.includes(name as typeof BUILDER_PLUGIN_SLOTS[number]) && /^https:\/\//.test(configured[name] || ""));
-  const settled = await Promise.allSettled(selected.map(async (name) => {
-    const response = await fetch(configured[name], {
-      method: "POST",
-      headers: { "content-type": "application/json", ...(env.PLUGIN_SERVICE_TOKEN ? { authorization: `Bearer ${env.PLUGIN_SERVICE_TOKEN}` } : {}) },
-      body: JSON.stringify({ role: name, plan, payload }),
-    });
-    if (!response.ok) throw new Error(`${name}:${response.status}`);
-    return [name, await response.json()] as const;
-  }));
-  return Object.fromEntries(settled.flatMap((result) => result.status === "fulfilled" ? [result.value] : []));
+  const selected = plan.plugins.filter((name): name is PluginRole => BUILDER_PLUGIN_SLOTS.includes(name as PluginRole));
+  const receipts: Record<string, PluginReceipt> = {};
+  const phases: PluginPhase[] = ["discover", "reason", "compose", "business", "verify"];
+
+  for (const phase of phases) {
+    const roles = selected.filter((name) => pluginCapability(name)?.phase === phase);
+    await Promise.all(roles.map(async (role) => {
+      const item = pluginCapability(role)!;
+      const endpoint = configured[role] || "";
+      const common = {
+        role,
+        label: item.label,
+        phase,
+        fork: item.fork,
+        forkUrl: `https://github.com/${item.fork}`,
+        upstream: item.upstream,
+        endpointConfigured: /^https:\/\//.test(endpoint),
+        purpose: item.purpose,
+        produces: item.produces,
+      };
+      if (!common.endpointConfigured) {
+        receipts[role] = { ...common, status: "INDEXED_REFERENCE" };
+        return;
+      }
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(env.PLUGIN_SERVICE_TOKEN ? { authorization: `Bearer ${env.PLUGIN_SERVICE_TOKEN}` } : {}) },
+          body: JSON.stringify({
+            contract: "infinity/plugin-call/v1",
+            capability: item,
+            plan,
+            payload,
+            priorResults: Object.fromEntries(Object.entries(receipts).filter(([, receipt]) => receipt.status === "EXECUTED").map(([name, receipt]) => [name, receipt.result])),
+          }),
+        });
+        if (!response.ok) throw new Error(`HTTP_${response.status}`);
+        receipts[role] = { ...common, status: "EXECUTED", result: await response.json() };
+      } catch (error) {
+        receipts[role] = { ...common, status: "FAILED", error: error instanceof Error ? error.message.slice(0, 240) : "PLUGIN_FAILED" };
+      }
+    }));
+  }
+  return receipts;
 }
 
 async function createBuild(env: Env, userId: string, input: Json, forcedUpgrades: SiteUpgrade[] = []) {

@@ -1041,6 +1041,65 @@
   background: var(--pub-soft);
   font-weight: 800;
 }
+
+.phi-capability-route {
+  margin: 28px 0;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--pub-body) 24%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--pub-soft) 72%, transparent);
+}
+
+.phi-capability-route summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+  color: var(--pub-ink);
+}
+
+.phi-capability-route > p {
+  color: var(--pub-body);
+  font-size: .86rem;
+}
+
+.phi-capability-route > div {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.phi-capability-route a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  color: var(--pub-ink);
+  background: color-mix(in srgb, var(--pub-paper) 74%, transparent);
+  text-decoration: none;
+}
+
+.phi-capability-route a span,
+.phi-capability-route a small {
+  display: block;
+}
+
+.phi-capability-route a small {
+  margin-top: 3px;
+  color: var(--pub-body);
+  font-size: .72rem;
+}
+
+.phi-capability-route a > b {
+  color: #f3c846;
+  font-size: .7rem;
+  letter-spacing: .08em;
+}
+
+.phi-capability-route a > b[data-status="EXECUTED"] { color: #55d98a; }
+.phi-capability-route a > b[data-status="FAILED"] { color: #ff7770; }
 .phi-visual-script > article {
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);

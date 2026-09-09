@@ -1,4 +1,5 @@
 import type { BuildHistorySignal, SiteUpgrade, VariationPlan } from "./site-variation";
+import type { PluginReceipt } from "./plugin-index";
 
 const API = process.env.NEXT_PUBLIC_INFINITY_BUILDER_API?.replace(/\/$/, "") || "";
 const SESSION_KEY = "infinity_cloudflare_session_v1";
@@ -34,11 +35,11 @@ export function cloudflareBuilderConfigured(): boolean {
   return Boolean(API);
 }
 
-export async function requestCloudflareBuild(input: CloudflareBuildRequest): Promise<{ buildId: string; plan: VariationPlan }> {
+export async function requestCloudflareBuild(input: CloudflareBuildRequest): Promise<{ buildId: string; plan: VariationPlan; pluginResults: Record<string, PluginReceipt> }> {
   return apiRequest("/v1/builds/plan", { method: "POST", body: JSON.stringify(input) });
 }
 
-export async function saveCloudflareStorefront(input: CloudflareBuildRequest): Promise<{ storefrontId: string; plan: VariationPlan }> {
+export async function saveCloudflareStorefront(input: CloudflareBuildRequest): Promise<{ storefrontId: string; plan: VariationPlan; pluginResults: Record<string, PluginReceipt> }> {
   return apiRequest("/v1/storefronts", { method: "POST", body: JSON.stringify(input) });
 }
 
@@ -52,4 +53,3 @@ export async function transferCloudflareTokens(input: {
 }): Promise<{ transferId: string; status: string; senderBalance: number }> {
   return apiRequest("/v1/transfers", { method: "POST", body: JSON.stringify(input) });
 }
-

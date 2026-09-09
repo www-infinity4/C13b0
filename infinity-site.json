@@ -16,6 +16,7 @@
     "historyDrivenStructuredScripts": true,
     "styleEngine": "src/lib/business-generation.ts",
     "capabilityLattice": "src/lib/capability-lattice.ts",
+    "pluginIndex": "src/lib/plugin-index.ts",
     "forkedProductionCapabilityCount": 15,
     "localComposer": "C13b0:@puckeditor/core",
     "storefrontConnectors": ["eBay", "Etsy", "Shopify", "custom"],
@@ -58,6 +59,6 @@
   "cloudflare": {
     "worker": "cloudflare/infinity-builder/worker.ts",
     "d1Migration": "cloudflare/infinity-builder/migrations/0001_infinity_builder.sql",
-    "capabilities": ["personalized-build-history", "site-variation", "storefront-upgrades", "token-transfers", "plugin-orchestration"]
+    "capabilities": ["personalized-build-history", "site-variation", "storefront-upgrades", "token-transfers", "indexed-plugin-orchestration", "phased-plugin-receipts"]
   }
 }

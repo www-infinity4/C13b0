@@ -11,7 +11,9 @@ This Worker is the authoritative service behind personalized Infinity site gener
 - Business and storefront data attach to an existing site token as upgrades.
 - Every build stores a multi-axis variation fingerprint. A new plan is rejected and rerolled when it overlaps too closely with that user's recent builds.
 - User history influences secondary terms and presentation choices but never replaces the requested subject.
-- Fifteen plugin roles are registered. Actual fork endpoints are supplied through `PLUGIN_ENDPOINTS_JSON`; unconfigured roles remain visible in the plan and are not falsely reported as executed.
+- Fifteen verified forks are registered in `src/lib/plugin-index.ts`. The router calls up thirteen core website capabilities and adds business/storefront capabilities only when the upgrade or indexed terms require them.
+- Actual fork services are supplied through `PLUGIN_ENDPOINTS_JSON`. Every selected role emits a receipt: `INDEXED_REFERENCE` when its repository contract is active but has no service, `EXECUTED` after a successful endpoint response, or `FAILED` with a bounded error.
+- Plugin work runs in ordered phases (`discover`, `reason`, `compose`, `business`, `verify`), with independent roles inside a phase allowed to run concurrently. Later endpoints receive successful earlier results.
 - Workers AI is optional and only runs when both the `AI` binding and `AI_MODEL` are configured. The deterministic script builder remains available otherwise.
 
 ## Routes
@@ -33,6 +35,7 @@ All `/v1` routes except provisioning require `Authorization: Bearer <session tok
 2. Apply `migrations/0001_infinity_builder.sql`.
 3. Set `ADMIN_SECRET` as a Worker secret.
 4. Set `PLUGIN_SERVICE_TOKEN` only if the configured plugin endpoints require it.
+   Start from `plugin-endpoints.example.json`; a repository URL is not an execution endpoint. Each value must be the HTTPS URL of a narrow adapter deployed from the corresponding fork.
 5. Set `AI_MODEL` to the chosen model after verifying it is available in the Cloudflare account.
 6. Add the deployed Worker origin as `NEXT_PUBLIC_INFINITY_BUILDER_API` when building C13b0.
 7. Provision a user session through the protected route and keep it in session storage or replace provisioning with the final account sign-in flow.
