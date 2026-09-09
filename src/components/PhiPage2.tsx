@@ -420,7 +420,15 @@ export default function PhiPage2() {
 
   const topics = useMemo(() => paper ? storyDiscoveryTopics(paper) : [], [paper]);
   const evidenceCards = useMemo(() => paper ? makeEvidenceCards(paper) : [], [paper]);
-  const storyBeats = useMemo(() => paper ? makeStoryBeats(paper) : [], [paper]);
+  const storyBeats = useMemo(() => {
+    if (!paper || !researchNotes.length) return [];
+    const shapedPaper: Paper = {
+      ...paper,
+      overview: researchNotes.map((note) => note.body).slice(0, 3).join(" "),
+      findings: researchNotes.map((note) => note.body),
+    };
+    return makeStoryBeats(shapedPaper);
+  }, [paper, researchNotes]);
   const heroSource = paper?.sources.find((source) => source.imageUrl) || paper?.sources[0];
   const heroImage = heroSource?.imageUrl;
   const visualPool = useMemo(() => {
@@ -603,7 +611,6 @@ export default function PhiPage2() {
               <section className="phi-editorial-hero" aria-label="Editorial title and lead image">
                 <div className="phi-editorial-copy">
                   <span className="phi-editorial-kicker"><BookOpen size={15} /> Research edition</span>
-                  <h1>{paper.title}</h1>
                   <div className="phi-identity"><Check size={14} /> {paper.identity.kind === "element" ? `${paper.identity.name} · ${paper.identity.symbol} · atomic number ${paper.identity.number}` : paper.identity.name}</div>
                   <p className="phi-editorial-deck">{paper.overview}</p>
                 </div>
@@ -611,8 +618,8 @@ export default function PhiPage2() {
 
               <section className="phi-living-section" aria-labelledby="phi-discovery-heading">
                 <div className="phi-living-heading">
-                  <div><h2 id="phi-discovery-heading">The full story · choose what to explain further</h2></div>
-                  <p>The orange cards are the readable story itself. Tap any part that matters to you and Phi researches that direction while keeping the original subject locked.</p>
+                  <div><h2 id="phi-discovery-heading">Research cards</h2></div>
+                  <p>The overview starts factual. These orange cards break the research into useful parts; choosing what matters is what begins shaping your story.</p>
                 </div>
                 <div className="phi-orange-grid">
                   {topics.map((topic, index) => {
@@ -659,8 +666,8 @@ export default function PhiPage2() {
 
               {storyBeats.length > 0 && <section className="phi-living-section" aria-labelledby="phi-story-heading">
                 <div className="phi-living-heading">
-                  <div><h2 id="phi-story-heading">The full story</h2></div>
-                  <p>Read the clean baseline first. Expanding the story turns what you read into purple research notes without requiring you to make any orange-card decisions.</p>
+                  <div><h2 id="phi-story-heading">Story taking shape from your choices</h2></div>
+                  <p>This section appears only after your orange-card or research-note choices start defining what the article should actually explain.</p>
                 </div>
                 <div className="phi-magazine-story">
                   {(showFullStory ? storyBeats : storyBeats.slice(0, 2)).map((beat) => <article className="phi-story-beat" key={beat.id}>

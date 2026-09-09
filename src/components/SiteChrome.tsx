@@ -62,6 +62,7 @@ export default function SiteChrome({
     builder =
       pathname.includes("/studio/build") || pathname.includes("/phi/build"),
     [open, setOpen] = useState(false),
+    [embeddedMenu, setEmbeddedMenu] = useState(false),
     [panel, setPanel] = useState<"menu" | "wallet" | "history">("menu"),
     [wallet, setWallet] = useState<WalletRecord | null>(null),
     [tokens, setTokens] = useState<Token[]>([]),
@@ -89,6 +90,23 @@ export default function SiteChrome({
       window.removeEventListener("infinity-history-updated", f);
       window.removeEventListener("infinity-wallet-updated", f);
       window.clearInterval(timer);
+    };
+  }, []);
+  useEffect(() => {
+    const embed = (event: Event) => {
+      const detail = (event as CustomEvent<{ embedded?: boolean }>).detail;
+      setEmbeddedMenu(Boolean(detail?.embedded));
+    };
+    const openFromShell = () => {
+      void refresh();
+      setPanel("menu");
+      setOpen(true);
+    };
+    window.addEventListener("infinity-shell-menu-ready", embed as EventListener);
+    window.addEventListener("infinity-open-menu", openFromShell);
+    return () => {
+      window.removeEventListener("infinity-shell-menu-ready", embed as EventListener);
+      window.removeEventListener("infinity-open-menu", openFromShell);
     };
   }, []);
   function show(p: "menu" | "wallet" | "history") {
@@ -122,7 +140,7 @@ export default function SiteChrome({
   return (
     <>
       {!focused && <Navigation />}
-      {focused && (
+      {focused && !embeddedMenu && (
         <>
           <button
             type="button"
