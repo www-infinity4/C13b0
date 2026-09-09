@@ -7,6 +7,7 @@ import "./open-source-credits.css";
 import SiteChrome from "@/components/SiteChrome";
 import AppRuntime from "@/components/AppRuntime";
 import OpenSourceBuildCredits from "@/components/OpenSourceBuildCredits";
+import OpenSourceUsageRuntime from "@/components/OpenSourceUsageRuntime";
 
 const siteUrl = "https://www-infinity4.github.io/C13b0/";
 const phiPreview = `${siteUrl}infinity-phi-share.png?v=20260908-phi-share-1`;
@@ -40,8 +41,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className="scroll-smooth">
       <body className="min-h-screen antialiased" style={{ background: "var(--background)" }}>
         <AppRuntime />
+        <OpenSourceUsageRuntime />
         <SiteChrome>{children}</SiteChrome>
-        <OpenSourceBuildCredits className="open-source-global-footer" showChatGPT={false} limit={4} />
+        <OpenSourceBuildCredits className="open-source-global-footer" showChatGPT={false} />
         <Script src="https://www-infinity4.github.io/Mint-For-Infinity/unified-wallet.js?v=20260831-game-rewards1" strategy="afterInteractive" />
       </body>
     </html>
