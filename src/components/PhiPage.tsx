@@ -22,11 +22,14 @@ type Paper = {
 type Highlight = { index: number; title: string; body: string; source?: Source; imageUrl?: string };
 type StoryBeat = { id: string; title: string; body: string; source?: Source; imageUrl?: string };
 type ResearchNote = { id: string; title: string; body: string; source?: Source; focusIndex: number | null };
+type RefinementPass = { id: string; terms: string[]; sourceCount: number; at: number };
+type RefinementState = { baseConclusion: string; passes: RefinementPass[] };
 
 const HISTORY = "infinity_phi_context_v1";
 const PAPERS = "infinity_phi_research_v1";
 const PAPER_PREFIX = "infinity_phi_paper_v2_";
 const LEDGER = "c13b0_infinity_token_ledger_v3";
+const REFINE_PREFIX = "infinity_phi_refinement_v1_";
 
 const clean = (value: unknown) => String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 const splitSentences = (value: string) => clean(value).split(/(?<=[.!?])\s+/).map(clean).filter((item) => item.length > 45);
@@ -46,7 +49,7 @@ function liveBuilderUrl(paper: Paper, focusedFinding: number | null, note?: stri
     q: noteText ? `${paper.query}: ${noteText}` : paper.query,
     resolved: noteText ? `${paper.resolved} ${noteText}` : paper.resolved,
     phone: "1",
-    version: "20260909-living-research",
+    version: "20260909-context-refinement",
     focus: noteText ? "-1" : focusedFinding === null ? "-1" : String(focusedFinding),
   });
   return `https://www-infinity4.github.io/C13b0/phi/build/?${params.toString()}`;
@@ -189,23 +192,8 @@ async function research(query: string, identity: Identity): Promise<Source[]> {
     .sort((a, b) => sourceScore(b, identity) - sourceScore(a, identity));
 }
 
-function intentionalTitle(query: string, identity: Identity, sources: Source[]) {
-  const subject = clean(identity.name || query).replace(/[?.!]+$/, "");
-  const lower = `${query} ${sources.slice(0, 4).map((source) => `${source.title} ${source.excerpt}`).join(" ")}`.toLowerCase();
-  if (identity.kind === "element") {
-    if (/group\s*7|manganese group|rhenium/.test(lower)) return `${subject} at the Edge of Group 7: What Its Chemistry Can Actually Tell Us`;
-    return `${subject} in Context: Chemistry, Evidence, and the Questions That Matter`;
-  }
-  if (/\b(numismatic|coinage|coin|coins)\b/.test(lower)) return "Coins as History, Metal, and Market: How Money Becomes Collectible";
-  if (/\b(magnet|magnetic|coerciv|permanent magnet)\b/.test(lower)) return `${subject}: How Magnetic Structure Shapes What the Material Can Do`;
-  if (/\b(hydrogen|spectral|1420|21 cm)\b/.test(lower)) return `${subject}: From Atomic Behavior to the Engineering Questions Around It`;
-  if (/\b(storage|memory|data)\b/.test(lower)) return `${subject}: How the Information Could Be Stored, Read, and Tested`;
-  const phrase = subject.split(/\s+/).slice(0, 10).join(" ");
-  return `${phrase}: What the Evidence Shows and Where the Story Leads`;
-}
-
 function wordSet(value: string) {
-  return new Set((clean(value).toLowerCase().match(/[a-z0-9]+/g) || []).filter((word) => word.length > 4 && !WORD_SKIP.has(word)));
+  return new Set((clean(value).toLowerCase().match(/[a-z0-9]+/g) || []).filter((word) => word.length > 3 && !WORD_SKIP.has(word)));
 }
 
 function overlapScore(a: string, b: string) {
@@ -214,6 +202,59 @@ function overlapScore(a: string, b: string) {
   let score = 0;
   left.forEach((word) => { if (right.has(word)) score += 1; });
   return score;
+}
+
+function contextRelevant(source: Source, baseQuery: string, keyword: string) {
+  const text = `${source.title} ${source.excerpt}`.toLowerCase();
+  const baseWords = [...wordSet(baseQuery)];
+  const keywordWords = [...wordSet(keyword)];
+  const baseHits = baseWords.filter((word) => text.includes(word)).length;
+  const keywordHits = keywordWords.filter((word) => text.includes(word)).length;
+  const baseNeed = Math.min(2, Math.max(1, baseWords.length));
+  return baseHits >= baseNeed && (keywordWords.length === 0 || keywordHits >= 1);
+}
+
+async function researchKeyword(baseQuery: string, keyword: string, identity: Identity) {
+  const query = `${baseQuery} ${keyword}`;
+  const found = (await hardTimeout(research(query, identity), 7000)) || [];
+  return found.filter((source) => contextRelevant(source, baseQuery, keyword));
+}
+
+function parseKeywordDirections(raw: string) {
+  const direct = raw.split(/[;,\n]+/).map(clean).filter(Boolean);
+  if (direct.length > 1) return [...new Set(direct)].slice(0, 12);
+  const text = clean(raw);
+  if (!text) return [];
+  const lower = text.toLowerCase();
+  const phrases = ["business strike", "proof strike", "silver content", "mint mark", "pcgs grades", "grade values", "auction records", "key dates", "die variety", "die varieties"];
+  const selected: string[] = [];
+  let remainder = ` ${lower} `;
+  for (const phrase of phrases) {
+    if (remainder.includes(` ${phrase} `)) {
+      selected.push(phrase);
+      remainder = remainder.replace(` ${phrase} `, " ");
+    }
+  }
+  selected.push(...(remainder.match(/[a-z0-9][a-z0-9-]{2,}/g) || []));
+  return [...new Set(selected.map(clean).filter(Boolean))].slice(0, 12);
+}
+
+function intentionalTitle(query: string, identity: Identity, sources: Source[]) {
+  const subject = clean(identity.name || query).replace(/[?.!]+$/, "");
+  const lower = `${query} ${sources.slice(0, 6).map((source) => `${source.title} ${source.excerpt}`).join(" ")}`.toLowerCase();
+  if (/\b(quarter|dime|nickel|cent|penny|half dollar|dollar|coin|coinage|numismatic)\b/.test(lower)) {
+    const phrase = clean(query).replace(/[?.!]+$/, "");
+    return `${phrase}: Mintage, Strikes, Grades, and Collector Context`;
+  }
+  if (identity.kind === "element") {
+    if (/group\s*7|manganese group|rhenium/.test(lower)) return `${subject} at the Edge of Group 7: What Its Chemistry Can Actually Tell Us`;
+    return `${subject} in Context: Chemistry, Evidence, and the Questions That Matter`;
+  }
+  if (/\b(magnet|magnetic|coerciv|permanent magnet)\b/.test(lower)) return `${subject}: How Magnetic Structure Shapes What the Material Can Do`;
+  if (/\b(hydrogen|spectral|1420|21 cm)\b/.test(lower)) return `${subject}: From Atomic Behavior to the Engineering Questions Around It`;
+  if (/\b(storage|memory|data)\b/.test(lower)) return `${subject}: How the Information Could Be Stored, Read, and Tested`;
+  const phrase = subject.split(/\s+/).slice(0, 10).join(" ");
+  return `${phrase}: What the Evidence Shows and Where the Story Leads`;
 }
 
 function bestSourceFor(text: string, sources: Source[]) {
@@ -229,6 +270,11 @@ function bestSourceFor(text: string, sources: Source[]) {
 function highlightTitle(paper: Paper, finding: string, source: Source | undefined, index: number) {
   const subject = clean(paper.identity.name || paper.query);
   const text = `${finding} ${source?.title || ""}`.toLowerCase();
+  if (/proof/.test(text)) return "Proof Production and Collector Issues";
+  if (/business strike|circulation strike/.test(text)) return "Business Strikes and Circulation Production";
+  if (/mintage|minted|production/.test(text) && /coin|quarter|dime|cent|dollar/.test(`${paper.query} ${text}`.toLowerCase())) return "Mintage and Mint Production";
+  if (/pcgs|grade|grading|ms\s?\d|pr\s?\d/.test(text)) return "Grades, Certification, and Market Value";
+  if (/silver|composition|weight|diameter/.test(text) && /coin|quarter|dime|cent|dollar/.test(`${paper.query} ${text}`.toLowerCase())) return "Metal, Weight, and Physical Specifications";
   if (/group\s*7|manganese group/.test(text)) return `Where ${subject} Fits in Group 7`;
   if (/oxidation state|oxidation/.test(text)) return `${subject}'s Oxidation-State Chemistry`;
   if (/electron configuration|electronic configuration/.test(text)) return "Electron Configuration and Chemical Behavior";
@@ -245,18 +291,18 @@ function highlightTitle(paper: Paper, finding: string, source: Source | undefine
   return `A Closer Look at ${subject} · ${index + 1}`;
 }
 
-function makePaper(query: string, resolved: string, identity: Identity, sources: Source[], id?: string): Paper {
+function makePaper(query: string, resolved: string, identity: Identity, sources: Source[], id?: string, created?: number): Paper {
   const records = sources
     .flatMap((source, sourceIndex) => splitSentences(source.excerpt).map((text) => ({ text, sourceIndex })))
     .filter((item) => item.text.length > 55);
-  const escapedName = identity.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedName = clean(identity.name || query).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const subject = new RegExp(`\\b${escapedName}\\b`, "i");
   const ranked = records
     .sort((a, b) => ((subject.test(b.text) ? 50 : 0) + (b.sourceIndex === 0 ? 25 : 0)) - ((subject.test(a.text) ? 50 : 0) + (a.sourceIndex === 0 ? 25 : 0)))
     .map((item) => item.text);
   const unique = [...new Set(ranked)];
-  const overview = unique.slice(0, 4).join(" ") || `Infinity Phi opened the search for ${query}, but the live source providers did not return usable material before the safety timeout. The interface is still active; retrying or refining the query will start a fresh source pass.`;
-  const used = new Set(unique.slice(0, 4));
+  const overview = unique.slice(0, 3).join(" ") || `Infinity Phi opened the search for ${query}, but the live source providers did not return usable material before the safety timeout. Retry or add contextual keywords to make a fresh source pass.`;
+  const used = new Set(unique.slice(0, 3));
   return {
     id: id || `phi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     query,
@@ -264,15 +310,15 @@ function makePaper(query: string, resolved: string, identity: Identity, sources:
     identity,
     title: intentionalTitle(query, identity, sources),
     overview,
-    findings: unique.filter((item) => !used.has(item)).slice(0, 12),
+    findings: unique.filter((item) => !used.has(item)).slice(0, 18),
     sources,
-    created: Date.now(),
+    created: created || Date.now(),
   };
 }
 
 function makeHighlights(paper: Paper): Highlight[] {
   const visualSources = paper.sources.filter((source) => source.imageUrl);
-  return paper.findings.slice(0, 6).map((body, index) => {
+  return paper.findings.slice(0, 8).map((body, index) => {
     const source = bestSourceFor(body, paper.sources);
     return {
       index,
@@ -288,8 +334,8 @@ function makeStoryBeats(paper: Paper, highlights: Highlight[], focusedFinding: n
   const focus = focusedFinding === null ? null : highlights.find((item) => item.index === focusedFinding) || null;
   const candidates = [
     ...splitSentences(paper.overview),
-    ...paper.findings.slice(0, 8),
-    ...paper.sources.slice(0, 6).flatMap((source) => splitSentences(source.excerpt).slice(0, 2)),
+    ...paper.findings.slice(0, 12),
+    ...paper.sources.slice(0, 8).flatMap((source) => splitSentences(source.excerpt).slice(0, 2)),
   ].map(clean).filter(Boolean);
   const seen = new Set<string>();
   let unique = candidates.filter((line) => {
@@ -299,10 +345,10 @@ function makeStoryBeats(paper: Paper, highlights: Highlight[], focusedFinding: n
     return true;
   });
   if (focus) unique = unique.sort((a, b) => overlapScore(b, focus.body) - overlapScore(a, focus.body));
-  const lines = unique.slice(0, 12);
+  const lines = unique.slice(0, 14);
   const headings = focus
-    ? [`Focused lens — ${focus.title}`, "What the evidence adds", "The mechanism and context", "Where the focused story branches", "What still needs separating", "The next research move"]
-    : ["The opening frame", "What the evidence says", "How the pieces connect", "Where the story branches", "Why the distinctions matter", "What to investigate next"];
+    ? [`Focused lens — ${focus.title}`, "What the evidence adds", "The mechanism and context", "Where the focused story branches", "What still needs separating", "The next research move", "What the deeper pass changes"]
+    : ["The opening frame", "What the evidence says", "How the pieces connect", "Where the story branches", "Why the distinctions matter", "What to investigate next", "The larger context"];
   const visualSources = paper.sources.filter((source) => source.imageUrl);
   const beats: StoryBeat[] = [];
   for (let index = 0; index < lines.length; index += 2) {
@@ -341,8 +387,8 @@ function notesForHighlight(paper: Paper, highlight: Highlight): ResearchNote[] {
   const rankedSources = [...paper.sources].sort((a, b) => overlapScore(highlight.body, `${b.title} ${b.excerpt}`) - overlapScore(highlight.body, `${a.title} ${a.excerpt}`));
   const material = [
     highlight.body,
-    ...rankedSources.slice(0, 4).flatMap((source) => splitSentences(source.excerpt).slice(0, 2)),
-    ...paper.findings.filter((finding) => finding !== highlight.body && overlapScore(finding, highlight.body) > 0).slice(0, 3),
+    ...rankedSources.slice(0, 5).flatMap((source) => splitSentences(source.excerpt).slice(0, 2)),
+    ...paper.findings.filter((finding) => finding !== highlight.body && overlapScore(finding, highlight.body) > 0).slice(0, 4),
   ];
   const seen = new Set<string>();
   return material.filter((line) => {
@@ -362,14 +408,25 @@ function notesForHighlight(paper: Paper, highlight: Highlight): ResearchNote[] {
   });
 }
 
+function dedupeSources(sources: Source[]) {
+  const seen = new Set<string>();
+  return sources.filter((source) => {
+    const key = source.url || `${source.provider}:${source.title}`;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 async function persistAfterRender(paper: Paper, nextHistory: HistoryItem[]) {
   try { await secureSaveDurable(HISTORY, nextHistory); } catch {}
   try {
-    const compact = { ...paper, findings: paper.findings.slice(0, 8), sources: paper.sources.slice(0, 16).map((s) => ({ ...s, excerpt: s.excerpt.slice(0, 1600) })) };
+    const compact = { ...paper, findings: paper.findings.slice(0, 14), sources: paper.sources.slice(0, 32).map((s) => ({ ...s, excerpt: s.excerpt.slice(0, 1800) })) };
     secureSave(`${PAPER_PREFIX}${paper.id}`, paper, "session");
+    secureSave(`${PAPER_PREFIX}${paper.id}`, paper);
     const existing = await secureLoadDurable<Paper[]>(PAPERS, []);
     await secureSaveDurable(`${PAPER_PREFIX}${paper.id}`, compact);
-    await secureSaveDurable(PAPERS, [...existing.filter((item) => item.id !== paper.id), compact].slice(-6));
+    await secureSaveDurable(PAPERS, [...existing.filter((item) => item.id !== paper.id), compact].slice(-10));
   } catch {}
   try {
     const existing = await secureLoadDurable<Record<string, unknown>[]>(LEDGER, []);
@@ -398,6 +455,16 @@ export default function PhiPage() {
   const [researchNotes, setResearchNotes] = useState<ResearchNote[]>([]);
   const [expandedNote, setExpandedNote] = useState<string | null>(null);
   const [researchTrail, setResearchTrail] = useState("Read the story or choose an orange branch to start building tailored research notes.");
+  const [keywordInput, setKeywordInput] = useState("");
+  const [refineBusy, setRefineBusy] = useState(false);
+  const [refineStatus, setRefineStatus] = useState("");
+  const [refinementPasses, setRefinementPasses] = useState<RefinementPass[]>([]);
+  const [baseConclusion, setBaseConclusion] = useState("");
+
+  async function saveRefinementState(paperId: string, state: RefinementState) {
+    secureSave(`${REFINE_PREFIX}${paperId}`, state);
+    try { await secureSaveDurable(`${REFINE_PREFIX}${paperId}`, state); } catch {}
+  }
 
   async function runSearch(raw: string, currentHistory: HistoryItem[] = []) {
     const q = raw.trim();
@@ -418,6 +485,10 @@ export default function PhiPage() {
     setResearchNotes([]);
     setExpandedNote(null);
     setResearchTrail("Read the story or choose an orange branch to start building tailored research notes.");
+    setRefinementPasses([]);
+    setKeywordInput("");
+    setRefineStatus("");
+    setBaseConclusion("");
     const nextHistory = [...currentHistory, { query: q, resolved: resolved.resolved, kind: resolved.kind, at: Date.now() }].slice(-80);
     setHistory(nextHistory);
     try {
@@ -426,13 +497,61 @@ export default function PhiPage() {
       secureSave(`${PAPER_PREFIX}${next.id}`, next, "session");
       setPaper(next);
       setBusy(false);
-      if (!sources.length) setNotice("Live source providers timed out. The search page stayed active instead of freezing; retry to make a fresh source pass.");
-      window.setTimeout(() => void persistAfterRender(next, nextHistory), 1000);
+      setBaseConclusion(next.overview);
+      await saveRefinementState(next.id, { baseConclusion: next.overview, passes: [] });
+      if (!sources.length) setNotice("Live source providers timed out. The search page stayed active instead of freezing; retry or add contextual keywords.");
+      window.setTimeout(() => void persistAfterRender(next, nextHistory), 700);
     } catch {
       setBusy(false);
+      setBaseConclusion(shell.overview);
       setNotice("The live source pass stopped safely instead of freezing the page. Retry the search to start a fresh pass.");
-      window.setTimeout(() => void persistAfterRender(shell, nextHistory), 1000);
+      window.setTimeout(() => void persistAfterRender(shell, nextHistory), 700);
     }
+  }
+
+  async function runRefinement(event: FormEvent) {
+    event.preventDefault();
+    if (!paper || refineBusy) return;
+    const terms = parseKeywordDirections(keywordInput);
+    if (!terms.length) {
+      setRefineStatus("Add one or more keyword directions. Separate phrases with commas when you want them searched independently.");
+      return;
+    }
+    const prior = new Set(refinementPasses.flatMap((pass) => pass.terms).map((term) => term.toLowerCase()));
+    const freshTerms = terms.filter((term) => !prior.has(term.toLowerCase()));
+    if (!freshTerms.length) {
+      setRefineStatus("Those directions are already attached to this subject. Add another direction to deepen it further.");
+      return;
+    }
+    setRefineBusy(true);
+    setRefineStatus(`Searching ${freshTerms.length} direction${freshTerms.length === 1 ? "" : "s"} with “${paper.query}” locked as the parent subject…`);
+    const gathered: Source[] = [];
+    for (let start = 0; start < freshTerms.length; start += 4) {
+      const batch = freshTerms.slice(start, start + 4);
+      const settled = await Promise.allSettled(batch.map((term) => researchKeyword(paper.query, term, paper.identity)));
+      settled.forEach((result) => { if (result.status === "fulfilled") gathered.push(...result.value); });
+    }
+    const merged = dedupeSources([...paper.sources, ...gathered]);
+    const next = makePaper(paper.query, paper.resolved, paper.identity, merged, paper.id, paper.created);
+    const pass: RefinementPass = { id: `pass-${Date.now()}`, terms: freshTerms, sourceCount: gathered.length, at: Date.now() };
+    const passes = [...refinementPasses, pass];
+    setPaper(next);
+    setRefinementPasses(passes);
+    setKeywordInput("");
+    setRefineBusy(false);
+    setFocusedFinding(null);
+    setShowFullStory(false);
+    setExpandedHighlight(null);
+    const nextHighlights = makeHighlights(next);
+    const nextBeats = makeStoryBeats(next, nextHighlights, null);
+    setResearchNotes(notesForStory(nextBeats).slice(0, 8));
+    setResearchTrail(`Keyword pass ${passes.length} added ${freshTerms.join(", ")}. The original subject remains locked while the article aim gets narrower.`);
+    setRefineStatus(gathered.length
+      ? `${gathered.length} context-matched source records were added. You can add another keyword pass or continue to the workbench.`
+      : "No new context-matched source records came back for that pass. The keywords are still recorded as article directions; add another pass or adjust the wording.");
+    const state = { baseConclusion: baseConclusion || paper.overview, passes };
+    await saveRefinementState(paper.id, state);
+    window.setTimeout(() => void persistAfterRender(next, history), 250);
   }
 
   useEffect(() => {
@@ -451,8 +570,19 @@ export default function PhiPage() {
           const exact =
             (await secureLoadDurable<Paper | null>(`${PAPER_PREFIX}${id}`, null)) ||
             secureLoad<Paper | null>(`${PAPER_PREFIX}${id}`, null, "session") ||
+            secureLoad<Paper | null>(`${PAPER_PREFIX}${id}`, null) ||
             (await secureLoadDurable<Paper[]>(PAPERS, [])).find((item) => item.id === id);
-          if (exact) { setPaper(exact); setQuery(exact.query); }
+          if (exact) {
+            setPaper(exact);
+            setQuery(exact.query);
+            const localRefine = secureLoad<RefinementState | null>(`${REFINE_PREFIX}${exact.id}`, null);
+            let refine = localRefine;
+            if (!refine) {
+              try { refine = await secureLoadDurable<RefinementState | null>(`${REFINE_PREFIX}${exact.id}`, null); } catch {}
+            }
+            setBaseConclusion(refine?.baseConclusion || exact.overview);
+            setRefinementPasses(refine?.passes || []);
+          }
         } catch {}
       })();
     }
@@ -485,7 +615,7 @@ export default function PhiPage() {
     setShowFullStory(false);
     setExpandedNote(null);
     setResearchNotes(notesForHighlight(paper, highlight));
-    setResearchTrail(`Focused research: ${highlight.title}. Purple notes are now weighted toward this branch, and the main story has been reordered around it.`);
+    setResearchTrail(`Focused research: ${highlight.title}. Purple notes are now weighted toward this branch.`);
   }
 
   function toggleFullStory() {
@@ -496,8 +626,8 @@ export default function PhiPage() {
       setExpandedNote(null);
       setResearchNotes(notesForStory(storyBeats));
       setResearchTrail(focusedFinding === null
-        ? "Full story opened. Every storyboard frame has been converted into purple research notes you can expand or turn into a website."
-        : "Focused full story opened. Purple research notes now reflect the selected orange branch across the entire storyboard.");
+        ? "Full story opened. Every story frame has been converted into purple research notes you can expand or turn into a website."
+        : "Focused full story opened. Purple research notes now reflect the selected orange branch across the entire article.");
     }
   }
 
@@ -522,16 +652,14 @@ export default function PhiPage() {
         </section>
 
         {paper && <article className="phi-results phi-living-result">
-          <nav className="phi-tabs"><span className="active">AI overview</span><span>Story</span><span>Research cards</span><span>Sources</span><span>Build</span></nav>
+          <nav className="phi-tabs"><span className="active">AI overview</span></nav>
           <div className="phi-result-grid">
             <section className="phi-answer">
-              <div className="phi-ai-label"><span className="phi-mini-orb">φ</span><b>AI Overview</b></div>
-
               <section className="phi-editorial-hero" aria-label="Editorial title and lead image">
                 <div className="phi-editorial-copy">
-                  <span className="phi-editorial-kicker"><BookOpen size={15} /> Storyboarded research edition</span>
+                  <span className="phi-editorial-kicker"><BookOpen size={15} /> Research edition</span>
                   <h1>{paper.title}</h1>
-                  <div className="phi-identity"><Check size={14} /> Exact identity: {paper.identity.kind === "element" ? `${paper.identity.name} · ${paper.identity.symbol} · atomic number ${paper.identity.number}` : paper.identity.name}</div>
+                  <div className="phi-identity"><Check size={14} /> {paper.identity.kind === "element" ? `${paper.identity.name} · ${paper.identity.symbol} · atomic number ${paper.identity.number}` : paper.identity.name}</div>
                   <p className="phi-editorial-deck">{paper.overview}</p>
                 </div>
                 <div className="phi-hero-media">
@@ -540,30 +668,53 @@ export default function PhiPage() {
                 </div>
               </section>
 
+              <section className="phi-refine-panel" aria-labelledby="phi-refine-heading">
+                <div className="phi-refine-head">
+                  <small>Search 1 · subject locked</small>
+                  <h2 id="phi-refine-heading">{paper.query}</h2>
+                  <p className="phi-base-conclusion">{baseConclusion || paper.overview}</p>
+                </div>
+                {refinementPasses.length > 0 && <div className="phi-refinement-passes">
+                  {refinementPasses.map((pass, index) => <div className="phi-refinement-pass" key={pass.id}><b>Pass {index + 2}</b><span>{pass.terms.join(" · ")}</span><small>{pass.sourceCount} new matches</small></div>)}
+                </div>}
+                <form className="phi-keyword-form" onSubmit={runRefinement}>
+                  <label className="phi-keyword-label" htmlFor="phi-keyword-search">
+                    <small>Search {refinementPasses.length + 2}+ · contextual keyword pass</small>
+                    <b>Add the details you want this same article to cover</b>
+                  </label>
+                  <div className="phi-keyword-row">
+                    <textarea id="phi-keyword-search" value={keywordInput} onChange={(event) => setKeywordInput(event.target.value)} placeholder="proof, business strike, mintage, PCGS grades, values, silver content" />
+                    <button type="submit" disabled={refineBusy}>{refineBusy ? "Researching…" : "Add keyword research"}</button>
+                  </div>
+                  <p className="phi-keyword-help">Comma-separated directions are searched independently, but every one remains attached to “{paper.query}”. Add as many passes as you need before opening the page-two workbench.</p>
+                  {refineStatus && <div className="phi-refine-status">{refineStatus}</div>}
+                </form>
+              </section>
+
               {storyBeats.length > 0 && <section className="phi-living-section" aria-labelledby="phi-story-heading">
                 <div className="phi-living-heading">
                   <div><h2 id="phi-story-heading">The full story</h2></div>
-                  <p>The article changes with your path. Orange text threads refocus the story and immediately rebuild the purple research notes around what you chose.</p>
+                  <p>The baseline grows as you add contextual keyword passes. Orange threads narrow the reading path without changing the original subject.</p>
                 </div>
                 <div className="phi-magazine-story">
                   {(showFullStory ? storyBeats : storyBeats.slice(0, 2)).map((beat) => {
                     const threads = relatedHighlights(beat, highlights);
                     return <article className="phi-story-beat" key={beat.id}>
-                      <div>
+                      <div className="phi-story-copy">
                         <h3>{beat.title}</h3>
                         <p>{beat.body}</p>
                       </div>
-                      <div>
+                      <div className="phi-story-media">
                         {beat.imageUrl && <img src={beat.imageUrl} alt={beat.source?.title || beat.title} />}
                         {threads.length > 0 && <div className="phi-story-thread">
-                          <span>Follow this thread</span>
+                          <span>Related direction</span>
                           {threads.map((thread) => <button type="button" key={thread.index} onClick={() => chooseHighlight(thread.index)}>{thread.title}</button>)}
                         </div>}
                       </div>
                     </article>;
                   })}
                   {storyBeats.length > 2 && <button type="button" className="phi-read-more" onClick={toggleFullStory}>
-                    <span>{showFullStory ? "Collapse the full story" : "Read the full storyboarded article"}</span>
+                    <span>{showFullStory ? "Collapse the full story" : "Read the full article"}</span>
                     <span>{showFullStory ? "−" : "+"}</span>
                   </button>}
                 </div>
@@ -573,7 +724,7 @@ export default function PhiPage() {
               {highlights.length > 0 && <section className="phi-living-section" aria-labelledby="phi-next-stories-heading">
                 <div className="phi-living-heading">
                   <div><h2 id="phi-next-stories-heading">Next stories to produce</h2></div>
-                  <p>These are the orange narrowing cards: related stories pulled from the main research. Pick one to make it the active subject, deepen its notes, or build it as its own website.</p>
+                  <p>Orange cards remain narrowing directions. The page-two workbench can combine several of them at once before the clean magazine is printed.</p>
                 </div>
                 <div className="phi-orange-grid">
                   {highlights.map((highlight) => {
@@ -599,10 +750,10 @@ export default function PhiPage() {
               <section className="phi-living-section phi-purple-section" aria-labelledby="phi-notes-heading">
                 <div className="phi-living-heading">
                   <div><h2 id="phi-notes-heading">Research notes</h2></div>
-                  <p>Purple cards are created from your actual reading path. Open the full story for broad notes, or choose an orange branch for a narrower research package.</p>
+                  <p>Purple cards record the direction created by reading, orange choices, and your contextual keyword passes.</p>
                 </div>
                 <div className="phi-purple-grid">
-                  {researchNotes.length === 0 ? <div className="phi-purple-empty">No generic filler notes are preloaded. Read the full story, tap an orange text thread, or choose an orange story card; that interaction becomes the signal used to build these purple cards.</div> : researchNotes.map((note, index) => {
+                  {researchNotes.length === 0 ? <div className="phi-purple-empty">Read the full story, choose an orange story card, or add keyword passes above. Those interactions become the signal used to build these purple cards.</div> : researchNotes.map((note, index) => {
                     const isExpanded = expandedNote === note.id;
                     return <article className={`phi-purple-card${isExpanded ? " expanded" : ""}`} key={note.id}>
                       <button type="button" className="phi-purple-main" onClick={() => setExpandedNote(isExpanded ? null : note.id)}>
@@ -619,7 +770,7 @@ export default function PhiPage() {
               <section className="phi-living-section phi-green-section" aria-labelledby="phi-sources-heading">
                 <div className="phi-living-heading">
                   <div><h2 id="phi-sources-heading">Sources</h2></div>
-                  <p>{busy ? "Live source pass in progress…" : `${paper.sources.length} results passed validation. Green always means source material.`}</p>
+                  <p>{busy ? "Live source pass in progress…" : `${paper.sources.length} source records currently support this research package.`}</p>
                 </div>
                 <div className="phi-green-grid">
                   {(showAllSources ? paper.sources : paper.sources.slice(0, 6)).map((source, index) => <a key={`${source.url}-${index}`} href={source.url || "#"} target={source.url ? "_blank" : undefined} rel={source.url ? "noreferrer" : undefined} className="phi-green-card">
@@ -631,24 +782,24 @@ export default function PhiPage() {
                 {paper.sources.length > 6 && <button type="button" className="phi-green-more" onClick={() => setShowAllSources((value) => !value)}>{showAllSources ? "Show fewer sources" : `View all ${paper.sources.length} sources`} <ChevronDown size={16} /></button>}
               </section>
 
-              {busy ? (
+              {busy || refineBusy ? (
                 <div className="phi-build-card phi-build-wait" aria-live="polite">
-                  <div><b>Finishing the research package…</b><p>The website button activates as soon as this result stops changing.</p></div>
+                  <div><b>Finishing the research package…</b><p>The workbench opens as soon as this pass stops changing.</p></div>
                   <span className="phi-spinner" aria-hidden="true" />
                 </div>
               ) : (
-                <a className="phi-build-card" href={liveBuilderUrl(paper, focusedFinding)} target="_self" aria-label="Build full website from this research">
-                  <div><b>{focusedFinding === null ? "Build the complete illustrated website" : "Build the selected orange story in depth"}</b><p>{focusedFinding === null ? "The title, magazine story, orange branches, purple research notes, green sources, and image research become one expandable publication." : "The selected orange branch becomes the publication’s main subject, with deeper research, visual explanations, and supporting branches of its own."}</p></div>
+                <a className="phi-build-card" href={liveBuilderUrl(paper, focusedFinding)} target="_self" aria-label="Open page two workbench from this research">
+                  <div><b>φ Open the page-two workbench</b><p>{refinementPasses.length ? `${refinementPasses.length} contextual keyword pass${refinementPasses.length === 1 ? "" : "es"} will travel with the original subject into the orange/purple/image assembly stage.` : "Add keyword passes first if you want to define the article aim more precisely, or continue now with the broad research package."}</p></div>
                   <span className="phi-build-orb" aria-hidden="true">φ</span>
                 </a>
               )}
 
-              <form onSubmit={submit} className="phi-followup"><Sparkles size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ask a follow-up" /><button>Ask</button></form>
+              <form onSubmit={submit} className="phi-followup"><Sparkles size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Start a different subject" /><button>Search</button></form>
             </section>
           </div>
         </article>}
 
-        <footer className="phi-credits">Infinity Phi · living research interface · GitHub Pages</footer>
+        <footer className="phi-credits">Infinity Phi · contextual research interface · GitHub Pages</footer>
       </div>
     </main>
   );
