@@ -1,15 +1,19 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { appPath } from "@/lib/base-path";
+import { secureLoad, secureLoadDurable } from "@/lib/secure-storage";
 import PhiPage2 from "@/components/PhiPage2";
 import styles from "./PhiIntentShell.module.css";
 
 type Intent = "search" | "code" | "create";
 type Suggestion = { label: string; subject: string; focus: string; detail: string };
 type ClickPath = { subject: string; focus: string; at: number };
+type HistoryItem = { query: string; resolved: string; kind: string; at: number };
+type MenuItem = { label: string; detail: string; kind: "recent" | "orange" | "idea" };
 
 const CLICK_PATH = "infinity_phi_click_path_v1";
+const HISTORY = "infinity_phi_context_v1";
 const intentCopy: Record<Intent, { label: string; placeholder: string }> = {
   search: { label: "Search", placeholder: "Search anything" },
   code: { label: "Code", placeholder: "Describe the app, game, tool, or interactive system" },
@@ -74,36 +78,122 @@ function suggestionsFor(subject: string, focus = ""): Suggestion[] {
   ];
 }
 
+function newestUniqueHistory(history: HistoryItem[]) {
+  const seen = new Set<string>();
+  return [...history]
+    .sort((a, b) => b.at - a.at)
+    .filter((item) => {
+      const key = clean(item.query).toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 14);
+}
+
+function buildSearchMenu(typed: string, history: HistoryItem[], clickPath: ClickPath[]): MenuItem[] {
+  const recent: MenuItem[] = newestUniqueHistory(history).map((item) => ({
+    label: clean(item.query),
+    detail: item.resolved && clean(item.resolved).toLowerCase() !== clean(item.query).toLowerCase() ? clean(item.resolved) : "Recent Infinity search",
+    kind: "recent",
+  }));
+
+  const orange: MenuItem[] = [];
+  const seenOrange = new Set<string>();
+  [...clickPath]
+    .sort((a, b) => b.at - a.at)
+    .slice(0, 12)
+    .forEach((path) => {
+      const direct = clean(`${path.subject} ${path.focus}`);
+      if (direct && !seenOrange.has(direct.toLowerCase())) {
+        seenOrange.add(direct.toLowerCase());
+        orange.push({ label: direct, detail: `Next step from orange card · ${path.focus}`, kind: "orange" });
+      }
+      suggestionsFor(path.subject, path.focus).slice(0, 2).forEach((item) => {
+        const key = item.label.toLowerCase();
+        if (seenOrange.has(key)) return;
+        seenOrange.add(key);
+        orange.push({ label: item.label, detail: `Learned from ${path.focus}`, kind: "orange" });
+      });
+    });
+
+  const mixed: MenuItem[] = [];
+  const max = Math.max(recent.length, orange.length);
+  for (let index = 0; index < max; index += 1) {
+    if (recent[index]) mixed.push(recent[index]);
+    if (orange[index]) mixed.push(orange[index]);
+  }
+
+  const q = clean(typed).toLowerCase();
+  const filtered = q
+    ? mixed.filter((item) => `${item.label} ${item.detail}`.toLowerCase().includes(q))
+    : mixed;
+
+  if (q) {
+    const clicked = clickPath.find((item) => item.subject.toLowerCase() === q);
+    suggestionsFor(typed, clicked?.focus || "").forEach((item) => {
+      if (!filtered.some((existing) => existing.label.toLowerCase() === item.label.toLowerCase())) {
+        filtered.push({ label: item.label, detail: clicked?.focus ? `Suggested from your ${clicked.focus} path` : "Possible next search", kind: "idea" });
+      }
+    });
+  }
+
+  const seen = new Set<string>();
+  return filtered.filter((item) => {
+    const key = item.label.toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 14);
+}
+
 export default function PhiIntentShell() {
   const [intent, setIntent] = useState<Intent>("search");
   const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [focused, setFocused] = useState(false);
   const [hasContext, setHasContext] = useState(false);
   const clickPathRef = useRef<ClickPath[]>([]);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    try { clickPathRef.current = JSON.parse(localStorage.getItem(CLICK_PATH) || "[]").slice(0, 20); } catch {}
+    try { clickPathRef.current = JSON.parse(localStorage.getItem(CLICK_PATH) || "[]").slice(0, 30); } catch {}
+    const localHistory = secureLoad<HistoryItem[]>(HISTORY, []);
+    setHistory(localHistory);
     const params = new URLSearchParams(location.search);
     const initial = params.get("q") || "";
     setQuery(initial);
     setHasContext(Boolean(initial || params.get("id") || params.get("run")));
-    if (initial) {
-      const latest = clickPathRef.current.find((item) => item.subject.toLowerCase() === initial.toLowerCase());
-      setSuggestions(suggestionsFor(initial, latest?.focus || ""));
-    }
+    setMenuItems(buildSearchMenu(initial, localHistory, clickPathRef.current));
+    void secureLoadDurable<HistoryItem[]>(HISTORY, localHistory).then((durable) => {
+      setHistory(durable);
+      setMenuItems(buildSearchMenu(initial, durable, clickPathRef.current));
+    });
   }, []);
+
+  useEffect(() => {
+    const area = inputRef.current;
+    if (!area) return;
+    area.style.height = "0px";
+    area.style.height = `${Math.min(Math.max(area.scrollHeight, 32), 210)}px`;
+  }, [query, intent]);
 
   function choose(next: Intent) {
     setIntent(next);
+    setFocused(false);
     requestAnimationFrame(() => inputRef.current?.focus());
   }
 
   function updateQuery(value: string) {
     setQuery(value);
-    const subject = clean(value);
-    const latest = clickPathRef.current.find((item) => item.subject.toLowerCase() === subject.toLowerCase());
-    setSuggestions(subject ? suggestionsFor(subject, latest?.focus || "") : []);
+    if (intent === "search") setMenuItems(buildSearchMenu(value, history, clickPathRef.current));
+  }
+
+  function goSearch(value: string) {
+    const next = clean(value);
+    if (!next) return;
+    window.location.assign(`${appPath("phi")}?q=${encodeURIComponent(next)}&run=1`);
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -113,12 +203,27 @@ export default function PhiIntentShell() {
       inputRef.current?.focus();
       return;
     }
-    if (intent === "search") {
-      window.location.assign(`${appPath("phi")}?q=${encodeURIComponent(value)}&run=1`);
-      return;
-    }
+    if (intent === "search") return goSearch(value);
     const target = intent === "code" ? appPath("phi/code") : appPath("phi/create");
     window.location.assign(`${target}?q=${encodeURIComponent(value)}`);
+  }
+
+  function onComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      event.currentTarget.form?.requestSubmit();
+    }
+  }
+
+  function openMenu() {
+    setFocused(true);
+    if (intent === "search") setMenuItems(buildSearchMenu(query, history, clickPathRef.current));
+  }
+
+  function chooseMenuItem(item: MenuItem) {
+    setQuery(item.label);
+    setFocused(false);
+    goSearch(item.label);
   }
 
   function captureClick(event: React.MouseEvent<HTMLDivElement>) {
@@ -129,11 +234,13 @@ export default function PhiIntentShell() {
     const focus = clean(card.querySelector("h3")?.textContent);
     const subject = clean(query);
     if (!focus || !subject) return;
-    const next = [{ subject, focus, at: Date.now() }, ...clickPathRef.current.filter((item) => !(item.subject === subject && item.focus === focus))].slice(0, 20);
+    const next = [{ subject, focus, at: Date.now() }, ...clickPathRef.current.filter((item) => !(item.subject === subject && item.focus === focus))].slice(0, 30);
     clickPathRef.current = next;
     try { localStorage.setItem(CLICK_PATH, JSON.stringify(next)); } catch {}
-    setSuggestions(suggestionsFor(subject, focus));
+    setMenuItems(buildSearchMenu(query, history, next));
   }
+
+  const showSearchMenu = intent === "search" && focused;
 
   return (
     <div className={`${styles.shell} ${styles[intent]}`} onClickCapture={captureClick}>
@@ -155,36 +262,49 @@ export default function PhiIntentShell() {
           </div>
         </div>
 
-        <form className={styles.searchBox} onSubmit={submit}>
-          <span className={styles.searchPhi} aria-hidden="true">φ</span>
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(event) => updateQuery(event.target.value)}
-            placeholder={intentCopy[intent].placeholder}
-            aria-label={`${intentCopy[intent].label} with Infinity Phi`}
-            autoComplete="off"
-            autoCapitalize="sentences"
-            enterKeyHint="search"
-            inputMode="text"
-          />
-          <button type="submit" className={styles.omni} aria-label={`${intentCopy[intent].label} with Omni Phi`}><span aria-hidden="true">⊙</span></button>
-        </form>
+        <div className={styles.composerWrap}>
+          <form className={styles.searchBox} onSubmit={submit}>
+            <span className={styles.searchPhi} aria-hidden="true">φ</span>
+            <textarea
+              ref={inputRef}
+              value={query}
+              rows={1}
+              onChange={(event) => updateQuery(event.target.value)}
+              onFocus={openMenu}
+              onBlur={() => window.setTimeout(() => setFocused(false), 140)}
+              onKeyDown={onComposerKeyDown}
+              placeholder={intentCopy[intent].placeholder}
+              aria-label={`${intentCopy[intent].label} with Infinity Phi`}
+              autoComplete="off"
+              autoCapitalize="sentences"
+              enterKeyHint="search"
+            />
+            <button type="submit" className={styles.omni} aria-label={`${intentCopy[intent].label} with Omni Phi`}><span aria-hidden="true">⊙</span></button>
+          </form>
 
-        {suggestions.length > 0 && intent === "search" && (
-          <div className={styles.suggestions} aria-label="Search ideas learned from your path">
-            <small>Suggested from what you searched and clicked</small>
-            <div className={styles.suggestionRail}>
-              {suggestions.map((item, index) => (
-                <button type="button" key={`${item.label}-${index}`} onClick={() => { updateQuery(item.label); inputRef.current?.focus(); }} title={item.label}>
-                  <span className={styles.subject}>{item.subject}</span>
-                  <span className={styles.focus}>{item.focus}</span>
-                  <span className={styles.detail}>{item.detail}</span>
+          {showSearchMenu && (
+            <div className={styles.searchMenu} role="listbox" aria-label="Recent and learned Infinity searches">
+              {menuItems.length > 0 ? menuItems.map((item, index) => (
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected="false"
+                  key={`${item.kind}-${item.label}-${index}`}
+                  className={styles.searchMenuItem}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    chooseMenuItem(item);
+                  }}
+                >
+                  <span className={`${styles.menuIcon} ${styles[item.kind]}`}>{item.kind === "recent" ? "↺" : item.kind === "orange" ? "φ" : "→"}</span>
+                  <span className={styles.menuCopy}><b>{item.label}</b><small>{item.detail}</small></span>
                 </button>
-              ))}
+              )) : (
+                <div className={styles.emptyMenu}>Recent searches and orange-card paths will appear here as you use Infinity Phi.</div>
+              )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </section>
 
       <PhiPage2 />
