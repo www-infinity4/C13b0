@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
+import { Menu } from "lucide-react";
 import { appPath } from "@/lib/base-path";
 import { secureLoad, secureLoadDurable } from "@/lib/secure-storage";
 import PhiPage2 from "@/components/PhiPage2";
@@ -154,6 +155,7 @@ export default function PhiIntentShell() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [focused, setFocused] = useState(false);
   const [hasContext, setHasContext] = useState(false);
+  const [contextReady, setContextReady] = useState(false);
   const clickPathRef = useRef<ClickPath[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -163,14 +165,24 @@ export default function PhiIntentShell() {
     setHistory(localHistory);
     const params = new URLSearchParams(location.search);
     const initial = params.get("q") || "";
+    const context = Boolean(initial || params.get("id") || params.get("run"));
     setQuery(initial);
-    setHasContext(Boolean(initial || params.get("id") || params.get("run")));
+    setHasContext(context);
+    setContextReady(true);
     setMenuItems(buildSearchMenu(initial, localHistory, clickPathRef.current));
     void secureLoadDurable<HistoryItem[]>(HISTORY, localHistory).then((durable) => {
       setHistory(durable);
       setMenuItems(buildSearchMenu(initial, durable, clickPathRef.current));
     });
   }, []);
+
+  useEffect(() => {
+    if (!contextReady) return;
+    window.dispatchEvent(new CustomEvent("infinity-shell-menu-ready", { detail: { embedded: !hasContext } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent("infinity-shell-menu-ready", { detail: { embedded: false } }));
+    };
+  }, [contextReady, hasContext]);
 
   useEffect(() => {
     const area = inputRef.current;
@@ -226,6 +238,10 @@ export default function PhiIntentShell() {
     goSearch(item.label);
   }
 
+  function openSiteMenu() {
+    window.dispatchEvent(new Event("infinity-open-menu"));
+  }
+
   function captureClick(event: React.MouseEvent<HTMLDivElement>) {
     const target = event.target as HTMLElement | null;
     const trigger = target?.closest(".phi-orange-main,.phi-orange-actions button");
@@ -244,68 +260,73 @@ export default function PhiIntentShell() {
 
   return (
     <div className={`${styles.shell} ${styles[intent]}`} onClickCapture={captureClick}>
-      <section className={`${styles.frontSearch} ${hasContext ? styles.compact : ""}`} aria-label="Infinity Phi">
-        <div className={styles.intentBar} aria-label="Infinity Phi intent">
-          <div className={styles.buttons}>
-            {(["search", "code", "create"] as Intent[]).map((item) => (
-              <button
-                key={item}
-                type="button"
-                className={`${styles.intentButton} ${styles[item]} ${intent === item ? styles.active : ""}`}
-                aria-pressed={intent === item}
-                onClick={() => choose(item)}
-              >
-                <span>{intentCopy[item].label}</span>
-                <span className={styles.intentPhi}>φ</span>
-              </button>
-            ))}
-          </div>
-        </div>
+      {!hasContext && (
+        <section className={`${styles.frontSearch} phi-front-center`} aria-label="Infinity Phi">
+          <div className="phi-front-brand">Infinity Phi</div>
 
-        <div className={styles.composerWrap}>
-          <form className={styles.searchBox} onSubmit={submit}>
-            <span className={styles.searchPhi} aria-hidden="true">φ</span>
-            <textarea
-              ref={inputRef}
-              value={query}
-              rows={1}
-              onChange={(event) => updateQuery(event.target.value)}
-              onFocus={openMenu}
-              onBlur={() => window.setTimeout(() => setFocused(false), 140)}
-              onKeyDown={onComposerKeyDown}
-              placeholder={intentCopy[intent].placeholder}
-              aria-label={`${intentCopy[intent].label} with Infinity Phi`}
-              autoComplete="off"
-              autoCapitalize="sentences"
-              enterKeyHint="search"
-            />
-            <button type="submit" className={styles.omni} aria-label={`${intentCopy[intent].label} with Omni Phi`}><span aria-hidden="true">⊙</span></button>
-          </form>
-
-          {showSearchMenu && (
-            <div className={styles.searchMenu} role="listbox" aria-label="Recent and learned Infinity searches">
-              {menuItems.length > 0 ? menuItems.map((item, index) => (
+          <div className={styles.intentBar} aria-label="Infinity Phi intent">
+            <div className={styles.buttons}>
+              {(["search", "code", "create"] as Intent[]).map((item) => (
                 <button
+                  key={item}
                   type="button"
-                  role="option"
-                  aria-selected="false"
-                  key={`${item.kind}-${item.label}-${index}`}
-                  className={styles.searchMenuItem}
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    chooseMenuItem(item);
-                  }}
+                  className={`${styles.intentButton} ${styles[item]} ${intent === item ? styles.active : ""}`}
+                  aria-pressed={intent === item}
+                  onClick={() => choose(item)}
                 >
-                  <span className={`${styles.menuIcon} ${styles[item.kind]}`}>{item.kind === "recent" ? "↺" : item.kind === "orange" ? "φ" : "→"}</span>
-                  <span className={styles.menuCopy}><b>{item.label}</b><small>{item.detail}</small></span>
+                  <span>{intentCopy[item].label}</span>
+                  <span className={styles.intentPhi}>φ</span>
                 </button>
-              )) : (
-                <div className={styles.emptyMenu}>Recent searches and orange-card paths will appear here as you use Infinity Phi.</div>
-              )}
+              ))}
             </div>
-          )}
-        </div>
-      </section>
+          </div>
+
+          <div className={styles.composerWrap}>
+            <form className={`${styles.searchBox} phi-front-search-card`} onSubmit={submit}>
+              <span className={styles.searchPhi} aria-hidden="true">φ</span>
+              <textarea
+                ref={inputRef}
+                value={query}
+                rows={1}
+                onChange={(event) => updateQuery(event.target.value)}
+                onFocus={openMenu}
+                onBlur={() => window.setTimeout(() => setFocused(false), 140)}
+                onKeyDown={onComposerKeyDown}
+                placeholder={intentCopy[intent].placeholder}
+                aria-label={`${intentCopy[intent].label} with Infinity Phi`}
+                autoComplete="off"
+                autoCapitalize="sentences"
+                enterKeyHint="search"
+              />
+              <button type="submit" className={styles.omni} aria-label={`${intentCopy[intent].label} with Omni Phi`}><span aria-hidden="true">⊙</span></button>
+              <button type="button" className="phi-front-menu-button" onClick={openSiteMenu} aria-label="Open Infinity Phi menu"><Menu size={23} /></button>
+            </form>
+
+            {showSearchMenu && (
+              <div className={styles.searchMenu} role="listbox" aria-label="Recent and learned Infinity searches">
+                {menuItems.length > 0 ? menuItems.map((item, index) => (
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected="false"
+                    key={`${item.kind}-${item.label}-${index}`}
+                    className={styles.searchMenuItem}
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      chooseMenuItem(item);
+                    }}
+                  >
+                    <span className={`${styles.menuIcon} ${styles[item.kind]}`}>{item.kind === "recent" ? "↺" : item.kind === "orange" ? "φ" : "→"}</span>
+                    <span className={styles.menuCopy}><b>{item.label}</b><small>{item.detail}</small></span>
+                  </button>
+                )) : (
+                  <div className={styles.emptyMenu}>Recent searches and orange-card paths will appear here as you use Infinity Phi.</div>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       <PhiPage2 />
       <footer className={styles.chatFooter}>Built with ChatGPT</footer>
