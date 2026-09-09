@@ -1,1 +1,1 @@
-export { default } from "@/components/PhiPage";
+export { default } from "@/components/PhiPage2";
