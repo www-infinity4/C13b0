@@ -102,6 +102,100 @@
 .phi-home .phi-search-box button {
   background: linear-gradient(145deg, #9b3ce8, #54129d);
 }
+.phi-singer-trigger {
+  position: absolute;
+  z-index: 4;
+  top: 28%;
+  left: 50%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: #d276ff;
+  background: transparent;
+  filter: drop-shadow(0 0 9px #8f2dff) drop-shadow(0 0 22px rgba(183, 75, 255, 0.78));
+  font: 900 clamp(2.6rem, 5vw, 5.3rem)/1 Georgia, serif;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+.phi-singer-trigger:hover,
+.phi-singer-trigger:focus-visible {
+  color: #f0c7ff;
+  outline: 2px solid rgba(224, 170, 255, 0.85);
+  outline-offset: 7px;
+}
+.phi-singer {
+  position: fixed;
+  z-index: 50;
+  top: 50%;
+  left: 50%;
+  width: min(440px, calc(100vw - 28px));
+  padding: 22px;
+  border: 1px solid rgba(205, 129, 255, 0.55);
+  border-radius: 24px;
+  color: #f7efff;
+  background: linear-gradient(145deg, rgba(13, 7, 31, 0.98), rgba(42, 12, 69, 0.98));
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.72), 0 0 42px rgba(148, 52, 231, 0.36);
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(22px);
+}
+.phi-singer header,
+.phi-singer header > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.phi-singer header > div { align-items: flex-start; flex-direction: column; }
+.phi-singer header small { color: #cf98ff; font-size: 0.72rem; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase; }
+.phi-singer header b { font-size: 1.55rem; }
+.phi-singer header button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  color: white;
+  background: rgba(255, 255, 255, 0.07);
+}
+.phi-singer-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 20px; }
+.phi-singer-modes button {
+  padding: 10px 6px;
+  border: 1px solid rgba(211, 161, 255, 0.24);
+  border-radius: 11px;
+  color: #d8c4e8;
+  background: rgba(255, 255, 255, 0.05);
+  font-weight: 850;
+}
+.phi-singer-modes button.active { border-color: #ce76ff; color: #fff; background: #7e2ab6; }
+.phi-singer-display {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 15px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.28);
+}
+.phi-singer-display > span { color: #d885ff; font: 900 2.5rem Georgia, serif; white-space: nowrap; }
+.phi-singer-display > div { display: flex; flex-wrap: wrap; gap: 3px; }
+.phi-singer-display i { display: grid; place-items: center; width: 1.15rem; height: 1.3rem; color: #8f7da1; font-style: normal; font-weight: 900; transition: 100ms ease; }
+.phi-singer-display i.active { color: #fff; background: #a43fe7; box-shadow: 0 0 12px #b64cff; transform: translateY(-3px); }
+.phi-singer > p { margin: 14px 0; color: #cbbcd7; font-size: 0.88rem; line-height: 1.55; }
+.phi-singer-play {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 13px;
+  border: 0;
+  border-radius: 13px;
+  color: #17051f;
+  background: linear-gradient(115deg, #d986ff, #f0c4ff);
+  font-weight: 950;
+}
 .phi-index-links {
   position: absolute;
   z-index: 2;
@@ -994,11 +1088,12 @@
 }
 .phi-inline-button.on-visual {
   position: absolute;
-  right: 14px;
-  bottom: 14px;
+  top: 50%;
+  left: 50%;
   width: 46px;
   height: 46px;
   border: 2px solid rgba(255, 255, 255, 0.75);
+  transform: translate(-50%, -50%);
 }
 .phi-inline-workspace {
   margin-top: 20px;

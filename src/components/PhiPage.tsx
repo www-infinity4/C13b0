@@ -6,6 +6,7 @@ import { secureLoad, secureLoadDurable, secureSave, secureSaveDurable } from "@/
 import { connectOrCreateWallet } from "@/lib/wallet";
 import { appBase, appPath } from "@/lib/base-path";
 import { createSemanticIndex, normalizeSemanticTerm, type SemanticColor, type SemanticTerm } from "@/lib/semantic-index";
+import PhiSinger from "@/components/PhiSinger";
 
 type HistoryItem = { query: string; resolved: string; kind: string; at: number };
 type Source = { title: string; url: string; excerpt: string; provider: string; imageUrl?: string };
@@ -364,6 +365,7 @@ export default function PhiPage() {
             <img src={`${appBase()}/infinity-phi-share.png`} alt="Infinity Phi Search: indexing, extraction, decisions, and transfer through a connected knowledge world" />
             <h1 className="phi-visually-hidden">Infinity Phi Search</h1>
           </div>}
+          {!paper && <PhiSinger />}
           <form onSubmit={submit} className="phi-search-box">
             <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Research topic" placeholder="Search" />
             <button disabled={busy} aria-label="Search all sources">

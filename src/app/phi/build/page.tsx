@@ -119,7 +119,7 @@ async function expandResearch(paper: Paper, focus: string | null, semantic: Sema
       seen.add(key);
       return true;
     })
-    .slice(0, compactDevice ? 8 : 18);
+    .slice(0, compactDevice ? 48 : 72);
 }
 
 export default function Build() {
@@ -267,7 +267,7 @@ export default function Build() {
       if (!source.imageUrl || seen.has(source.imageUrl)) return false;
       seen.add(source.imageUrl);
       return true;
-    }).slice(0, compactDevice ? 3 : 7);
+    }).slice(0, compactDevice ? 50 : 60);
   }, [allSources]);
   const heroImage = visualSources[0]?.imageUrl;
   const aims = useMemo(() => {
@@ -282,28 +282,45 @@ export default function Build() {
   ], [aims, semantic]);
   const story = useMemo(() => {
     if (!paper) return [];
-    const lines = [
+    const lines = (focus ? [
+      focus,
+      ...expanded.flatMap((source) => sentences(source.excerpt).slice(0, 5)),
+      ...paper.sources.flatMap((source) => sentences(source.excerpt).slice(0, 2)),
+    ] : [
       ...sentences(paper.overview),
       ...paper.findings,
-      ...expanded.flatMap((source) => sentences(source.excerpt).slice(0, 2)),
-    ].map(clean).filter(Boolean);
+      ...paper.sources.flatMap((source) => sentences(source.excerpt).slice(0, 2)),
+      ...expanded.flatMap((source) => sentences(source.excerpt).slice(0, 4)),
+    ]).map(clean).filter(Boolean);
     const seen = new Set<string>();
     return lines.filter((line) => {
       const key = line.slice(0, 140).toLowerCase();
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
-    }).slice(0, 18);
-  }, [paper, expanded]);
-  const visualBeats = useMemo(() => aims.map((aim, index) => {
-    const key = String(focus ? focusIndex ?? index : index);
-    const custom = sectionWork[key];
-    const source = custom?.sources[0] || expanded[index % Math.max(1, expanded.length)] || allSources[index % Math.max(1, allSources.length)];
-    const visual = custom?.sources.find((item) => item.imageUrl) || visualSources[index % Math.max(1, visualSources.length)];
-    const supportSources = custom?.sources.length ? custom.sources : source ? [source] : [];
-    const support = supportSources.flatMap((item) => sentences(item.excerpt).slice(0, focus ? 4 : 2)).slice(0, focus ? 8 : 4);
-    return { key, aim, source, visual, support, prompt: custom?.prompt || "" };
-  }), [aims, expanded, allSources, visualSources, focus, focusIndex, sectionWork]);
+    }).slice(0, 60);
+  }, [paper, expanded, focus]);
+  const visualBeats = useMemo(() => {
+    const usedVisuals = new Set<string>();
+    return (story.length ? story : aims).map((aim, index) => {
+      const key = focus ? (index === 0 ? String(focusIndex ?? 0) : `${focusIndex ?? 0}-line-${index}`) : String(index);
+      const custom = sectionWork[key];
+      const lineTerms = new Set((aim.toLowerCase().match(/[a-z0-9]{4,}/g) || []).filter((term) => !["that", "this", "with", "from", "have", "into", "were", "their"].includes(term)));
+      const ranked = allSources.map((source) => ({
+        source,
+        score: [...lineTerms].reduce((total, term) => total + (source.title.toLowerCase().includes(term) ? 5 : 0) + (source.excerpt.toLowerCase().includes(term) ? 1 : 0), 0),
+      })).sort((left, right) => right.score - left.score);
+      const source = custom?.sources[0] || ranked[0]?.source || expanded[index % Math.max(1, expanded.length)] || allSources[index % Math.max(1, allSources.length)];
+      const visual = custom?.sources.find((item) => item.imageUrl && !usedVisuals.has(item.imageUrl))
+        || ranked.find((item) => item.source.imageUrl && !usedVisuals.has(item.source.imageUrl))?.source
+        || visualSources.find((item) => item.imageUrl && !usedVisuals.has(item.imageUrl))
+        || visualSources[index % Math.max(1, visualSources.length)];
+      if (visual?.imageUrl) usedVisuals.add(visual.imageUrl);
+      const supportSources = custom?.sources.length ? custom.sources : source ? [source] : [];
+      const support = supportSources.flatMap((item) => sentences(item.excerpt).filter((line) => clean(line) !== aim).slice(0, focus ? 4 : 2)).slice(0, focus ? 8 : 4);
+      return { key, aim, source, visual, support, prompt: custom?.prompt || "" };
+    });
+  }, [story, aims, expanded, allSources, visualSources, focus, focusIndex, sectionWork]);
 
   async function researchSection(key: string, aim: string) {
     if (!paper) return;
@@ -448,7 +465,7 @@ export default function Build() {
             <small>{paper.query.toUpperCase()} · {focus ? "FOCUSED VISUAL SCRIPT" : "COMPLETE VISUAL SCRIPT"}</small>
             <h1>{focus || paper.query}</h1>
             <p>{focus || paper.overview}</p>
-            <div><span>{allSources.length} research sources</span><span>{visualSources.length} live visuals</span><span>{focus ? "One aim expanded deeply" : `${aims.length} aims developed`}</span></div>
+            <div><span>{allSources.length} research sources</span><span>{visualSources.length} live visuals</span><span>{visualBeats.length} illustrated script lines</span></div>
           </div>
         </section>
 
@@ -474,7 +491,7 @@ export default function Build() {
                   <button className="phi-inline-button on-visual" onClick={() => setActiveSection(activeSection === beat.key ? null : beat.key)} aria-label={`Open Phi tools for illustration ${index + 1}`}>φ</button>
                 </div>
                 <div>
-                  <div className="phi-script-heading"><small>ILLUSTRATED AIM {String(index + 1).padStart(2, "0")}</small><button className="phi-inline-button" onClick={() => setActiveSection(activeSection === beat.key ? null : beat.key)} aria-label={`Open Phi tools for ${beat.aim}`}>φ</button></div>
+                  <div className="phi-script-heading"><small>ILLUSTRATED LINE {String(index + 1).padStart(2, "0")}</small><button className="phi-inline-button" onClick={() => setActiveSection(activeSection === beat.key ? null : beat.key)} aria-label={`Open Phi tools for ${beat.aim}`}>φ</button></div>
                   <h3>{beat.aim}</h3>
                   <details open={Boolean(focus)}>
                     <summary>{focus ? "Expanded research for this aim" : "Open this aim’s research cards"}</summary>
