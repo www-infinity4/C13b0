@@ -140,8 +140,9 @@ export default function SiteChrome({
   return (
     <>
       {!focused && <Navigation />}
-      {focused && !embeddedMenu && (
+      {focused && (
         <>
+          {!embeddedMenu && (
           <button
             type="button"
             onClick={() => show("menu")}
@@ -153,6 +154,7 @@ export default function SiteChrome({
               <span className="font-serif text-lg font-black">Infinity Phi</span>
             )}
           </button>
+          )}
           {open && (
             <div
               className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm"
