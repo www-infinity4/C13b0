@@ -283,7 +283,7 @@ export default function PhiIntentShell() {
 
           <div className={styles.composerWrap}>
             <form className={`${styles.searchBox} phi-front-search-card`} onSubmit={submit}>
-              <span className={styles.searchPhi} aria-hidden="true">φ</span>
+              <button type="button" className="phi-front-menu-button" data-intent={intent} onClick={openSiteMenu} aria-label="Open Infinity Phi menu"><Menu size={23} /></button>
               <textarea
                 ref={inputRef}
                 value={query}
@@ -299,7 +299,6 @@ export default function PhiIntentShell() {
                 enterKeyHint="search"
               />
               <button type="submit" className={styles.omni} aria-label={`${intentCopy[intent].label} with Omni Phi`}><span aria-hidden="true">⊙</span></button>
-              <button type="button" className="phi-front-menu-button" onClick={openSiteMenu} aria-label="Open Infinity Phi menu"><Menu size={23} /></button>
             </form>
 
             {showSearchMenu && (
