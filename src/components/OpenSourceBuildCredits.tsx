@@ -9,9 +9,9 @@ import {
   uniqueOpenSourceUsage,
 } from "@/lib/open-source-usage";
 
-type Props = { className?: string; limit?: number };
+type Props = { className?: string; limit?: number; showChatGPT?: boolean };
 
-export default function OpenSourceBuildCredits({ className, limit = 3 }: Props) {
+export default function OpenSourceBuildCredits({ className, limit = 3, showChatGPT = true }: Props) {
   const [usage, setUsage] = useState<OpenSourceUsage[]>([]);
 
   useEffect(() => {
@@ -29,10 +29,11 @@ export default function OpenSourceBuildCredits({ className, limit = 3 }: Props) 
 
   return (
     <footer className={className}>
-      <span>Built with ChatGPT</span>
+      {showChatGPT && <span>Built with ChatGPT</span>}
       {visible.length > 0 && (
         <>
-          <span> · Built using </span>
+          {showChatGPT && <span> · </span>}
+          <span>Built using </span>
           {visible.map((item, index) => (
             <span key={item.id}>
               {index > 0 ? " · " : ""}
@@ -48,7 +49,7 @@ export default function OpenSourceBuildCredits({ className, limit = 3 }: Props) 
           ))}
         </>
       )}
-      <span> · </span>
+      {(showChatGPT || visible.length > 0) && <span> · </span>}
       <a href={appPath("phi/sources")}>Sources</a>
     </footer>
   );
