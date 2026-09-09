@@ -1,1 +1,1 @@
-export { default } from "@/components/PhiWorkbench";
+export { default } from "@/components/PhiWorkbenchV3";
