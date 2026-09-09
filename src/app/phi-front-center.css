@@ -40,6 +40,15 @@
   color: white;
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(2,72,39,.24);
+  transition: transform .15s ease, background .15s ease, box-shadow .15s ease;
+}
+
+.phi-front-menu-button:hover,
+.phi-front-menu-button:focus-visible {
+  background: #095d39;
+  box-shadow: 0 9px 22px rgba(2,72,39,.3);
+  outline: 2px solid rgba(255,230,79,.6);
+  outline-offset: 2px;
 }
 
 .phi-front-menu-button:active {
