@@ -1,0 +1,41 @@
+/* Page two is the research/story surface, not another search landing page. */
+[class*="PhiIntentShell_frontSearch"][class*="PhiIntentShell_compact"] {
+  display: none !important;
+}
+
+.phi-search-section.compact {
+  display: none !important;
+}
+
+.phi-living-result .phi-editorial-hero {
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 8px;
+  margin-bottom: 22px;
+}
+
+.phi-living-result .phi-editorial-copy {
+  max-width: 920px;
+}
+
+.phi-living-result .phi-editorial-copy h1 {
+  max-width: 900px;
+}
+
+.phi-living-result section[aria-labelledby="phi-discovery-heading"] {
+  margin-top: 18px;
+}
+
+@media (max-width: 820px) {
+  .phi-living-result .phi-editorial-hero {
+    margin-top: 0;
+    margin-bottom: 14px;
+  }
+
+  .phi-living-result .phi-editorial-copy h1 {
+    font-size: clamp(2.1rem, 9vw, 3.35rem);
+  }
+
+  .phi-living-result section[aria-labelledby="phi-discovery-heading"] {
+    margin-top: 12px;
+  }
+}
