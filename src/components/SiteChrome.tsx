@@ -128,11 +128,11 @@ export default function SiteChrome({
             type="button"
             onClick={() => show("menu")}
             className={`fixed z-[70] flex items-center justify-center border border-white/25 bg-[#168b4c]/95 text-white shadow-lg transition-all ${builder ? "right-3 top-[max(5.25rem,calc(env(safe-area-inset-top)+4.25rem))] size-11 rounded-full" : phiWorkspace ? "left-3 top-[max(.7rem,env(safe-area-inset-top))] h-12 gap-2 rounded-2xl px-4" : "left-4 top-[max(1rem,env(safe-area-inset-top))] size-14 rounded-full"}`}
-            aria-label="Open Infinity menu"
+            aria-label="Open Infinity Phi menu"
           >
             <Menu size={builder ? 22 : 27} />
             {phiWorkspace && !builder && (
-              <span className="font-serif text-lg font-black">Infinity</span>
+              <span className="font-serif text-lg font-black">Infinity Phi</span>
             )}
           </button>
           {open && (
@@ -155,7 +155,7 @@ export default function SiteChrome({
                       </button>
                     )}
                     <div>
-                      <b className="font-serif text-2xl">Infinity</b>
+                      <b className="font-serif text-2xl">Infinity Phi</b>
                       <p className="text-[11px] uppercase tracking-[.18em] text-blue-200/55">
                         Phi workspace
                       </p>
