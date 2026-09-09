@@ -1,0 +1,67 @@
+name: Move Phi hamburger left
+
+on:
+  push:
+    paths:
+      - ".github/workflows/phi-left-menu.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Move and recolor embedded menu
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('src/components/PhiIntentShell.tsx')
+          s = p.read_text()
+          old = '''              <span className={styles.searchPhi} aria-hidden="true">φ</span>
+              <textarea'''
+          new = '''              <button type="button" className="phi-front-menu-button" data-intent={intent} onClick={openSiteMenu} aria-label="Open Infinity Phi menu"><Menu size={23} /></button>
+              <textarea'''
+          if old not in s:
+            raise SystemExit('left marker not found')
+          s = s.replace(old, new, 1)
+          old_right = '''              <button type="button" className="phi-front-menu-button" onClick={openSiteMenu} aria-label="Open Infinity Phi menu"><Menu size={23} /></button>
+'''
+          if old_right not in s:
+            raise SystemExit('right menu marker not found')
+          s = s.replace(old_right, '', 1)
+          p.write_text(s)
+
+          p = Path('src/app/phi-front-center.css')
+          s = p.read_text()
+          s = s.replace('  background: #0c6f43;\n  color: white;', '  background: #ffe64f;\n  color: #1d1a00;', 1)
+          insert = '''
+.phi-front-menu-button[data-intent="search"] {
+  background: #ffe64f;
+  color: #1d1a00;
+}
+
+.phi-front-menu-button[data-intent="code"] {
+  background: #16904d;
+  color: #fff;
+}
+
+.phi-front-menu-button[data-intent="create"] {
+  background: #2879d7;
+  color: #fff;
+}
+'''
+          marker = '.phi-front-menu-button:active {'
+          if insert not in s:
+            s = s.replace(marker, insert + '\n' + marker, 1)
+          p.write_text(s)
+          PY
+
+          rm .github/workflows/phi-left-menu.yml
+          git config user.name "Infinity Phi Builder"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/components/PhiIntentShell.tsx src/app/phi-front-center.css .github/workflows/phi-left-menu.yml
+          git commit -m "Attach color-aware hamburger to left of Phi search [skip ci]"
+          git push
