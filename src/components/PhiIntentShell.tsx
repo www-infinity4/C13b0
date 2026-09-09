@@ -138,7 +138,23 @@ export default function PhiIntentShell() {
   return (
     <div className={`${styles.shell} ${styles[intent]}`} onClickCapture={captureClick}>
       <section className={`${styles.frontSearch} ${hasContext ? styles.compact : ""}`} aria-label="Infinity Phi">
-        {!hasContext && <h1>Infinity φ</h1>}
+        <div className={styles.intentBar} aria-label="Infinity Phi intent">
+          <div className={styles.buttons}>
+            {(["search", "code", "create"] as Intent[]).map((item) => (
+              <button
+                key={item}
+                type="button"
+                className={`${styles.intentButton} ${styles[item]} ${intent === item ? styles.active : ""}`}
+                aria-pressed={intent === item}
+                onClick={() => choose(item)}
+              >
+                <span>{intentCopy[item].label}</span>
+                <span className={styles.intentPhi}>φ</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <form className={styles.searchBox} onSubmit={submit}>
           <span className={styles.searchPhi} aria-hidden="true">φ</span>
           <input
@@ -155,37 +171,20 @@ export default function PhiIntentShell() {
           <button type="submit" className={styles.omni} aria-label={`${intentCopy[intent].label} with Omni Phi`}><span aria-hidden="true">⊙</span></button>
         </form>
 
-        <div className={styles.intentBar} aria-label="Infinity Phi intent">
-          <div className={styles.buttons}>
-            {(["search", "code", "create"] as Intent[]).map((item) => (
-              <button
-                key={item}
-                type="button"
-                className={`${styles.intentButton} ${styles[item]} ${intent === item ? styles.active : ""}`}
-                aria-pressed={intent === item}
-                onClick={() => choose(item)}
-              >
-                <span>{intentCopy[item].label}</span>
-                <span className={styles.intentPhi}>φ</span>
-              </button>
-            ))}
-          </div>
-
-          {suggestions.length > 0 && intent === "search" && (
-            <div className={styles.suggestions} aria-label="Search ideas learned from your path">
-              <small>Suggested from what you searched and clicked</small>
-              <div className={styles.suggestionRail}>
-                {suggestions.map((item, index) => (
-                  <button type="button" key={`${item.label}-${index}`} onClick={() => { updateQuery(item.label); inputRef.current?.focus(); }} title={item.label}>
-                    <span className={styles.subject}>{item.subject}</span>
-                    <span className={styles.focus}>{item.focus}</span>
-                    <span className={styles.detail}>{item.detail}</span>
-                  </button>
-                ))}
-              </div>
+        {suggestions.length > 0 && intent === "search" && (
+          <div className={styles.suggestions} aria-label="Search ideas learned from your path">
+            <small>Suggested from what you searched and clicked</small>
+            <div className={styles.suggestionRail}>
+              {suggestions.map((item, index) => (
+                <button type="button" key={`${item.label}-${index}`} onClick={() => { updateQuery(item.label); inputRef.current?.focus(); }} title={item.label}>
+                  <span className={styles.subject}>{item.subject}</span>
+                  <span className={styles.focus}>{item.focus}</span>
+                  <span className={styles.detail}>{item.detail}</span>
+                </button>
+              ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </section>
 
       <PhiPage2 />
