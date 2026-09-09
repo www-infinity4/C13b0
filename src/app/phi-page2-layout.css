@@ -1,5 +1,5 @@
 /* Page two is the research/story surface, not another search landing page. */
-[class*="PhiIntentShell_frontSearch"][class*="PhiIntentShell_compact"] {
+[class*="frontSearch"][class*="compact"] {
   display: none !important;
 }
 
