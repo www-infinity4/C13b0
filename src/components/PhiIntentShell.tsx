@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { appPath } from "@/lib/base-path";
 import PhiPage2 from "@/components/PhiPage2";
 import styles from "./PhiIntentShell.module.css";
@@ -10,10 +11,10 @@ type Suggestion = { label: string; subject: string; focus: string; detail: strin
 type ClickPath = { subject: string; focus: string; at: number };
 
 const CLICK_PATH = "infinity_phi_click_path_v1";
-const intentCopy: Record<Intent, { label: string; hint: string; placeholder: string }> = {
-  search: { label: "Search", hint: "Research, learn, and build a readable publication.", placeholder: "Search anything" },
-  code: { label: "Code", hint: "Describe software and iterate on the working preview.", placeholder: "Describe the app, game, tool, or interactive system" },
-  create: { label: "Create", hint: "Describe the finished invoice, document, spreadsheet, app, form, or tool.", placeholder: "Describe what you want created in plain language" },
+const intentCopy: Record<Intent, { label: string; placeholder: string }> = {
+  search: { label: "Search", placeholder: "Search anything" },
+  code: { label: "Code", placeholder: "Describe the app, game, tool, or interactive system" },
+  create: { label: "Create", placeholder: "Describe what you want created in plain language" },
 };
 
 const clean = (value: unknown) => String(value || "").replace(/\s+/g, " ").trim();
@@ -27,6 +28,7 @@ function suggestionsFor(subject: string, focus = ""): Suggestion[] {
   const f = clean(focus);
   const text = `${base} ${f}`.toLowerCase();
   if (!base) return [];
+
   if (/\b(coin|quarter|dime|nickel|cent|penny|dollar|numismatic|mint)\b/.test(text)) {
     if (/proof/.test(text)) return [
       suggestion(`${base} proof identification`, base, "proof", "identification"),
@@ -47,11 +49,13 @@ function suggestionsFor(subject: string, focus = ""): Suggestion[] {
       suggestion(`${base} auction records`, base, "market", "auction records"),
     ];
   }
+
   if (/\b(invoice|billing|bill|payment)\b/.test(text)) return [
     suggestion(`${base} customer invoice`, base, "invoice", "customer details"),
     suggestion(`${base} itemized invoice`, base, "invoice", "itemized charges"),
     suggestion(`${base} invoice with tax and due date`, base, "invoice", "tax + due date"),
   ];
+
   if (/\b(code|game|app|application|software|8 bit|pixel)\b/.test(text)) return [
     suggestion(`${base} 8 bit pixel art`, base, "visual engine", "8-bit pixel art"),
     suggestion(`${base} touch controls Android`, base, "interaction", "touch controls"),
@@ -59,6 +63,7 @@ function suggestionsFor(subject: string, focus = ""): Suggestion[] {
     suggestion(`${base} sound music animation`, base, "media", "sound + animation"),
     suggestion(`${base} save state and progress`, base, "state", "persistence"),
   ];
+
   const topic = f || "deeper explanation";
   return [
     suggestion(`${base} ${topic}`, base, topic, "focused search"),
@@ -73,17 +78,30 @@ function suggestionsFor(subject: string, focus = ""): Suggestion[] {
 export default function PhiIntentShell() {
   const [intent, setIntent] = useState<Intent>("search");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const intentBarRef = useRef<HTMLDivElement>(null);
   const clickPathRef = useRef<ClickPath[]>([]);
 
   useEffect(() => {
     try { clickPathRef.current = JSON.parse(localStorage.getItem(CLICK_PATH) || "[]").slice(0, 20); } catch {}
-    const input = rootRef.current?.querySelector<HTMLInputElement>('input[aria-label="Research topic"]');
-    if (input?.value) {
-      const latest = clickPathRef.current.find((item) => item.subject.toLowerCase() === input.value.toLowerCase());
-      setSuggestions(suggestionsFor(input.value, latest?.focus || ""));
+  }, []);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const form = root.querySelector<HTMLFormElement>("form.phi-search-box");
+    if (!form) return;
+    let host = form.parentElement?.querySelector<HTMLElement>("[data-phi-intent-host]") || null;
+    if (!host) {
+      host = document.createElement("div");
+      host.setAttribute("data-phi-intent-host", "true");
+      form.insertAdjacentElement("afterend", host);
     }
+    setPortalHost(host);
+    return () => {
+      setPortalHost(null);
+      host?.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -91,25 +109,12 @@ export default function PhiIntentShell() {
     if (!input) return;
     input.placeholder = intentCopy[intent].placeholder;
     input.setAttribute("data-infinity-intent", intent);
-  }, [intent]);
+    input.style.pointerEvents = "auto";
+    input.style.touchAction = "manipulation";
+  }, [intent, portalHost]);
 
   useEffect(() => {
-    const root = rootRef.current;
-    const bar = intentBarRef.current;
-    if (!root || !bar) return;
-    const place = () => {
-      const form = root.querySelector<HTMLFormElement>("form.phi-search-box");
-      if (form && bar.previousElementSibling !== form) form.insertAdjacentElement("afterend", bar);
-    };
-    place();
-    const observer = new MutationObserver(place);
-    observer.observe(root, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const root = rootRef.current;
-    const input = root?.querySelector<HTMLInputElement>('input[aria-label="Research topic"]');
+    const input = rootRef.current?.querySelector<HTMLInputElement>('input[aria-label="Research topic"]');
     if (!input) return;
     const update = () => {
       const subject = clean(input.value);
@@ -118,8 +123,12 @@ export default function PhiIntentShell() {
     };
     input.addEventListener("input", update);
     input.addEventListener("focus", update);
-    return () => { input.removeEventListener("input", update); input.removeEventListener("focus", update); };
-  }, []);
+    update();
+    return () => {
+      input.removeEventListener("input", update);
+      input.removeEventListener("focus", update);
+    };
+  }, [portalHost]);
 
   function choose(next: Intent) {
     setIntent(next);
@@ -162,19 +171,43 @@ export default function PhiIntentShell() {
     window.location.assign(`${target}?q=${encodeURIComponent(query)}`);
   }
 
+  const controls = (
+    <div className={styles.intentBar} aria-label="Infinity Phi intent">
+      <div className={styles.buttons}>
+        {(["search", "code", "create"] as Intent[]).map((item) => (
+          <button
+            key={item}
+            type="button"
+            className={`${styles.intentButton} ${styles[item]} ${intent === item ? styles.active : ""}`}
+            aria-pressed={intent === item}
+            onClick={() => choose(item)}
+          >
+            <span className={styles.intentPhi}>φ</span>
+            <span>{intentCopy[item].label}</span>
+          </button>
+        ))}
+      </div>
+      {suggestions.length > 0 && intent === "search" && (
+        <div className={styles.suggestions} aria-label="Search ideas learned from your path">
+          <small>Suggested from what you searched and clicked</small>
+          <div className={styles.suggestionRail}>
+            {suggestions.map((item, index) => (
+              <button type="button" key={`${item.label}-${index}`} onClick={() => setSearchValue(item.label)} title={item.label}>
+                <span className={styles.subject}>{item.subject}</span>
+                <span className={styles.focus}>{item.focus}</span>
+                <span className={styles.detail}>{item.detail}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div ref={rootRef} className={`${styles.shell} ${styles[intent]}`} onSubmitCapture={captureSubmit} onClickCapture={captureClick}>
-      <div ref={intentBarRef} className={styles.intentBar} aria-label="Infinity intent">
-        <div className={styles.buttons}>
-          {(["search", "code", "create"] as Intent[]).map((item) => <button key={item} type="button" className={`${styles.intentButton} ${styles[item]} ${intent === item ? styles.active : ""}`} aria-pressed={intent === item} onClick={() => choose(item)}>{intentCopy[item].label}</button>)}
-        </div>
-        {suggestions.length > 0 && intent === "search" && <div className={styles.suggestions} aria-label="Search ideas learned from your path">
-          <small>Suggested from what you searched and clicked</small>
-          <div className={styles.suggestionRail}>{suggestions.map((item, index) => <button type="button" key={`${item.label}-${index}`} onClick={() => setSearchValue(item.label)} title={item.label}><span className={styles.subject}>{item.subject}</span><span className={styles.focus}>{item.focus}</span><span className={styles.detail}>{item.detail}</span></button>)}</div>
-        </div>}
-        <p><b>{intentCopy[intent].label} intent.</b> {intentCopy[intent].hint}</p>
-      </div>
       <PhiPage2 />
+      {portalHost ? createPortal(controls, portalHost) : null}
       <footer className={styles.chatFooter}>Built with ChatGPT</footer>
     </div>
   );
