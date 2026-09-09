@@ -1,0 +1,32 @@
+name: Fix embedded Phi menu drawer
+
+on:
+  push:
+    paths:
+      - ".github/workflows/phi-menu-drawer-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Keep drawer available when trigger is embedded
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/components/SiteChrome.tsx')
+          s = p.read_text()
+          s = s.replace('      {focused && !embeddedMenu && (\n', '      {focused && (\n', 1)
+          s = s.replace('        <>\n          <button\n            type="button"\n            onClick={() => show("menu")}', '        <>\n          {!embeddedMenu && (\n          <button\n            type="button"\n            onClick={() => show("menu")}', 1)
+          s = s.replace('          </button>\n          {open && (', '          </button>\n          )}\n          {open && (', 1)
+          p.write_text(s)
+          PY
+          rm .github/workflows/phi-menu-drawer-fix.yml
+          git config user.name "Infinity Phi Builder"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/components/SiteChrome.tsx .github/workflows/phi-menu-drawer-fix.yml
+          git commit -m "Keep Phi drawer available to embedded hamburger [skip ci]"
+          git push
