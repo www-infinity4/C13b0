@@ -1,1 +1,1 @@
-export { default } from "@/components/PhiCreator";
+export { default } from "@/components/PhiCreateRouter";
