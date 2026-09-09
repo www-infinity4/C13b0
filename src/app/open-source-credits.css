@@ -1,22 +1,124 @@
 .open-source-global-footer {
   width: min(980px, calc(100% - 28px));
   margin: 0 auto;
-  padding: 14px 8px calc(18px + env(safe-area-inset-bottom));
+  padding: 12px 8px calc(18px + env(safe-area-inset-bottom));
   text-align: center;
   color: #73808d;
   font-size: 11px;
-  line-height: 1.6;
+  line-height: 1.55;
   letter-spacing: .02em;
 }
 
 .open-source-global-footer a {
   color: inherit;
   text-decoration: none;
-  border-bottom: 1px solid rgba(115,128,141,.35);
 }
 
-.open-source-global-footer a:hover,
-.open-source-global-footer a:focus-visible {
+.build-credit-chatgpt {
+  display: block;
+  margin-bottom: 7px;
+}
+
+.build-source-drawer {
+  width: min(680px, 100%);
+  margin: 0 auto;
+  border-top: 1px solid rgba(115,128,141,.16);
+}
+
+.build-source-drawer > summary {
+  list-style: none;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 800;
+  color: #687682;
+  user-select: none;
+}
+
+.build-source-drawer > summary::-webkit-details-marker { display: none; }
+
+.build-source-drawer > summary::after {
+  content: "⌄";
+  font-size: 16px;
+  transition: transform .16s ease;
+}
+
+.build-source-drawer[open] > summary::after { transform: rotate(180deg); }
+
+.build-source-drawer > summary small {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #edf2f5;
+  color: #52616d;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.build-source-drawer-body {
+  padding: 4px 0 14px;
+  text-align: left;
+}
+
+.build-source-drawer-body > p {
+  margin: 0 0 10px;
+  text-align: center;
+  color: #85909a;
+}
+
+.build-source-file-list {
+  display: grid;
+  gap: 7px;
+}
+
+.build-source-file-list a {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(115,128,141,.17);
+  border-radius: 12px;
+  background: rgba(255,255,255,.7);
+}
+
+.build-source-file-list a:hover,
+.build-source-file-list a:focus-visible,
+.build-source-full-link:hover,
+.build-source-full-link:focus-visible {
   color: #198c4f;
-  border-bottom-color: currentColor;
+}
+
+.build-source-file-list b {
+  color: #465764;
+  overflow-wrap: anywhere;
+}
+
+.build-source-file-list small {
+  color: #89949d;
+  text-align: right;
+}
+
+.build-source-full-link {
+  display: block;
+  width: fit-content;
+  margin: 12px auto 0;
+  border-bottom: 1px solid rgba(115,128,141,.35);
+  font-weight: 800;
+}
+
+@media (max-width: 650px) {
+  .build-source-file-list a {
+    display: block;
+  }
+  .build-source-file-list small {
+    display: block;
+    margin-top: 3px;
+    text-align: left;
+  }
 }
