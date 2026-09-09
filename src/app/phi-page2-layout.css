@@ -17,8 +17,20 @@
   max-width: 920px;
 }
 
+/* AI Overview starts with the searched subject itself, not an editorial headline. */
+.phi-living-result .phi-editorial-kicker,
 .phi-living-result .phi-editorial-copy h1 {
-  max-width: 900px;
+  display: none !important;
+}
+
+.phi-living-result .phi-identity {
+  margin-top: 4px;
+  font-size: .95rem;
+  font-weight: 900;
+}
+
+.phi-living-result .phi-editorial-deck {
+  margin-top: 12px;
 }
 
 .phi-living-result section[aria-labelledby="phi-discovery-heading"] {
@@ -29,10 +41,6 @@
   .phi-living-result .phi-editorial-hero {
     margin-top: 0;
     margin-bottom: 14px;
-  }
-
-  .phi-living-result .phi-editorial-copy h1 {
-    font-size: clamp(2.1rem, 9vw, 3.35rem);
   }
 
   .phi-living-result section[aria-labelledby="phi-discovery-heading"] {
