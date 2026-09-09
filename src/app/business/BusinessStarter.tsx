@@ -16,6 +16,11 @@ import {
   Wallet,
   X,
 } from "lucide-react";
+import {
+  cloudflareBuilderConfigured,
+  saveCloudflareStorefront,
+  transferCloudflareTokens,
+} from "@/lib/cloudflare-builder";
 import { secureLoad, secureSave } from "@/lib/secure-storage";
 import {
   buildBusinessStyleProfile,
@@ -45,7 +50,8 @@ type TransferIntent = {
   websiteTokenId: string;
   amount: number;
   memo: string;
-  status: "pending-server";
+  status: "pending-server" | "settled";
+  serverTransferId?: string;
   createdAt: string;
 };
 
@@ -106,6 +112,8 @@ export default function BusinessStarter() {
   const [products, setProducts] = useState<Product[]>([newProduct("product-1")]);
   const [wallet, setWallet] = useState<WalletRecord | null>(null);
   const [saved, setSaved] = useState(false);
+  const [cloudNotice, setCloudNotice] = useState("");
+  const [saving, setSaving] = useState(false);
   const [history, setHistory] = useState<BusinessHistorySignal[]>([]);
   const [variationNonce, setVariationNonce] = useState(0);
   const [storefront, setStorefront] = useState<StorefrontDraft>({ provider: "eBay", url: "", mode: "link" });
@@ -144,8 +152,9 @@ export default function BusinessStarter() {
       if (Array.isArray(localHistory)) setHistory(localHistory.slice(-80));
 
       const incomingQuery = new URLSearchParams(window.location.search).get("query");
+      const incomingToken = new URLSearchParams(window.location.search).get("token");
       if (incomingQuery && !draft?.research?.query) setSparkQuery(incomingQuery);
-
+      if (incomingToken) setTokenId(incomingToken);
       let handoff = window.__infinitySparkHandoff ? JSON.parse(window.__infinitySparkHandoff) : null;
       if (!handoff) handoff = secureLoad(HANDOFF_KEY, null, "session") ?? secureLoad(HANDOFF_KEY, null, "local");
       if (handoff && !draft?.research?.query) {
@@ -190,15 +199,14 @@ export default function BusinessStarter() {
   const complete = useMemo(
     () => Boolean(
       wallet &&
+      tokenId &&
       sparkQuery.trim() &&
-      report.trim() &&
-      sources.trim() &&
       businessName.trim() &&
       description.trim() &&
       products.some(p => p.name.trim() && Number(p.price) > 0) &&
       Object.values(agreed).every(Boolean)
     ),
-    [wallet, sparkQuery, report, sources, businessName, description, products, agreed]
+    [wallet, tokenId, sparkQuery, businessName, description, products, agreed]
   );
 
   function collectWallet() {
@@ -273,10 +281,37 @@ export default function BusinessStarter() {
     };
   }
 
-  function saveDraft() {
+  async function saveDraft() {
     const value = payload();
     secureSave(DRAFT_KEY, value, "session");
     secureSave(DRAFT_KEY, value);
+    setSaving(true);
+    if (cloudflareBuilderConfigured()) {
+      try {
+        await saveCloudflareStorefront({
+          tokenId,
+          query: sparkQuery.trim(),
+          aims: [],
+          history: history.map((item) => ({
+            query: item.query || item.resolved || sparkQuery.trim(),
+            action: item.kind || "SEARCH",
+            occurredAt: item.at ? new Date(item.at).toISOString() : undefined,
+          })),
+          upgrades: ["business", "storefront"],
+          business: {
+            name: businessName.trim(),
+            description: description.trim(),
+            catalog: products.filter(p => p.name.trim()).map(p => ({ ...p, priceInfinity: Number(p.price) })),
+          },
+        });
+        setCloudNotice("Storefront upgrade saved to the shared Cloudflare record");
+      } catch (error) {
+        setCloudNotice(error instanceof Error ? error.message : "The shared Cloudflare record is unavailable");
+      }
+    } else {
+      setCloudNotice("Draft saved. Deploy the Cloudflare builder to make this upgrade shared between users.");
+    }
+    setSaving(false);
     setSaved(true);
     window.setTimeout(() => setSaved(false), 2200);
   }
@@ -290,7 +325,7 @@ export default function BusinessStarter() {
     URL.revokeObjectURL(link.href);
   }
 
-  function prepareTransfer() {
+  async function prepareTransfer() {
     setTransferNotice("");
     if (!wallet) {
       setTransferNotice("Connect the sender wallet first.");
@@ -320,11 +355,31 @@ export default function BusinessStarter() {
       createdAt,
     };
     const existing = secureLoad<TransferIntent[]>(TRANSFER_KEY, []);
-    secureSave(TRANSFER_KEY, [intent, ...existing].slice(0, 100), "session");
-    secureSave(TRANSFER_KEY, [intent, ...existing].slice(0, 100));
-    setTransferNotice(`Transfer intent ${intent.id.slice(0, 8)} prepared. It is not settled until the Cloudflare ledger verifies balance and returns a receipt.`);
-    setTransferAmount("");
-    setTransferMemo("");
+    if (!cloudflareBuilderConfigured()) {
+      secureSave(TRANSFER_KEY, [intent, ...existing].slice(0, 100), "session");
+      secureSave(TRANSFER_KEY, [intent, ...existing].slice(0, 100));
+      setTransferNotice(`Transfer intent ${intent.id.slice(0, 8)} prepared locally. Deploy and connect the Cloudflare ledger before it can settle.`);
+      return;
+    }
+
+    try {
+      const result = await transferCloudflareTokens({
+        senderWalletId: wallet.walletId,
+        recipientWalletId: recipient,
+        units: amount,
+        tokenId: tokenId || undefined,
+        memo: transferMemo.trim() || undefined,
+        idempotencyKey: intent.idempotencyKey,
+      });
+      const settled: TransferIntent = { ...intent, status: "settled", serverTransferId: result.transferId };
+      secureSave(TRANSFER_KEY, [settled, ...existing].slice(0, 100), "session");
+      secureSave(TRANSFER_KEY, [settled, ...existing].slice(0, 100));
+      setTransferNotice(`Transfer settled by Cloudflare. Server balance: ${result.senderBalance} Infinity.`);
+      setTransferAmount("");
+      setTransferMemo("");
+    } catch (error) {
+      setTransferNotice(error instanceof Error ? error.message : "Cloudflare transfer failed");
+    }
   }
 
   return (
@@ -449,7 +504,7 @@ export default function BusinessStarter() {
                 <input value={recipientWalletId} onChange={e => setRecipientWalletId(e.target.value)} className="rounded-xl border border-white/15 bg-black/30 px-4 py-3" placeholder="Recipient Infinity wallet ID"/>
                 <input value={transferAmount} onChange={e => setTransferAmount(e.target.value)} inputMode="numeric" className="rounded-xl border border-white/15 bg-black/30 px-4 py-3" placeholder="Whole Infinity amount"/>
                 <input value={transferMemo} onChange={e => setTransferMemo(e.target.value)} className="rounded-xl border border-white/15 bg-black/30 px-4 py-3" placeholder="Memo or reason"/>
-                <button onClick={prepareTransfer} className="rounded-xl bg-fuchsia-300 px-4 py-3 font-black text-[#22001d] hover:bg-white">Prepare transfer intent</button>
+                <button onClick={() => void prepareTransfer()} className="rounded-xl bg-fuchsia-300 px-4 py-3 font-black text-[#22001d] hover:bg-white">{cloudflareBuilderConfigured() ? "Transfer through Cloudflare" : "Prepare transfer intent"}</button>
                 {transferNotice && <p className="rounded-xl border border-white/10 bg-black/25 p-3 text-xs leading-5 text-white/65">{transferNotice}</p>}
               </div>
             </section>
@@ -476,9 +531,10 @@ export default function BusinessStarter() {
             </section>
 
             <div className="grid gap-3">
-              <button onClick={saveDraft} disabled={!complete} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 py-4 font-black text-[#00150b] hover:bg-white disabled:cursor-not-allowed disabled:opacity-40">{saved ? <Check size={19}/> : <Store size={19}/>} {saved ? "Business genome saved" : "Save business-page draft"}</button>
+              <button onClick={() => void saveDraft()} disabled={!complete || saving} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-300 px-4 py-4 font-black text-[#00150b] hover:bg-white disabled:cursor-not-allowed disabled:opacity-40">{saved ? <Check size={19}/> : <Store size={19}/>} {saving ? "Saving upgrade…" : saved ? "Business genome saved" : "Save business-page upgrade"}</button>
               <button onClick={exportDraft} disabled={!complete} className="flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 font-bold text-white/75 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"><Download size={18}/> Export complete business record</button>
-              <p className="text-center text-xs leading-5 text-white/40">Saving records the research, style genome, storefront connector and wallet ownership locally. Network publication, authenticated catalog actions and settled transfers require the Cloudflare/ledger services.</p>
+              {cloudNotice && <p className="rounded-xl border border-cyan-300/20 bg-cyan-300/[.06] p-3 text-center text-sm leading-5 text-cyan-100">{cloudNotice}</p>}
+              <p className="text-center text-xs leading-5 text-white/40">Saving records the research, style genome, storefront connector and wallet ownership. Network publication and catalog actions still require provider authorization; transfers settle only through the authenticated Cloudflare ledger.</p>
             </div>
           </aside>
         </div>

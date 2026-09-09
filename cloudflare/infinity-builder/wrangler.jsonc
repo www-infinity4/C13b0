@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "infinity-personalized-builder",
+  "main": "worker.ts",
+  "compatibility_date": "2026-09-08",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "infinity-builder",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "ai": { "binding": "AI" },
+  "vars": {
+    "CORS_ORIGINS": "https://www-infinity4.github.io",
+    "AI_MODEL": "",
+    "PLUGIN_ENDPOINTS_JSON": "{}"
+  }
+}
+

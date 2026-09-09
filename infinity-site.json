@@ -16,6 +16,7 @@
     "historyDrivenStructuredScripts": true,
     "styleEngine": "src/lib/business-generation.ts",
     "capabilityLattice": "src/lib/capability-lattice.ts",
+    "pluginIndex": "src/lib/plugin-index.ts",
     "forkedProductionCapabilityCount": 15,
     "localComposer": "C13b0:@puckeditor/core",
     "storefrontConnectors": ["eBay", "Etsy", "Shopify", "custom"],
@@ -54,5 +55,10 @@
     "cross-user-transfer-intent",
     "canonical-ledger-transfer-receipt"
   ],
-  "ai": { "mode": "capability-detected", "fallback": "server-required-when-local-unavailable" }
+  "ai": { "mode": "cloudflare-worker-with-deterministic-fallback", "fallback": "local-history-aware-variation-plan" },
+  "cloudflare": {
+    "worker": "cloudflare/infinity-builder/worker.ts",
+    "d1Migration": "cloudflare/infinity-builder/migrations/0001_infinity_builder.sql",
+    "capabilities": ["personalized-build-history", "site-variation", "storefront-upgrades", "token-transfers", "indexed-plugin-orchestration", "phased-plugin-receipts"]
+  }
 }

@@ -1,9 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, ExternalLink, Sparkles } from "lucide-react";
 import { secureLoad, secureLoadDurable, secureSave, secureSaveDurable } from "@/lib/secure-storage";
 import { connectOrCreateWallet } from "@/lib/wallet";
+import { appBase, appPath } from "@/lib/base-path";
+import { createSemanticIndex, normalizeSemanticTerm, type SemanticColor, type SemanticTerm } from "@/lib/semantic-index";
+import PhiSinger from "@/components/PhiSinger";
 
 type HistoryItem = { query: string; resolved: string; kind: string; at: number };
 type Source = { title: string; url: string; excerpt: string; provider: string; imageUrl?: string };
@@ -25,7 +28,7 @@ const PAPERS = "infinity_phi_research_v1";
 const PAPER_PREFIX = "infinity_phi_paper_v2_";
 const LEDGER = "c13b0_infinity_token_ledger_v3";
 
-function liveBuilderUrl(paper: Paper, focusedFinding: number | null) {
+function liveBuilderUrl(paper: Paper, focusedFinding: number | null, semanticTerms: SemanticTerm[] = []) {
   const params = new URLSearchParams({
     id: paper.id,
     q: paper.query,
@@ -34,8 +37,21 @@ function liveBuilderUrl(paper: Paper, focusedFinding: number | null) {
     version: "20260908-absolute-builder",
     focus: focusedFinding === null ? "-1" : String(focusedFinding),
   });
+  if (semanticTerms.length) {
+    params.set("semantic", JSON.stringify(semanticTerms.slice(0, 12).map(({ term, color, action }) => ({ term, color, action }))));
+  }
   return `https://www-infinity4.github.io/C13b0/phi/build/?${params.toString()}`;
 }
+
+const SEMANTIC_LABELS: Record<SemanticColor, string> = {
+  yellow: "Searchable data",
+  blue: "Add your expertise",
+  green: "Engineer or build",
+  pink: "Research next",
+  red: "Previously routed",
+  purple: "Imported and connected",
+  orange: "Make a decision",
+};
 
 const ELEMENTS: Record<string, { symbol: string; number: number }> = {
   hydrogen: { symbol: "H", number: 1 }, helium: { symbol: "He", number: 2 },
@@ -228,6 +244,7 @@ export default function PhiPage() {
   const [notice, setNotice] = useState("");
   const [showAllSources, setShowAllSources] = useState(false);
   const [focusedFinding, setFocusedFinding] = useState<number | null>(null);
+  const [semanticDecisions, setSemanticDecisions] = useState<SemanticTerm[]>([]);
 
   async function runSearch(raw: string, currentHistory: HistoryItem[] = []) {
     const q = raw.trim();
@@ -242,6 +259,7 @@ export default function PhiPage() {
     setNotice("");
     setShowAllSources(false);
     setFocusedFinding(null);
+    setSemanticDecisions([]);
     const nextHistory = [...currentHistory, { query: q, resolved: resolved.resolved, kind: resolved.kind, at: Date.now() }].slice(-80);
     setHistory(nextHistory);
     try {
@@ -287,22 +305,78 @@ export default function PhiPage() {
     await runSearch(query, history);
   }
 
+  const semanticIndex = useMemo(() => paper ? createSemanticIndex({
+    query: paper.query,
+    findings: paper.findings,
+    sources: paper.sources,
+    history,
+  }) : [], [paper, history]);
+
+  const semanticByWord = useMemo(() => new Map(semanticIndex.map((item) => [item.term, item])), [semanticIndex]);
+  const nextIdeas = useMemo(() => semanticIndex.filter((item) => !(item.color === "purple" && normalizeSemanticTerm(paper?.query || "") === item.term)).slice(0, 9), [semanticIndex, paper?.query]);
+
+  function connectedQuery(term: SemanticTerm) {
+    if (!paper) return term.term;
+    const subjectWords = new Set((paper.query.match(/[A-Za-z][A-Za-z0-9'-]*/g) || []).map(normalizeSemanticTerm));
+    return subjectWords.has(term.term) ? `${paper.query} detailed applications` : `${paper.query} ${term.term}`;
+  }
+
+  function activateSemanticTerm(term: SemanticTerm, findingIndex: number | null = null) {
+    if (!paper) return;
+    if (term.action === "decide") {
+      setSemanticDecisions((current) => current.some((item) => item.term === term.term)
+        ? current.filter((item) => item.term !== term.term)
+        : [...current, term].slice(-8));
+      if (findingIndex !== null) setFocusedFinding(findingIndex);
+      setNotice(`${term.term} is now a build decision. The website script will treat it as a chosen direction.`);
+      return;
+    }
+    if (term.action === "engineer" || term.action === "contribute") {
+      location.assign(liveBuilderUrl(paper, findingIndex, [...semanticDecisions, term]));
+      return;
+    }
+    const nextQuery = connectedQuery(term);
+    setQuery(nextQuery);
+    void runSearch(nextQuery, history);
+  }
+
+  function renderIndexedFinding(finding: string, findingIndex: number) {
+    return finding.split(/([A-Za-z][A-Za-z0-9'-]*)/g).map((part, index) => {
+      const semantic = semanticByWord.get(normalizeSemanticTerm(part));
+      if (!semantic) return <span key={`${index}-${part}`}>{part}</span>;
+      const selected = semanticDecisions.some((item) => item.term === semantic.term);
+      return <button
+        type="button"
+        key={`${index}-${part}`}
+        className={`phi-semantic-word semantic-${semantic.color}${selected ? " selected" : ""}`}
+        title={`${SEMANTIC_LABELS[semantic.color]}: ${semantic.reason}`}
+        aria-label={`${part}. ${SEMANTIC_LABELS[semantic.color]}. ${semantic.reason}`}
+        onClick={(event) => { event.stopPropagation(); activateSemanticTerm(semantic, findingIndex); }}
+      >{part}</button>;
+    });
+  }
+
   return (
-    <main className="phi-mode">
+    <main className={`phi-mode${paper ? "" : " phi-home"}`}>
       <div className="phi-shell">
         <header className="phi-topline"><span>Built with ChatGPT</span></header>
         <section className={paper ? "phi-search-section compact" : "phi-search-section"}>
-          {!paper && <>
-            <div className="phi-orb">φ</div>
-            <h1>Infinity φ</h1>
-            <p>Structured futures from endless results.</p>
-          </>}
+          {!paper && <div className="phi-index-art">
+            <img src={`${appBase()}/infinity-phi-share.png`} alt="Infinity Phi Search: indexing, extraction, decisions, and transfer through a connected knowledge world" />
+            <h1 className="phi-visually-hidden">Infinity Phi Search</h1>
+          </div>}
+          {!paper && <PhiSinger />}
           <form onSubmit={submit} className="phi-search-box">
             <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Research topic" placeholder="Search" />
             <button disabled={busy} aria-label="Search all sources">
               {busy ? <span className="phi-spinner" /> : <span className="phi-omni" aria-hidden="true">⊙</span>}
             </button>
           </form>
+          {!paper && <nav className="phi-index-links" aria-label="Infinity index">
+            <a href={appPath("wallet")}>Token wallet</a>
+            <a href={appPath("business")}>Business upgrade</a>
+            <a href={appPath("crown-index")}>Crown Index</a>
+          </nav>}
           {busy && <div className="phi-thinking"><Sparkles size={16} /> Researching live sources without blocking the page…</div>}
           {notice && <p className="phi-notice">{notice}</p>}
         </section>
@@ -318,12 +392,23 @@ export default function PhiPage() {
 
               {paper.findings.length > 0 && <section className="phi-key-points">
                 <h2>Key points</h2>
-                <div className={`phi-finding-grid${focusedFinding !== null ? " has-focus" : ""}`}>
-                  {paper.findings.slice(0, 6).map((finding, index) => <button type="button" key={index} aria-pressed={focusedFinding === index} className={focusedFinding === index ? "focused" : ""} onClick={() => setFocusedFinding((current) => current === index ? null : index)}><small>{focusedFinding === index ? "Selected website aim" : `Aim ${index + 1}`}</small>{finding}</button>)}
+                <div className="phi-semantic-legend" aria-label="Word color index">
+                  {(Object.entries(SEMANTIC_LABELS) as [SemanticColor, string][]).map(([color, label]) => <span key={color}><i className={`semantic-${color}`} />{label}</span>)}
                 </div>
+                <div className={`phi-finding-grid${focusedFinding !== null ? " has-focus" : ""}`}>
+                  {paper.findings.slice(0, 6).map((finding, index) => <article key={index} className={focusedFinding === index ? "focused" : ""} onClick={() => setFocusedFinding((current) => current === index ? null : index)}>
+                    <button type="button" className="phi-aim-toggle" aria-pressed={focusedFinding === index} onClick={(event) => { event.stopPropagation(); setFocusedFinding((current) => current === index ? null : index); }}><small>{focusedFinding === index ? "Selected website aim" : `Aim ${index + 1}`}</small></button>
+                    <p>{renderIndexedFinding(finding, index)}</p>
+                  </article>)}
+                </div>
+                {nextIdeas.length > 0 && <div className="phi-next-ideas">
+                  <b>Next indexed searches</b>
+                  <p>Choose a word to expand this token. Blue opens a place to add expert knowledge; orange changes the build direction.</p>
+                  <div>{nextIdeas.map((item) => <button type="button" key={`${item.color}-${item.term}`} className={`semantic-${item.color}`} onClick={() => activateSemanticTerm(item)} title={item.reason}>{item.term}</button>)}</div>
+                </div>}
                 <div className="phi-build-scope">
                   <b>{focusedFinding === null ? "Build every aim" : "Focused build selected"}</b>
-                  <p>{focusedFinding === null ? "No card is selected, so the builder will develop every orange card into its own illustrated website section." : "The selected card becomes the website’s main subject, with deeper research, visual explanations, and supporting cards of its own."}</p>
+                  <p>{focusedFinding === null ? "No card is selected, so the builder will develop every orange card into its own illustrated website section." : "The selected card becomes the website’s main subject, with deeper research, visual explanations, and supporting cards of its own."}{semanticDecisions.length ? ` Build decisions: ${semanticDecisions.map((item) => item.term).join(", ")}.` : ""}</p>
                   {focusedFinding !== null && <button type="button" onClick={() => setFocusedFinding(null)}>Clear selection and build everything</button>}
                 </div>
               </section>}
@@ -334,7 +419,7 @@ export default function PhiPage() {
                   <span className="phi-spinner" aria-hidden="true" />
                 </div>
               ) : (
-                <a className="phi-build-card" href={liveBuilderUrl(paper, focusedFinding)} target="_self" aria-label="Build full website from this research">
+                <a className="phi-build-card" href={liveBuilderUrl(paper, focusedFinding, semanticDecisions)} target="_self" aria-label="Build full website from this research">
                   <div><b>{focusedFinding === null ? "Build the complete illustrated website" : "Build the selected aim in depth"}</b><p>{focusedFinding === null ? "Every orange card becomes an illustrated section with research cards of its own." : "The chosen card becomes a focused visual script with deeper explanations, evidence, and expansion points."}</p></div>
                   <span className="phi-build-orb" aria-hidden="true">φ</span>
                 </a>

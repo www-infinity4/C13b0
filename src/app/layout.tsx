@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Infinity Phi Search — C13b0",
     description: "All knowledge. All perspectives. One search. A deeper internet, a clearer tomorrow.",
-    images: [phiPreview],
+    images: [{ url: phiPreview, alt: "Infinity Phi Search C13b0" }],
   },
 };
 
