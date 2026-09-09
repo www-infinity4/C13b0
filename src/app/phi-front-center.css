@@ -1,0 +1,80 @@
+.phi-front-center {
+  width: min(760px, calc(100% - 28px)) !important;
+  min-height: calc(100dvh - 92px);
+  margin: 0 auto !important;
+  padding: max(34px, env(safe-area-inset-top)) 0 34px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  z-index: 25;
+  text-align: center;
+}
+
+.phi-front-brand {
+  margin: 0 0 20px;
+  color: #09243d;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2.35rem, 8vw, 4.35rem);
+  font-weight: 900;
+  line-height: .95;
+  letter-spacing: -.045em;
+  text-shadow: 0 2px 0 rgba(255,255,255,.7);
+}
+
+.phi-front-search-card {
+  width: 100%;
+}
+
+.phi-front-menu-button {
+  display: grid;
+  place-items: center;
+  flex: 0 0 50px;
+  width: 50px;
+  height: 50px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 16px;
+  background: #0c6f43;
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(2,72,39,.24);
+}
+
+.phi-front-menu-button:active {
+  transform: translateY(1px);
+}
+
+@media (max-width: 720px) {
+  .phi-front-center {
+    width: calc(100% - 22px) !important;
+    min-height: calc(100dvh - 78px);
+    padding-top: max(24px, env(safe-area-inset-top));
+    padding-bottom: 24px;
+  }
+
+  .phi-front-brand {
+    margin-bottom: 16px;
+    font-size: clamp(2.3rem, 12vw, 3.45rem);
+  }
+
+  .phi-front-menu-button {
+    flex-basis: 46px;
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+  }
+}
+
+@media (max-width: 390px) {
+  .phi-front-center {
+    width: calc(100% - 18px) !important;
+  }
+
+  .phi-front-menu-button {
+    flex-basis: 43px;
+    width: 43px;
+    height: 43px;
+  }
+}
