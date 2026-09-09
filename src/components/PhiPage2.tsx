@@ -48,6 +48,7 @@ const ELEMENTS: Record<string, { symbol: string; number: number }> = {
   antimony: { symbol: "Sb", number: 51 }, iodine: { symbol: "I", number: 53 }, dysprosium: { symbol: "Dy", number: 66 },
   ytterbium: { symbol: "Yb", number: 70 }, hafnium: { symbol: "Hf", number: 72 }, tantalum: { symbol: "Ta", number: 73 },
   tungsten: { symbol: "W", number: 74 }, rhenium: { symbol: "Re", number: 75 }, platinum: { symbol: "Pt", number: 78 },
+  manganese: { symbol: "Mn", number: 25 }, technetium: { symbol: "Tc", number: 43 }, bohrium: { symbol: "Bh", number: 107 },
   gold: { symbol: "Au", number: 79 }, mercury: { symbol: "Hg", number: 80 }, lead: { symbol: "Pb", number: 82 },
   bismuth: { symbol: "Bi", number: 83 }, uranium: { symbol: "U", number: 92 },
 };
@@ -230,15 +231,42 @@ function discoveryTopics(paper: Paper): DiscoveryTopic[] {
   ];
 }
 
+function subjectRelevantLine(text: string, query: string, identity: Identity) {
+  const lower = clean(text).toLowerCase();
+  if (identity.kind === "element") {
+    const name = clean(identity.name).toLowerCase();
+    return Boolean(name && new RegExp(`\\b${name.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\b`, "i").test(lower));
+  }
+  const anchors = [...wordSet(query)];
+  if (!anchors.length) return true;
+  const hits = anchors.filter((word) => lower.includes(word)).length;
+  return hits >= Math.min(2, anchors.length);
+}
+
+function storyDiscoveryTopics(paper: Paper): DiscoveryTopic[] {
+  const storyLines = dedupeLines([...splitSentences(paper.overview), ...paper.findings], 14);
+  const storyCards = storyLines.map((body, index) => {
+    const source = bestSourceFor(body, paper.sources);
+    const title = evidenceTitle(paper, body, source, index);
+    const keyword = [title, ...[...wordSet(body)].slice(0, 5)].join(" ");
+    return { key: `story-${index}-${body.length}`, title, body, keyword };
+  });
+  const used = new Set(storyCards.map((card) => card.title.toLowerCase()));
+  const guided = discoveryTopics(paper).filter((topic) => !used.has(topic.title.toLowerCase()));
+  return [...storyCards, ...guided].slice(0, 16);
+}
+
 function intentionalTitle(query: string, identity: Identity) {
   const subject = clean(query).replace(/[?.!]+$/, "");
   if (isCoinQuery(query)) return `${subject}: Mintage, Strikes, Grades, and Collector Context`;
-  if (identity.kind === "element") return `${subject} in Context: Chemistry, Evidence, and the Questions That Matter`;
+  if (identity.kind === "element") return `${subject}: Atomic Structure, Chemistry, Evidence, and Open Questions`;
   return `${subject}: What the Evidence Shows and Where the Story Leads`;
 }
 
 function makePaper(query: string, resolved: string, identity: Identity, sources: Source[], id?: string, created?: number): Paper {
-  const records = sources.flatMap((source, sourceIndex) => splitSentences(source.excerpt).map((text) => ({ text, sourceIndex })));
+  const allRecords = sources.flatMap((source, sourceIndex) => splitSentences(source.excerpt).map((text) => ({ text, sourceIndex })));
+  const subjectRecords = allRecords.filter((item) => subjectRelevantLine(item.text, query, identity));
+  const records = subjectRecords.length >= 3 ? subjectRecords : allRecords;
   const ranked = [...records].sort((a, b) => {
     const aScore = overlapScore(a.text, query) + (a.sourceIndex === 0 ? 3 : 0);
     const bScore = overlapScore(b.text, query) + (b.sourceIndex === 0 ? 3 : 0);
@@ -390,7 +418,7 @@ export default function PhiPage2() {
   const [baseConclusion, setBaseConclusion] = useState("");
   const [activeDiscovery, setActiveDiscovery] = useState<string | null>(null);
 
-  const topics = useMemo(() => paper ? discoveryTopics(paper) : [], [paper]);
+  const topics = useMemo(() => paper ? storyDiscoveryTopics(paper) : [], [paper]);
   const evidenceCards = useMemo(() => paper ? makeEvidenceCards(paper) : [], [paper]);
   const storyBeats = useMemo(() => paper ? makeStoryBeats(paper) : [], [paper]);
   const heroSource = paper?.sources.find((source) => source.imageUrl) || paper?.sources[0];
@@ -579,16 +607,12 @@ export default function PhiPage2() {
                   <div className="phi-identity"><Check size={14} /> {paper.identity.kind === "element" ? `${paper.identity.name} · ${paper.identity.symbol} · atomic number ${paper.identity.number}` : paper.identity.name}</div>
                   <p className="phi-editorial-deck">{paper.overview}</p>
                 </div>
-                <div className="phi-hero-media">
-                  {heroImage ? <img src={heroImage} alt={heroSource?.title || paper.title} /> : <div className="phi-hero-fallback">φ</div>}
-                  <div className="phi-hero-caption">{heroSource ? `${heroSource.provider} · ${heroSource.title}` : "Lead visual will strengthen as image-bearing research sources arrive."}</div>
-                </div>
               </section>
 
               <section className="phi-living-section" aria-labelledby="phi-discovery-heading">
                 <div className="phi-living-heading">
-                  <div><h2 id="phi-discovery-heading">Directions worth discovering</h2></div>
-                  <p>You do not need to know the expert vocabulary first. These orange cards teach the likely directions; choosing one researches it inside the same original subject.</p>
+                  <div><h2 id="phi-discovery-heading">The full story · choose what to explain further</h2></div>
+                  <p>The orange cards are the readable story itself. Tap any part that matters to you and Phi researches that direction while keeping the original subject locked.</p>
                 </div>
                 <div className="phi-orange-grid">
                   {topics.map((topic, index) => {
