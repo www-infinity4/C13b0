@@ -1,1 +1,1 @@
-export { default } from "@/components/PhiPage2";
+export { default } from "@/components/PhiIntentShell";
