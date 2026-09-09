@@ -5,6 +5,7 @@ import { BookOpen, Check, ChevronDown, ExternalLink, Sparkles } from "lucide-rea
 import { appPath } from "@/lib/base-path";
 import { secureLoad, secureLoadDurable, secureSave, secureSaveDurable } from "@/lib/secure-storage";
 import { connectOrCreateWallet } from "@/lib/wallet";
+import { contentTerms, detectCatalogEntity, gateResearchSources } from "@/lib/phi-search-filters";
 import styles from "./PhiPage2.module.css";
 
 type HistoryItem = { query: string; resolved: string; kind: string; at: number };
@@ -54,7 +55,7 @@ const ELEMENTS: Record<string, { symbol: string; number: number }> = {
 };
 
 function wordSet(value: string) {
-  return new Set((clean(value).toLowerCase().match(/[a-z0-9]+/g) || []).filter((word) => word.length > 3 && !WORD_SKIP.has(word)));
+  return new Set(contentTerms(value).filter((word) => word.length > 3 && !WORD_SKIP.has(word)));
 }
 
 function overlapScore(a: string, b: string) {
@@ -97,12 +98,15 @@ function dedupeSources(sources: Source[]) {
 function resolve(query: string, history: HistoryItem[]) {
   const raw = clean(query);
   const lower = raw.toLowerCase();
-  const element = ELEMENTS[lower];
-  if (element) {
+  const exactElement = ELEMENTS[lower];
+  const catalogMatch = exactElement ? { name: lower, data: exactElement } : detectCatalogEntity(raw, ELEMENTS);
+  if (catalogMatch) {
+    const element = catalogMatch.data;
+    const elementName = catalogMatch.name.replace(/(^|\s)\S/g, (match) => match.toUpperCase());
     return {
       kind: "element",
-      resolved: `${raw} chemical element ${element.symbol} atomic number ${element.number}`,
-      identity: { kind: "element", name: raw, symbol: element.symbol, number: element.number } as Identity,
+      resolved: `${elementName} chemical element ${element.symbol} atomic number ${element.number}`,
+      identity: { kind: "element", name: elementName, symbol: element.symbol, number: element.number } as Identity,
     };
   }
   if (lower === "mercury") {
@@ -466,7 +470,10 @@ export default function PhiPage2() {
     const nextHistory = [...currentHistory, { query: q, resolved: resolved.resolved, kind: resolved.kind, at: Date.now() }].slice(-80);
     setHistory(nextHistory);
     try {
-      const sources = (await hardTimeout(research(resolved.resolved), 7500)) || [];
+      const rawSources = (await hardTimeout(research(resolved.resolved), 7500)) || [];
+      const context = currentHistory.slice(-12).map((item) => `${item.query} ${item.resolved}`).join(" ");
+      const gated = gateResearchSources(rawSources, q, resolved.identity, context);
+      const sources = gated.sources;
       const next = makePaper(q, resolved.resolved, resolved.identity, sources, id);
       setPaper(next);
       setBusy(false);
