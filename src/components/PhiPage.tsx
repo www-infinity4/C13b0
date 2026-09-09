@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { Check, ChevronDown, ExternalLink, Sparkles } from "lucide-react";
+import { BookOpen, Check, ChevronDown, ExternalLink, Sparkles } from "lucide-react";
 import { secureLoad, secureLoadDurable, secureSave, secureSaveDurable } from "@/lib/secure-storage";
 import { connectOrCreateWallet } from "@/lib/wallet";
 
@@ -19,20 +19,35 @@ type Paper = {
   sources: Source[];
   created: number;
 };
+type Highlight = { index: number; title: string; body: string; source?: Source; imageUrl?: string };
+type StoryBeat = { id: string; title: string; body: string; source?: Source; imageUrl?: string };
+type ResearchNote = { id: string; title: string; body: string; source?: Source; focusIndex: number | null };
 
 const HISTORY = "infinity_phi_context_v1";
 const PAPERS = "infinity_phi_research_v1";
 const PAPER_PREFIX = "infinity_phi_paper_v2_";
 const LEDGER = "c13b0_infinity_token_ledger_v3";
 
-function liveBuilderUrl(paper: Paper, focusedFinding: number | null) {
+const clean = (value: unknown) => String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+const splitSentences = (value: string) => clean(value).split(/(?<=[.!?])\s+/).map(clean).filter((item) => item.length > 45);
+const delay = (ms: number) => new Promise<null>((resolve) => window.setTimeout(() => resolve(null), ms));
+const WORD_SKIP = new Set(["about", "after", "again", "against", "because", "before", "being", "between", "could", "every", "first", "from", "have", "into", "itself", "more", "other", "over", "same", "such", "than", "that", "their", "these", "they", "this", "through", "under", "what", "when", "where", "which", "while", "with", "would", "your"]);
+
+function hashText(value: string) {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) hash = ((hash << 5) - hash + value.charCodeAt(i)) | 0;
+  return Math.abs(hash).toString(36);
+}
+
+function liveBuilderUrl(paper: Paper, focusedFinding: number | null, note?: string) {
+  const noteText = clean(note);
   const params = new URLSearchParams({
-    id: paper.id,
-    q: paper.query,
-    resolved: paper.resolved,
+    id: noteText ? `${paper.id}-note-${hashText(noteText)}` : paper.id,
+    q: noteText ? `${paper.query}: ${noteText}` : paper.query,
+    resolved: noteText ? `${paper.resolved} ${noteText}` : paper.resolved,
     phone: "1",
-    version: "20260908-absolute-builder",
-    focus: focusedFinding === null ? "-1" : String(focusedFinding),
+    version: "20260909-living-research",
+    focus: noteText ? "-1" : focusedFinding === null ? "-1" : String(focusedFinding),
   });
   return `https://www-infinity4.github.io/C13b0/phi/build/?${params.toString()}`;
 }
@@ -76,9 +91,6 @@ function resolve(query: string, history: HistoryItem[]) {
     ? { kind: "element", resolved: "Mercury chemical element Hg atomic number 80", identity: { kind: "element", name: "Mercury", symbol: "Hg", number: 80 } as Identity }
     : { kind: "music", resolved: "Mercury music Queen Freddie Mercury", identity: { kind: "music", name: "Mercury" } as Identity };
 }
-
-const clean = (value: unknown) => String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-const delay = (ms: number) => new Promise<null>((resolve) => window.setTimeout(() => resolve(null), ms));
 
 async function hardTimeout<T>(work: Promise<T>, ms: number): Promise<T | null> {
   return Promise.race([work.catch(() => null), delay(ms)]) as Promise<T | null>;
@@ -177,24 +189,177 @@ async function research(query: string, identity: Identity): Promise<Source[]> {
     .sort((a, b) => sourceScore(b, identity) - sourceScore(a, identity));
 }
 
+function intentionalTitle(query: string, identity: Identity, sources: Source[]) {
+  const subject = clean(identity.name || query).replace(/[?.!]+$/, "");
+  const lower = `${query} ${sources.slice(0, 4).map((source) => `${source.title} ${source.excerpt}`).join(" ")}`.toLowerCase();
+  if (identity.kind === "element") {
+    if (/group\s*7|manganese group|rhenium/.test(lower)) return `${subject} at the Edge of Group 7: What Its Chemistry Can Actually Tell Us`;
+    return `${subject} in Context: Chemistry, Evidence, and the Questions That Matter`;
+  }
+  if (/\b(numismatic|coinage|coin|coins)\b/.test(lower)) return "Coins as History, Metal, and Market: How Money Becomes Collectible";
+  if (/\b(magnet|magnetic|coerciv|permanent magnet)\b/.test(lower)) return `${subject}: How Magnetic Structure Shapes What the Material Can Do`;
+  if (/\b(hydrogen|spectral|1420|21 cm)\b/.test(lower)) return `${subject}: From Atomic Behavior to the Engineering Questions Around It`;
+  if (/\b(storage|memory|data)\b/.test(lower)) return `${subject}: How the Information Could Be Stored, Read, and Tested`;
+  const phrase = subject.split(/\s+/).slice(0, 10).join(" ");
+  return `${phrase}: What the Evidence Shows and Where the Story Leads`;
+}
+
+function wordSet(value: string) {
+  return new Set((clean(value).toLowerCase().match(/[a-z0-9]+/g) || []).filter((word) => word.length > 4 && !WORD_SKIP.has(word)));
+}
+
+function overlapScore(a: string, b: string) {
+  const left = wordSet(a);
+  const right = wordSet(b);
+  let score = 0;
+  left.forEach((word) => { if (right.has(word)) score += 1; });
+  return score;
+}
+
+function bestSourceFor(text: string, sources: Source[]) {
+  let best = sources[0];
+  let score = -1;
+  sources.forEach((source) => {
+    const next = overlapScore(text, `${source.title} ${source.excerpt}`) + (source.imageUrl ? 0.25 : 0);
+    if (next > score) { score = next; best = source; }
+  });
+  return best;
+}
+
+function highlightTitle(paper: Paper, finding: string, source: Source | undefined, index: number) {
+  const subject = clean(paper.identity.name || paper.query);
+  const text = `${finding} ${source?.title || ""}`.toLowerCase();
+  if (/group\s*7|manganese group/.test(text)) return `Where ${subject} Fits in Group 7`;
+  if (/oxidation state|oxidation/.test(text)) return `${subject}'s Oxidation-State Chemistry`;
+  if (/electron configuration|electronic configuration/.test(text)) return "Electron Configuration and Chemical Behavior";
+  if (/isotope|half-life|radioactive|decay/.test(text)) return "Isotopes, Stability, and Decay";
+  if (/discover|synthesi|produced|laboratory/.test(text)) return `How ${subject} Was Made and Identified`;
+  if (/numismatic/.test(text)) return "Numismatics: How Collectors Read Coins";
+  if (/silver round|bullion/.test(text)) return "Collectible Silver Rounds and Bullion";
+  if (/coinage|currency|mint/.test(text)) return "Coinage, Mints, and Monetary History";
+  if (/antique|ancient|historic/.test(text)) return "Antique Coins and the Stories They Carry";
+  const sourceTitle = clean(source?.title);
+  if (sourceTitle && sourceTitle.toLowerCase() !== subject.toLowerCase() && sourceTitle.length >= 8 && sourceTitle.length <= 78) return sourceTitle;
+  const clause = clean(finding.split(/[;:—]/)[0]);
+  if (clause.length >= 12 && clause.length <= 72) return clause.replace(/[.]+$/, "");
+  return `A Closer Look at ${subject} · ${index + 1}`;
+}
+
 function makePaper(query: string, resolved: string, identity: Identity, sources: Source[], id?: string): Paper {
   const records = sources
-    .flatMap((source, sourceIndex) => source.excerpt.split(/(?<=[.!?])\s+/).map((text) => ({ text: clean(text), sourceIndex })))
+    .flatMap((source, sourceIndex) => splitSentences(source.excerpt).map((text) => ({ text, sourceIndex })))
     .filter((item) => item.text.length > 55);
-  const subject = new RegExp(`\\b${identity.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+  const escapedName = identity.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const subject = new RegExp(`\\b${escapedName}\\b`, "i");
   const ranked = records
     .sort((a, b) => ((subject.test(b.text) ? 50 : 0) + (b.sourceIndex === 0 ? 25 : 0)) - ((subject.test(a.text) ? 50 : 0) + (a.sourceIndex === 0 ? 25 : 0)))
     .map((item) => item.text);
   const unique = [...new Set(ranked)];
-  const overview = unique.slice(0, 3).join(" ") || `Infinity Phi opened the search for ${query}, but the live source providers did not return usable material before the safety timeout. The interface is still active; retrying or refining the query will start a fresh source pass.`;
-  const used = new Set(unique.slice(0, 3));
+  const overview = unique.slice(0, 4).join(" ") || `Infinity Phi opened the search for ${query}, but the live source providers did not return usable material before the safety timeout. The interface is still active; retrying or refining the query will start a fresh source pass.`;
+  const used = new Set(unique.slice(0, 4));
   return {
     id: id || `phi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    query, resolved, identity, title: query, overview,
+    query,
+    resolved,
+    identity,
+    title: intentionalTitle(query, identity, sources),
+    overview,
     findings: unique.filter((item) => !used.has(item)).slice(0, 12),
     sources,
     created: Date.now(),
   };
+}
+
+function makeHighlights(paper: Paper): Highlight[] {
+  const visualSources = paper.sources.filter((source) => source.imageUrl);
+  return paper.findings.slice(0, 6).map((body, index) => {
+    const source = bestSourceFor(body, paper.sources);
+    return {
+      index,
+      title: highlightTitle(paper, body, source, index),
+      body,
+      source,
+      imageUrl: source?.imageUrl || visualSources[index % Math.max(1, visualSources.length)]?.imageUrl,
+    };
+  });
+}
+
+function makeStoryBeats(paper: Paper, highlights: Highlight[], focusedFinding: number | null): StoryBeat[] {
+  const focus = focusedFinding === null ? null : highlights.find((item) => item.index === focusedFinding) || null;
+  const candidates = [
+    ...splitSentences(paper.overview),
+    ...paper.findings.slice(0, 8),
+    ...paper.sources.slice(0, 6).flatMap((source) => splitSentences(source.excerpt).slice(0, 2)),
+  ].map(clean).filter(Boolean);
+  const seen = new Set<string>();
+  let unique = candidates.filter((line) => {
+    const key = line.slice(0, 150).toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  if (focus) unique = unique.sort((a, b) => overlapScore(b, focus.body) - overlapScore(a, focus.body));
+  const lines = unique.slice(0, 12);
+  const headings = focus
+    ? [`Focused lens — ${focus.title}`, "What the evidence adds", "The mechanism and context", "Where the focused story branches", "What still needs separating", "The next research move"]
+    : ["The opening frame", "What the evidence says", "How the pieces connect", "Where the story branches", "Why the distinctions matter", "What to investigate next"];
+  const visualSources = paper.sources.filter((source) => source.imageUrl);
+  const beats: StoryBeat[] = [];
+  for (let index = 0; index < lines.length; index += 2) {
+    const body = lines.slice(index, index + 2).join(" ");
+    const source = bestSourceFor(body, paper.sources);
+    beats.push({
+      id: `beat-${index / 2}`,
+      title: headings[index / 2] || `Story frame ${index / 2 + 1}`,
+      body,
+      source,
+      imageUrl: source?.imageUrl || visualSources[(index / 2) % Math.max(1, visualSources.length)]?.imageUrl,
+    });
+  }
+  return beats;
+}
+
+function relatedHighlights(beat: StoryBeat, highlights: Highlight[]) {
+  return [...highlights]
+    .map((highlight) => ({ highlight, score: overlapScore(beat.body, `${highlight.title} ${highlight.body}`) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2)
+    .map((item) => item.highlight);
+}
+
+function notesForStory(beats: StoryBeat[]): ResearchNote[] {
+  return beats.map((beat, index) => ({
+    id: `story-note-${index}`,
+    title: `Story research · ${beat.title}`,
+    body: beat.body,
+    source: beat.source,
+    focusIndex: null,
+  }));
+}
+
+function notesForHighlight(paper: Paper, highlight: Highlight): ResearchNote[] {
+  const rankedSources = [...paper.sources].sort((a, b) => overlapScore(highlight.body, `${b.title} ${b.excerpt}`) - overlapScore(highlight.body, `${a.title} ${a.excerpt}`));
+  const material = [
+    highlight.body,
+    ...rankedSources.slice(0, 4).flatMap((source) => splitSentences(source.excerpt).slice(0, 2)),
+    ...paper.findings.filter((finding) => finding !== highlight.body && overlapScore(finding, highlight.body) > 0).slice(0, 3),
+  ];
+  const seen = new Set<string>();
+  return material.filter((line) => {
+    const key = clean(line).slice(0, 150).toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 8).map((body, index) => {
+    const source = bestSourceFor(body, rankedSources);
+    return {
+      id: `focus-${highlight.index}-note-${index}`,
+      title: index === 0 ? `${highlight.title} · working note` : clean(source?.title) || `${highlight.title} · evidence ${index + 1}`,
+      body,
+      source,
+      focusIndex: highlight.index,
+    };
+  });
 }
 
 async function persistAfterRender(paper: Paper, nextHistory: HistoryItem[]) {
@@ -211,7 +376,7 @@ async function persistAfterRender(paper: Paper, nextHistory: HistoryItem[]) {
     const wallet = connectOrCreateWallet("Infinity Phi");
     const token = {
       id: paper.id, researchId: paper.id, stage: "research", kind: "research", color: "yellow",
-      status: "finished", value: 1, units: 1, title: paper.query, query: paper.query,
+      status: "finished", value: 1, units: 1, title: paper.title, query: paper.query,
       resolved: paper.resolved, sourceCount: paper.sources.length, walletId: wallet.walletId,
       createdAt: new Date(paper.created).toISOString(),
     };
@@ -228,6 +393,11 @@ export default function PhiPage() {
   const [notice, setNotice] = useState("");
   const [showAllSources, setShowAllSources] = useState(false);
   const [focusedFinding, setFocusedFinding] = useState<number | null>(null);
+  const [showFullStory, setShowFullStory] = useState(false);
+  const [expandedHighlight, setExpandedHighlight] = useState<number | null>(null);
+  const [researchNotes, setResearchNotes] = useState<ResearchNote[]>([]);
+  const [expandedNote, setExpandedNote] = useState<string | null>(null);
+  const [researchTrail, setResearchTrail] = useState("Read the story or choose an orange branch to start building tailored research notes.");
 
   async function runSearch(raw: string, currentHistory: HistoryItem[] = []) {
     const q = raw.trim();
@@ -235,6 +405,7 @@ export default function PhiPage() {
     const resolved = resolve(q, currentHistory);
     const id = `phi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const shell = makePaper(q, resolved.resolved, resolved.identity, [], id);
+    shell.title = `${q}: building the evidence and story…`;
     shell.overview = `Searching live sources for ${q}…`;
     secureSave(`${PAPER_PREFIX}${shell.id}`, shell, "session");
     setPaper(shell);
@@ -242,6 +413,11 @@ export default function PhiPage() {
     setNotice("");
     setShowAllSources(false);
     setFocusedFinding(null);
+    setShowFullStory(false);
+    setExpandedHighlight(null);
+    setResearchNotes([]);
+    setExpandedNote(null);
+    setResearchTrail("Read the story or choose an orange branch to start building tailored research notes.");
     const nextHistory = [...currentHistory, { query: q, resolved: resolved.resolved, kind: resolved.kind, at: Date.now() }].slice(-80);
     setHistory(nextHistory);
     try {
@@ -287,6 +463,44 @@ export default function PhiPage() {
     await runSearch(query, history);
   }
 
+  const highlights = paper ? makeHighlights(paper) : [];
+  const storyBeats = paper ? makeStoryBeats(paper, highlights, focusedFinding) : [];
+  const heroSource = paper?.sources.find((source) => source.imageUrl) || paper?.sources[0];
+  const heroImage = heroSource?.imageUrl;
+
+  function chooseHighlight(index: number) {
+    if (!paper) return;
+    const highlight = highlights.find((item) => item.index === index);
+    if (!highlight) return;
+    const clearing = focusedFinding === index;
+    if (clearing) {
+      setFocusedFinding(null);
+      setExpandedHighlight(null);
+      setResearchNotes([]);
+      setResearchTrail("Orange branch cleared. Read the full story or choose another branch to rebuild the purple notes.");
+      return;
+    }
+    setFocusedFinding(index);
+    setExpandedHighlight(index);
+    setShowFullStory(false);
+    setExpandedNote(null);
+    setResearchNotes(notesForHighlight(paper, highlight));
+    setResearchTrail(`Focused research: ${highlight.title}. Purple notes are now weighted toward this branch, and the main story has been reordered around it.`);
+  }
+
+  function toggleFullStory() {
+    if (!paper) return;
+    const opening = !showFullStory;
+    setShowFullStory(opening);
+    if (opening) {
+      setExpandedNote(null);
+      setResearchNotes(notesForStory(storyBeats));
+      setResearchTrail(focusedFinding === null
+        ? "Full story opened. Every storyboard frame has been converted into purple research notes you can expand or turn into a website."
+        : "Focused full story opened. Purple research notes now reflect the selected orange branch across the entire storyboard.");
+    }
+  }
+
   return (
     <main className="phi-mode">
       <div className="phi-shell">
@@ -307,26 +521,115 @@ export default function PhiPage() {
           {notice && <p className="phi-notice">{notice}</p>}
         </section>
 
-        {paper && <article className="phi-results">
-          <nav className="phi-tabs"><span className="active">AI overview</span><span>Sources</span><span>Build</span></nav>
+        {paper && <article className="phi-results phi-living-result">
+          <nav className="phi-tabs"><span className="active">AI overview</span><span>Story</span><span>Research cards</span><span>Sources</span><span>Build</span></nav>
           <div className="phi-result-grid">
             <section className="phi-answer">
               <div className="phi-ai-label"><span className="phi-mini-orb">φ</span><b>AI Overview</b></div>
-              <h1>{paper.title}</h1>
-              <div className="phi-identity"><Check size={14} /> Exact identity: {paper.identity.kind === "element" ? `${paper.identity.name} · ${paper.identity.symbol} · atomic number ${paper.identity.number}` : paper.identity.name}</div>
-              <p className="phi-lead">{paper.overview}</p>
 
-              {paper.findings.length > 0 && <section className="phi-key-points">
-                <h2>Key points</h2>
-                <div className={`phi-finding-grid${focusedFinding !== null ? " has-focus" : ""}`}>
-                  {paper.findings.slice(0, 6).map((finding, index) => <button type="button" key={index} aria-pressed={focusedFinding === index} className={focusedFinding === index ? "focused" : ""} onClick={() => setFocusedFinding((current) => current === index ? null : index)}><small>{focusedFinding === index ? "Selected website aim" : `Aim ${index + 1}`}</small>{finding}</button>)}
+              <section className="phi-editorial-hero" aria-label="Editorial title and lead image">
+                <div className="phi-editorial-copy">
+                  <span className="phi-editorial-kicker"><BookOpen size={15} /> Storyboarded research edition</span>
+                  <h1>{paper.title}</h1>
+                  <div className="phi-identity"><Check size={14} /> Exact identity: {paper.identity.kind === "element" ? `${paper.identity.name} · ${paper.identity.symbol} · atomic number ${paper.identity.number}` : paper.identity.name}</div>
+                  <p className="phi-editorial-deck">{paper.overview}</p>
                 </div>
-                <div className="phi-build-scope">
-                  <b>{focusedFinding === null ? "Build every aim" : "Focused build selected"}</b>
-                  <p>{focusedFinding === null ? "No card is selected, so the builder will develop every orange card into its own illustrated website section." : "The selected card becomes the website’s main subject, with deeper research, visual explanations, and supporting cards of its own."}</p>
-                  {focusedFinding !== null && <button type="button" onClick={() => setFocusedFinding(null)}>Clear selection and build everything</button>}
+                <div className="phi-hero-media">
+                  {heroImage ? <img src={heroImage} alt={heroSource?.title || paper.title} /> : <div className="phi-hero-fallback">φ</div>}
+                  <div className="phi-hero-caption">{heroSource ? `${heroSource.provider} · ${heroSource.title}` : "Lead visual will strengthen as image-bearing research sources arrive."}</div>
+                </div>
+              </section>
+
+              {storyBeats.length > 0 && <section className="phi-living-section" aria-labelledby="phi-story-heading">
+                <div className="phi-living-heading">
+                  <div><h2 id="phi-story-heading">The full story</h2></div>
+                  <p>The article changes with your path. Orange text threads refocus the story and immediately rebuild the purple research notes around what you chose.</p>
+                </div>
+                <div className="phi-magazine-story">
+                  {(showFullStory ? storyBeats : storyBeats.slice(0, 2)).map((beat) => {
+                    const threads = relatedHighlights(beat, highlights);
+                    return <article className="phi-story-beat" key={beat.id}>
+                      <div>
+                        <h3>{beat.title}</h3>
+                        <p>{beat.body}</p>
+                      </div>
+                      <div>
+                        {beat.imageUrl && <img src={beat.imageUrl} alt={beat.source?.title || beat.title} />}
+                        {threads.length > 0 && <div className="phi-story-thread">
+                          <span>Follow this thread</span>
+                          {threads.map((thread) => <button type="button" key={thread.index} onClick={() => chooseHighlight(thread.index)}>{thread.title}</button>)}
+                        </div>}
+                      </div>
+                    </article>;
+                  })}
+                  {storyBeats.length > 2 && <button type="button" className="phi-read-more" onClick={toggleFullStory}>
+                    <span>{showFullStory ? "Collapse the full story" : "Read the full storyboarded article"}</span>
+                    <span>{showFullStory ? "−" : "+"}</span>
+                  </button>}
+                </div>
+                <div className="phi-research-trail">{researchTrail}</div>
+              </section>}
+
+              {highlights.length > 0 && <section className="phi-living-section" aria-labelledby="phi-next-stories-heading">
+                <div className="phi-living-heading">
+                  <div><h2 id="phi-next-stories-heading">Next stories to produce</h2></div>
+                  <p>These are the orange narrowing cards: related stories pulled from the main research. Pick one to make it the active subject, deepen its notes, or build it as its own website.</p>
+                </div>
+                <div className="phi-orange-grid">
+                  {highlights.map((highlight) => {
+                    const selected = focusedFinding === highlight.index;
+                    return <article className={`phi-orange-card${selected ? " selected" : ""}`} key={highlight.index}>
+                      <button type="button" className="phi-orange-main" onClick={() => chooseHighlight(highlight.index)} aria-pressed={selected}>
+                        {highlight.imageUrl ? <img src={highlight.imageUrl} alt={highlight.source?.title || highlight.title} /> : <div className="phi-orange-image-fallback">φ</div>}
+                        <div className="phi-orange-copy">
+                          <small>{selected ? "Active story branch" : `Next story ${String(highlight.index + 1).padStart(2, "0")}`}</small>
+                          <h3>{highlight.title}</h3>
+                          <p>{highlight.body}</p>
+                        </div>
+                      </button>
+                      <div className="phi-orange-actions">
+                        <button type="button" onClick={() => { setExpandedHighlight(expandedHighlight === highlight.index ? null : highlight.index); if (!selected) chooseHighlight(highlight.index); }}>{expandedHighlight === highlight.index ? "Show less" : "Read more"}</button>
+                        <a href={liveBuilderUrl(paper, highlight.index)}><span className="phi-card-orb">φ</span> Build this story</a>
+                      </div>
+                    </article>;
+                  })}
                 </div>
               </section>}
+
+              <section className="phi-living-section phi-purple-section" aria-labelledby="phi-notes-heading">
+                <div className="phi-living-heading">
+                  <div><h2 id="phi-notes-heading">Research notes</h2></div>
+                  <p>Purple cards are created from your actual reading path. Open the full story for broad notes, or choose an orange branch for a narrower research package.</p>
+                </div>
+                <div className="phi-purple-grid">
+                  {researchNotes.length === 0 ? <div className="phi-purple-empty">No generic filler notes are preloaded. Read the full story, tap an orange text thread, or choose an orange story card; that interaction becomes the signal used to build these purple cards.</div> : researchNotes.map((note, index) => {
+                    const isExpanded = expandedNote === note.id;
+                    return <article className={`phi-purple-card${isExpanded ? " expanded" : ""}`} key={note.id}>
+                      <button type="button" className="phi-purple-main" onClick={() => setExpandedNote(isExpanded ? null : note.id)}>
+                        <small>Research note {String(index + 1).padStart(2, "0")}{note.source ? ` · ${note.source.provider}` : ""}</small>
+                        <h3>{note.title}</h3>
+                        <p>{note.body}</p>
+                      </button>
+                      <a className="phi-purple-build" href={liveBuilderUrl(paper, note.focusIndex, note.body)}><span className="phi-card-orb">φ</span> Expand this note into its own website</a>
+                    </article>;
+                  })}
+                </div>
+              </section>
+
+              <section className="phi-living-section phi-green-section" aria-labelledby="phi-sources-heading">
+                <div className="phi-living-heading">
+                  <div><h2 id="phi-sources-heading">Sources</h2></div>
+                  <p>{busy ? "Live source pass in progress…" : `${paper.sources.length} results passed validation. Green always means source material.`}</p>
+                </div>
+                <div className="phi-green-grid">
+                  {(showAllSources ? paper.sources : paper.sources.slice(0, 6)).map((source, index) => <a key={`${source.url}-${index}`} href={source.url || "#"} target={source.url ? "_blank" : undefined} rel={source.url ? "noreferrer" : undefined} className="phi-green-card">
+                    {source.imageUrl ? <img src={source.imageUrl} alt="" /> : <span className="phi-green-source-number">{index + 1}</span>}
+                    <div><small>{source.provider}</small><b>{source.title}</b><p>{source.excerpt}</p></div>
+                    <ExternalLink size={16} />
+                  </a>)}
+                </div>
+                {paper.sources.length > 6 && <button type="button" className="phi-green-more" onClick={() => setShowAllSources((value) => !value)}>{showAllSources ? "Show fewer sources" : `View all ${paper.sources.length} sources`} <ChevronDown size={16} /></button>}
+              </section>
 
               {busy ? (
                 <div className="phi-build-card phi-build-wait" aria-live="polite">
@@ -335,24 +638,17 @@ export default function PhiPage() {
                 </div>
               ) : (
                 <a className="phi-build-card" href={liveBuilderUrl(paper, focusedFinding)} target="_self" aria-label="Build full website from this research">
-                  <div><b>{focusedFinding === null ? "Build the complete illustrated website" : "Build the selected aim in depth"}</b><p>{focusedFinding === null ? "Every orange card becomes an illustrated section with research cards of its own." : "The chosen card becomes a focused visual script with deeper explanations, evidence, and expansion points."}</p></div>
+                  <div><b>{focusedFinding === null ? "Build the complete illustrated website" : "Build the selected orange story in depth"}</b><p>{focusedFinding === null ? "The title, magazine story, orange branches, purple research notes, green sources, and image research become one expandable publication." : "The selected orange branch becomes the publication’s main subject, with deeper research, visual explanations, and supporting branches of its own."}</p></div>
                   <span className="phi-build-orb" aria-hidden="true">φ</span>
                 </a>
               )}
 
               <form onSubmit={submit} className="phi-followup"><Sparkles size={18} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ask a follow-up" /><button>Ask</button></form>
             </section>
-
-            <aside className="phi-sources">
-              <h2>Sources</h2>
-              <p>{busy ? "Live source pass in progress…" : `${paper.sources.length} results passed validation`}</p>
-              {(showAllSources ? paper.sources : paper.sources.slice(0, 4)).map((source, index) => <a key={`${source.url}-${index}`} href={source.url} target="_blank" rel="noreferrer" className="phi-source-card"><span>{index + 1}</span><div><small>{source.provider}</small><b>{source.title}</b><p>{source.excerpt}</p></div><ExternalLink size={15} /></a>)}
-              {paper.sources.length > 4 && <button className="phi-more" onClick={() => setShowAllSources((value) => !value)}>{showAllSources ? "Show fewer" : `View all ${paper.sources.length} sources`} <ChevronDown size={16} /></button>}
-            </aside>
           </div>
         </article>}
 
-        <footer className="phi-credits">Infinity Phi · live research interface · GitHub Pages</footer>
+        <footer className="phi-credits">Infinity Phi · living research interface · GitHub Pages</footer>
       </div>
     </main>
   );
