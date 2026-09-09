@@ -28,6 +28,7 @@ const intentCopy: Record<Intent, { label: string; hint: string; placeholder: str
 export default function PhiIntentShell() {
   const [intent, setIntent] = useState<Intent>("search");
   const rootRef = useRef<HTMLDivElement>(null);
+  const intentBarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const input = rootRef.current?.querySelector<HTMLInputElement>('input[aria-label="Research topic"]');
@@ -35,6 +36,15 @@ export default function PhiIntentShell() {
     input.placeholder = intentCopy[intent].placeholder;
     input.setAttribute("data-infinity-intent", intent);
   }, [intent]);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    const bar = intentBarRef.current;
+    if (!root || !bar) return;
+    const form = root.querySelector<HTMLFormElement>("form.phi-search-box");
+    if (!form) return;
+    form.insertAdjacentElement("afterend", bar);
+  }, []);
 
   function choose(next: Intent) {
     setIntent(next);
@@ -56,7 +66,7 @@ export default function PhiIntentShell() {
 
   return (
     <div ref={rootRef} className={`${styles.shell} ${styles[intent]}`} onSubmitCapture={captureSubmit}>
-      <div className={styles.intentBar} aria-label="Infinity intent">
+      <div ref={intentBarRef} className={styles.intentBar} aria-label="Infinity intent">
         <div className={styles.buttons}>
           {(["search", "code", "create"] as Intent[]).map((item) => (
             <button
