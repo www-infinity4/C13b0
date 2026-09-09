@@ -33,8 +33,8 @@ function liveBuilderUrl(paper: Paper, focusedFinding: number | null) {
     resolved: paper.resolved,
     phone: "1",
     version: "20260908-absolute-builder",
+    focus: focusedFinding === null ? "-1" : String(focusedFinding),
   });
-  if (focusedFinding !== null) params.set("focus", String(focusedFinding));
   return `https://www-infinity4.github.io/C13b0/phi/build/?${params.toString()}`;
 }
 
@@ -294,7 +294,7 @@ export default function PhiPage() {
         <header className="phi-topline"><span>Built with ChatGPT</span></header>
         <section className={paper ? "phi-search-section compact" : "phi-search-section"}>
           {!paper && <div className="phi-index-art">
-            <img src={`${appBase()}/infinity-phi-search-preview.png`} alt="Infinity Phi Search: indexing, extraction, decisions, and transfer through a connected knowledge world" />
+            <img src={`${appBase()}/infinity-phi-share.png`} alt="Infinity Phi Search: indexing, extraction, decisions, and transfer through a connected knowledge world" />
             <h1 className="phi-visually-hidden">Infinity Phi Search</h1>
           </div>}
           <form onSubmit={submit} className="phi-search-box">

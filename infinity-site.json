@@ -2,14 +2,32 @@
   "schema": "infinity-site/v1",
   "siteId": "c13b0",
   "title": "Infinity OS — C13b0",
-  "purpose": "Bootstrap and build Infinity applications with deterministic media, site infrastructure, framework-aware adapters, and capability-routed repository reuse.",
+  "purpose": "Bootstrap and build Infinity applications with deterministic media, history-driven site variation, site infrastructure, framework-aware adapters, and capability-routed repository reuse.",
   "framework": "next-app",
   "canonicalUrl": "https://www-infinity4.github.io/C13b0/",
-  "preview": "public/infinity-phi-search-preview.png",
+  "preview": "public/infinity-phi-share.png",
+  "previewUrl": "https://www-infinity4.github.io/C13b0/infinity-phi-share.png",
   "wallet": { "required": true, "centralized": true },
   "share": { "required": true, "starCoinAware": true },
   "readme": { "required": true },
   "deployment": { "required": true },
+  "businessBuilder": {
+    "route": "/business/",
+    "historyDrivenStructuredScripts": true,
+    "styleEngine": "src/lib/business-generation.ts",
+    "capabilityLattice": "src/lib/capability-lattice.ts",
+    "forkedProductionCapabilityCount": 15,
+    "localComposer": "C13b0:@puckeditor/core",
+    "storefrontConnectors": ["eBay", "Etsy", "Shopify", "custom"],
+    "storefrontState": "link-ready; authenticated import/publish requires provider connection",
+    "transferIntent": true,
+    "transferSettlement": "requires canonical Cloudflare ledger receipt",
+    "cloudflareWorker": "cloudflare/action-engine/worker.js",
+    "cloudflareMigrations": [
+      "cloudflare/action-engine/migrations/0001_action_engine.sql",
+      "cloudflare/action-engine/migrations/0002_business_network.sql"
+    ]
+  },
   "scanner": {
     "contract": "docs/INFINITY_SITE_CREATION_CONTRACT.md",
     "master": "tools/c13b0-master-scan.py",
@@ -29,7 +47,12 @@
     "token-engine",
     "scanner-manifest",
     "canonical-url",
-    "mobile-first"
+    "mobile-first",
+    "history-driven-site-variation",
+    "phi-capability-lattice",
+    "business-storefront-connector",
+    "cross-user-transfer-intent",
+    "canonical-ledger-transfer-receipt"
   ],
   "ai": { "mode": "cloudflare-worker-with-deterministic-fallback", "fallback": "local-history-aware-variation-plan" },
   "cloudflare": {
