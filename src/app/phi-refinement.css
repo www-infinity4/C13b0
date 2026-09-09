@@ -1,0 +1,267 @@
+/* Contextual multi-pass search and Android layout polish for Infinity Phi. */
+.phi-refine-panel {
+  margin: 26px 0 44px;
+  padding: clamp(20px, 4vw, 32px);
+  border: 1px solid #d9e1ea;
+  border-radius: 26px;
+  background: linear-gradient(145deg, #ffffff, #f4f8fc);
+  box-shadow: 0 16px 42px rgba(20, 40, 70, 0.08);
+}
+.phi-refine-head small,
+.phi-keyword-label small {
+  display: block;
+  color: #168b4c;
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.phi-refine-head h2 {
+  margin: 8px 0 10px;
+  color: #17202b;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.7rem, 4vw, 2.55rem);
+  font-weight: 500;
+  line-height: 1.08;
+}
+.phi-base-conclusion {
+  margin: 0;
+  color: #3e4a58;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.03rem;
+  line-height: 1.68;
+}
+.phi-refinement-passes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0 0;
+}
+.phi-refinement-pass {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #c9d8e8;
+  border-radius: 14px;
+  color: #274967;
+  background: #edf5fc;
+  font-size: .76rem;
+  line-height: 1.35;
+}
+.phi-refinement-pass b {
+  color: #174c7b;
+}
+.phi-keyword-form {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid #e0e6ec;
+}
+.phi-keyword-label {
+  display: block;
+  margin-bottom: 10px;
+}
+.phi-keyword-label b {
+  display: block;
+  margin-top: 5px;
+  color: #17202b;
+  font-size: 1rem;
+}
+.phi-keyword-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: stretch;
+}
+.phi-keyword-row textarea {
+  width: 100%;
+  min-height: 82px;
+  resize: vertical;
+  padding: 14px 15px;
+  border: 1px solid #cbd5df;
+  border-radius: 16px;
+  color: #17202b;
+  background: #fff;
+  font: inherit;
+  line-height: 1.45;
+  outline: none;
+}
+.phi-keyword-row textarea:focus {
+  border-color: #168b4c;
+  box-shadow: 0 0 0 3px rgba(22,139,76,.12);
+}
+.phi-keyword-row button {
+  min-width: 150px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 16px;
+  color: white;
+  background: #168b4c;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+.phi-keyword-row button:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+.phi-keyword-help {
+  margin: 9px 0 0;
+  color: #6c7784;
+  font-size: .78rem;
+  line-height: 1.5;
+}
+.phi-refine-status {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: #5d347f;
+  background: #f2eafb;
+  font-size: .82rem;
+  line-height: 1.45;
+}
+.phi-story-media {
+  min-width: 0;
+}
+.phi-story-media > img {
+  display: block;
+}
+.phi-story-thread {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid #e6e9ed;
+}
+.phi-story-copy {
+  min-width: 0;
+}
+
+/* The research menu should not permanently cover article copy while scrolling. */
+body:has(.phi-mode) > * button[aria-label="Open Infinity menu"] {
+  position: absolute !important;
+}
+
+@media (max-width: 820px) {
+  .phi-mode {
+    padding-top: max(78px, calc(env(safe-area-inset-top) + 68px)) !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+  .phi-topline {
+    min-height: 30px !important;
+    padding-left: 0 !important;
+    font-size: .68rem !important;
+  }
+  .phi-tabs {
+    gap: 0 !important;
+    overflow: visible !important;
+  }
+  .phi-tabs span:not(.active) {
+    display: none !important;
+  }
+  .phi-tabs .active {
+    font-size: .82rem;
+  }
+  .phi-editorial-hero {
+    gap: 20px !important;
+    margin-top: 12px !important;
+  }
+  .phi-editorial-copy h1 {
+    margin-top: 11px !important;
+    font-size: clamp(2.2rem, 10vw, 3.25rem) !important;
+    line-height: 1.01 !important;
+    letter-spacing: -.035em !important;
+  }
+  .phi-editorial-kicker {
+    font-size: .64rem !important;
+    letter-spacing: .1em !important;
+  }
+  .phi-editorial-deck {
+    font-size: 1rem !important;
+    line-height: 1.6 !important;
+  }
+  .phi-identity {
+    max-width: 100%;
+    white-space: normal;
+    line-height: 1.35;
+  }
+  .phi-hero-media {
+    min-height: 245px !important;
+    border-radius: 22px !important;
+  }
+  .phi-living-section {
+    margin-top: 38px !important;
+  }
+  .phi-living-heading h2 {
+    font-size: 2rem !important;
+    line-height: 1.04 !important;
+  }
+  .phi-story-beat {
+    display: flex !important;
+    flex-direction: column;
+    gap: 18px !important;
+    padding: 22px 18px !important;
+  }
+  .phi-story-media {
+    order: -1;
+  }
+  .phi-story-beat h3 {
+    margin-bottom: 12px !important;
+    font-size: 1.65rem !important;
+    line-height: 1.08 !important;
+  }
+  .phi-story-beat p {
+    font-size: 1rem !important;
+    line-height: 1.66 !important;
+  }
+  .phi-story-beat img {
+    min-height: 0 !important;
+    max-height: 390px;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+  }
+  .phi-story-thread {
+    display: flex !important;
+    gap: 7px !important;
+    margin-top: 12px !important;
+    padding-top: 12px !important;
+  }
+  .phi-story-thread > span {
+    margin-bottom: 4px !important;
+  }
+  .phi-story-thread button {
+    max-width: 100%;
+    padding: 7px 9px !important;
+    border-radius: 8px;
+    line-height: 1.25;
+  }
+  .phi-refine-panel {
+    margin: 20px 0 34px;
+    padding: 18px;
+    border-radius: 21px;
+  }
+  .phi-refine-head h2 {
+    font-size: 1.65rem;
+  }
+  .phi-keyword-row {
+    grid-template-columns: 1fr;
+  }
+  .phi-keyword-row button {
+    min-height: 48px;
+  }
+  .phi-refinement-pass {
+    width: 100%;
+  }
+  .phi-followup {
+    position: static !important;
+    bottom: auto !important;
+    margin-top: 30px !important;
+    box-shadow: none !important;
+  }
+  .phi-purple-section,
+  .phi-green-section {
+    padding: 18px !important;
+    border-radius: 22px !important;
+  }
+}
