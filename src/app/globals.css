@@ -307,7 +307,7 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
-.phi-finding-grid button {
+.phi-finding-grid > article {
   min-height: 132px;
   padding: 20px;
   border: 1px solid #f19552;
@@ -315,17 +315,28 @@
   background: linear-gradient(145deg, #d95f17, #a83a0b);
   box-shadow: 0 8px 22px rgba(164, 57, 10, 0.14);
   color: #fff3c7;
-  font: inherit;
   font-size: 1rem;
   font-weight: 700;
   line-height: 1.55;
   text-align: left;
+  cursor: pointer;
   transition:
     opacity 180ms ease,
     transform 180ms ease,
     box-shadow 180ms ease;
 }
-.phi-finding-grid button small {
+.phi-aim-toggle {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.phi-finding-grid .phi-aim-toggle small {
   display: block;
   margin-bottom: 9px;
   color: #ffd79b;
@@ -334,22 +345,113 @@
   letter-spacing: 0.13em;
   text-transform: uppercase;
 }
-.phi-finding-grid button:hover,
-.phi-finding-grid button:focus-visible {
+.phi-finding-grid > article:hover,
+.phi-finding-grid > article:focus-within {
   transform: translateY(-2px);
   box-shadow: 0 14px 30px rgba(164, 57, 10, 0.22);
   outline: 3px solid rgba(22, 139, 76, 0.3);
   outline-offset: 2px;
 }
-.phi-finding-grid.has-focus button:not(.focused) {
+.phi-finding-grid.has-focus > article:not(.focused) {
   opacity: 0.48;
 }
-.phi-finding-grid button.focused {
+.phi-finding-grid > article.focused {
   grid-column: 1 / -1;
   min-height: 164px;
   transform: scale(1.015);
   box-shadow: 0 18px 42px rgba(164, 57, 10, 0.28);
 }
+.phi-finding-grid > article p {
+  margin: 0;
+}
+.phi-semantic-word {
+  display: inline;
+  margin: 0 0.06em;
+  padding: 0.05em 0.2em 0.08em;
+  border: 0;
+  border-radius: 0.32em;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 950;
+  line-height: inherit;
+  text-align: inherit;
+  cursor: pointer;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  transition: filter 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+.phi-semantic-word:hover,
+.phi-semantic-word:focus-visible {
+  filter: brightness(1.18) saturate(1.2);
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.phi-semantic-word.semantic-yellow {
+  background: linear-gradient(115deg, #ffe100, #fff36b 52%, #ffd400);
+  box-shadow: 0 0 12px rgba(255, 230, 0, 0.64), inset 0 1px rgba(255, 255, 255, 0.7);
+  color: #231500;
+  text-shadow: 0 1px rgba(255, 255, 255, 0.7);
+}
+.phi-semantic-word.semantic-blue { background: #2d8cff; color: #fff; box-shadow: 0 0 10px rgba(45, 140, 255, 0.46); }
+.phi-semantic-word.semantic-green { background: #21b968; color: #031b0e; box-shadow: 0 0 10px rgba(49, 229, 127, 0.4); }
+.phi-semantic-word.semantic-pink { background: #ff4fbd; color: #31001f; box-shadow: 0 0 12px rgba(255, 79, 189, 0.5); }
+.phi-semantic-word.semantic-red { background: #e7352d; color: #fff; box-shadow: 0 0 10px rgba(231, 53, 45, 0.46); }
+.phi-semantic-word.semantic-purple { background: #8a42d7; color: #fff; box-shadow: 0 0 11px rgba(174, 94, 255, 0.5); }
+.phi-semantic-word.semantic-orange { background: #ff9d21; color: #321500; box-shadow: 0 0 10px rgba(255, 157, 33, 0.48); }
+.phi-semantic-word.selected { outline: 3px solid #fff; outline-offset: 2px; }
+.phi-semantic-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+  margin: -4px 0 16px;
+  color: #4c5664;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+.phi-semantic-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.phi-semantic-legend i {
+  width: 0.72rem;
+  height: 0.72rem;
+  border-radius: 50%;
+  box-shadow: 0 0 7px color-mix(in srgb, currentColor 60%, transparent);
+}
+.phi-semantic-legend i.semantic-yellow { background: #ffe100; color: #ffe100; }
+.phi-semantic-legend i.semantic-blue { background: #2d8cff; color: #2d8cff; }
+.phi-semantic-legend i.semantic-green { background: #21b968; color: #21b968; }
+.phi-semantic-legend i.semantic-pink { background: #ff4fbd; color: #ff4fbd; }
+.phi-semantic-legend i.semantic-red { background: #e7352d; color: #e7352d; }
+.phi-semantic-legend i.semantic-purple { background: #8a42d7; color: #8a42d7; }
+.phi-semantic-legend i.semantic-orange { background: #ff9d21; color: #ff9d21; }
+.phi-next-ideas {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid #d6dce4;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(22, 35, 49, 0.08);
+}
+.phi-next-ideas > b { color: #17202b; }
+.phi-next-ideas > p { margin: 4px 0 12px; color: #657080; font-size: 0.82rem; line-height: 1.45; }
+.phi-next-ideas > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.phi-next-ideas button {
+  padding: 7px 11px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: #17202b;
+  background: #edf1f5;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+.phi-next-ideas button.semantic-yellow { background: #ffe100; }
+.phi-next-ideas button.semantic-blue { background: #2d8cff; color: #fff; }
+.phi-next-ideas button.semantic-green { background: #21b968; }
+.phi-next-ideas button.semantic-pink { background: #ff4fbd; }
+.phi-next-ideas button.semantic-red { background: #e7352d; color: #fff; }
+.phi-next-ideas button.semantic-purple { background: #8a42d7; color: #fff; }
+.phi-next-ideas button.semantic-orange { background: #ff9d21; }
 .phi-build-scope {
   margin-top: 14px;
   padding: 16px 18px;
@@ -564,7 +666,7 @@
   .phi-finding-grid {
     grid-template-columns: 1fr;
   }
-  .phi-finding-grid button.focused {
+  .phi-finding-grid > article.focused {
     grid-column: auto;
   }
   .phi-build-card {
