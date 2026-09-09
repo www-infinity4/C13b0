@@ -36,18 +36,33 @@
   padding: 0;
   border: 1px solid rgba(255,255,255,.28);
   border-radius: 16px;
-  background: #0c6f43;
-  color: white;
+  background: #ffe64f;
+  color: #1d1a00;
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(2,72,39,.24);
-  transition: transform .15s ease, background .15s ease, box-shadow .15s ease;
+  transition: transform .15s ease, background .15s ease, color .15s ease, filter .15s ease, box-shadow .15s ease;
+}
+
+.phi-front-menu-button[data-intent="search"] {
+  background: #ffe64f;
+  color: #1d1a00;
+}
+
+.phi-front-menu-button[data-intent="code"] {
+  background: #16904d;
+  color: #fff;
+}
+
+.phi-front-menu-button[data-intent="create"] {
+  background: #2879d7;
+  color: #fff;
 }
 
 .phi-front-menu-button:hover,
 .phi-front-menu-button:focus-visible {
-  background: #095d39;
+  filter: brightness(.94);
   box-shadow: 0 9px 22px rgba(2,72,39,.3);
-  outline: 2px solid rgba(255,230,79,.6);
+  outline: 2px solid rgba(255,255,255,.72);
   outline-offset: 2px;
 }
 
