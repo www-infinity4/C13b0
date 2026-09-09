@@ -1,0 +1,78 @@
+.finish {
+  display: grid;
+  gap: 14px;
+  margin: 54px 0 28px;
+}
+
+.fullSite,
+.workbench {
+  text-decoration: none;
+}
+
+.fullSite {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 22px;
+  border-radius: 24px;
+  color: white;
+  background: linear-gradient(145deg, #168b4c, #0c6637);
+  box-shadow: 0 18px 42px rgba(22, 139, 76, 0.2);
+}
+
+.fullSite > span {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  color: #168b4c;
+  background: white;
+  font: 900 1.55rem Georgia, serif;
+}
+
+.fullSite b,
+.workbench b {
+  display: block;
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+
+.fullSite small,
+.workbench small {
+  display: block;
+  margin-top: 5px;
+  line-height: 1.5;
+}
+
+.fullSite small {
+  color: rgba(255,255,255,.8);
+}
+
+.workbench {
+  display: block;
+  padding: 18px 20px;
+  border: 1px solid #d7dee7;
+  border-radius: 20px;
+  color: #26394c;
+  background: #f7f9fc;
+}
+
+.workbench small {
+  color: #667484;
+}
+
+@media (max-width: 820px) {
+  .finish {
+    margin-top: 38px;
+  }
+  .fullSite {
+    padding: 18px;
+    border-radius: 20px;
+  }
+  .fullSite > span {
+    width: 46px;
+    height: 46px;
+  }
+}
