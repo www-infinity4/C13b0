@@ -54,6 +54,7 @@ export default function SiteChrome({
 }) {
   const pathname = usePathname().replace(/\/+$/, "") || "/",
     phiWorkspace = pathname.includes("/phi"),
+    publication = pathname.includes("/phi/magazine"),
     focused =
       pathname === "/" ||
       pathname === "/C13b0" ||
@@ -144,7 +145,7 @@ export default function SiteChrome({
       {!focused && <Navigation />}
       {focused && (
         <>
-          {!embeddedMenu && (
+          {!embeddedMenu && !publication && (
           <button
             type="button"
             onClick={() => show("menu")}
