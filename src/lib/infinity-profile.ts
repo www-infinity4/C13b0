@@ -30,6 +30,7 @@ export type InfinityProfile={
   postalCode:string;
   country:string;
   signature:string;
+  contextNotes:string;
   activeBusinessId:string;
   activeWebsite:string;
   businesses:InfinityBusiness[];
@@ -39,7 +40,7 @@ export type InfinityProfile={
 export const PROFILE_KEY="infinity_identity_profile_v1";
 
 export const EMPTY_PROFILE:InfinityProfile={
-  version:1,displayName:"",legalName:"",email:"",phone:"",address1:"",address2:"",city:"",region:"",postalCode:"",country:"",signature:"",activeBusinessId:"",activeWebsite:"",businesses:[],updated:0,
+  version:1,displayName:"",legalName:"",email:"",phone:"",address1:"",address2:"",city:"",region:"",postalCode:"",country:"",signature:"",contextNotes:"",activeBusinessId:"",activeWebsite:"",businesses:[],updated:0,
 };
 
 export function blankBusiness(name=""):InfinityBusiness{return{id:`business-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,name,contactName:"",email:"",phone:"",address1:"",address2:"",city:"",region:"",postalCode:"",country:"",website:"",workspace:"",notes:""};}
@@ -71,6 +72,7 @@ export function profileContext(profile:InfinityProfile){
     personPhone:profile.phone,
     personAddress:fullAddress(profile),
     signature:profile.signature||profile.displayName||profile.legalName,
+    personContext:profile.contextNotes||"",
     businessName:business?.name||"",
     businessContact:business?.contactName||profile.displayName||profile.legalName,
     businessEmail:business?.email||profile.email,
@@ -78,6 +80,24 @@ export function profileContext(profile:InfinityProfile){
     businessAddress:business?fullAddress(business):fullAddress(profile),
     businessWebsite:profile.activeWebsite||business?.website||"",
     workspace:business?.workspace||"",
+    businessNotes:business?.notes||"",
     business,
   };
+}
+
+/**
+ * Reusable, non-contact AI context. This is safe to use for local routing,
+ * ranking and generation without appending private addresses/phone numbers to
+ * public search-provider queries.
+ */
+export function profileContextText(profile:InfinityProfile){
+  const ctx=profileContext(profile);
+  return [
+    ctx.personName&&`User: ${ctx.personName}`,
+    ctx.personContext&&`User context: ${ctx.personContext}`,
+    ctx.businessName&&`Active business: ${ctx.businessName}`,
+    ctx.businessWebsite&&`Active website: ${ctx.businessWebsite}`,
+    ctx.workspace&&`Workspace: ${ctx.workspace}`,
+    ctx.businessNotes&&`Business context: ${ctx.businessNotes}`,
+  ].filter(Boolean).join("\n");
 }
