@@ -2,7 +2,7 @@
 
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { Menu, Search } from "lucide-react";
-import { appBase, appPath } from "@/lib/base-path";
+import { appPath } from "@/lib/base-path";
 import styles from "./InfinityPhiFront.module.css";
 
 export default function InfinityPhiFront() {
@@ -51,12 +51,15 @@ export default function InfinityPhiFront() {
     window.dispatchEvent(new Event("infinity-open-menu"));
   }
 
-  const heroImage = `${appBase()}/infinity-phi-share.png`;
-
   return (
-    <main className={styles.page}>
+    <main className={`${styles.page} infinity-phi-front`}>
       <section className={styles.stage} aria-label="Infinity Phi Search">
-        <img className={styles.art} src={heroImage} alt="" aria-hidden="true" />
+        <img
+          className={styles.art}
+          src="/C13b0/infinity-phi-share.png"
+          alt=""
+          aria-hidden="true"
+        />
         <div className={styles.scrim} aria-hidden="true" />
         <h1 className={styles.srOnly}>Infinity Phi Search — C13b0</h1>
 
