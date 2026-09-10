@@ -1,6 +1,7 @@
 .page {
   min-height: 100dvh;
   margin: 0;
+  overflow: hidden;
   background: #020714;
   color: #fff;
 }
@@ -8,16 +9,17 @@
 .stage {
   position: relative;
   isolation: isolate;
-  min-height: 100dvh;
   width: 100%;
+  min-height: 100dvh;
   max-width: 1200px;
   margin: 0 auto;
   overflow: hidden;
   background: #020714;
 }
 
-/* The artwork must sit ABOVE the stage background.  Negative z-index here
-   was the reason phones showed only the purple fallback screen. */
+/* Picture three is the actual front surface. On phones it fills the screen by
+   cropping the outer red/blue wings while preserving the central Phi and its
+   original search line. */
 .art {
   position: absolute;
   inset: 0;
@@ -35,9 +37,7 @@
   position: absolute;
   inset: 0;
   z-index: 1;
-  background:
-    linear-gradient(180deg, rgba(2,5,16,.05) 0%, rgba(2,5,16,.02) 36%, rgba(2,5,16,.09) 64%, rgba(2,5,16,.34) 100%),
-    radial-gradient(circle at 50% 51%, transparent 0 18rem, rgba(2,5,16,.07) 36rem, rgba(2,5,16,.22) 72rem);
+  background: linear-gradient(180deg, rgba(1,4,14,.03), rgba(1,4,14,.01) 58%, rgba(1,4,14,.22));
   pointer-events: none;
 }
 
@@ -53,104 +53,93 @@
   border: 0;
 }
 
+/* The controls are deliberately aligned to the search line already drawn in
+   picture three. The real search bar covers that drawn bar and makes it live. */
 .controls {
   position: absolute;
   left: 50%;
-  top: 51%;
-  width: min(880px, calc(100% - 28px));
+  top: 47%;
+  z-index: 4;
+  width: min(880px, calc(100% - 26px));
   transform: translate(-50%, -50%);
   display: grid;
-  gap: 10px;
-  z-index: 4;
+  gap: 9px;
 }
 
-/* Keep the REAL search bar on the artwork's search-line and put the three
-   Phi work modes underneath it as a compact glass switch, not the old large
-   home-screen buttons. */
-.searchBar { order: 1; }
-.modeSwitch { order: 2; }
-
 .modeSwitch {
+  order: 1;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  width: min(520px, 82%);
+  gap: 9px;
+  width: min(650px, 86%);
   margin: 0 auto;
-  padding: 4px;
-  border: 1px solid rgba(196,160,255,.38);
-  border-radius: 999px;
-  background: rgba(5,8,28,.76);
-  box-shadow: 0 10px 28px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.09);
-  backdrop-filter: blur(15px) saturate(1.15);
 }
 
 .modeButton {
-  min-height: 38px;
+  min-height: 46px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 7px 9px;
-  border: 1px solid transparent;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255,255,255,.58);
   border-radius: 999px;
-  color: rgba(255,255,255,.84);
-  background: rgba(255,255,255,.025);
-  font-size: clamp(.76rem, 2.2vw, .92rem);
-  font-weight: 850;
-  letter-spacing: .025em;
+  font-size: clamp(.82rem, 2.25vw, .98rem);
+  font-weight: 900;
+  letter-spacing: .015em;
   text-decoration: none;
-  transition: transform .15s ease, background .15s ease, border-color .15s ease;
+  box-shadow: 0 8px 24px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.34);
+  transition: transform .15s ease, filter .15s ease;
 }
 
 .modeButton span {
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.3em;
+  font-size: 1.35em;
   line-height: 1;
 }
 
 .modeButton:hover,
 .modeButton:focus-visible {
   transform: translateY(-1px);
-  background: rgba(255,255,255,.08);
-  border-color: rgba(255,255,255,.28);
-  outline: none;
+  filter: brightness(1.08);
+  outline: 2px solid rgba(255,255,255,.86);
+  outline-offset: 2px;
 }
 
 .searchMode {
-  color: #fff6c8;
-  border-color: rgba(255,220,106,.38);
-  background: linear-gradient(180deg, rgba(133,79,219,.42), rgba(56,27,112,.46));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 18px rgba(150,70,255,.20);
+  color: #10131c;
+  background: linear-gradient(145deg, #ffeb66, #efc629);
+  box-shadow: 0 8px 28px rgba(241,196,43,.28), 0 0 0 2px rgba(255,255,255,.15), inset 0 1px 0 rgba(255,255,255,.72);
 }
 
-.codeMode { color: #bfffdc; }
-.createMode { color: #bcdcff; }
+.codeMode {
+  color: #fff;
+  background: linear-gradient(145deg, #22a85f, #087a3e);
+}
+
+.createMode {
+  color: #fff;
+  background: linear-gradient(145deg, #438fe7, #2169bd);
+}
 
 .searchBar {
+  order: 2;
   width: 100%;
-  min-height: 76px;
+  min-height: 74px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 11px;
   padding: 7px 8px;
-  border: 1px solid rgba(209,155,255,.98);
-  border-radius: 28px;
-  background: linear-gradient(180deg, rgba(8,8,34,.96), rgba(5,9,30,.96));
-  box-shadow:
-    0 0 0 1px rgba(111,70,255,.48),
-    0 0 30px rgba(144,66,255,.44),
-    0 20px 42px rgba(0,0,0,.48),
-    inset 0 1px 0 rgba(255,255,255,.11);
-  backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid rgba(220,168,255,.98);
+  border-radius: 30px;
+  background: linear-gradient(180deg, rgba(6,7,31,.97), rgba(4,8,28,.97));
+  box-shadow: 0 0 0 1px rgba(106,66,255,.52), 0 0 30px rgba(152,65,255,.48), 0 19px 42px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.12);
+  backdrop-filter: blur(15px) saturate(1.18);
 }
 
 .searchBar:focus-within {
-  border-color: #f0ccff;
-  box-shadow:
-    0 0 0 2px rgba(202,146,255,.34),
-    0 0 38px rgba(144,66,255,.6),
-    0 22px 48px rgba(0,0,0,.52),
-    inset 0 1px 0 rgba(255,255,255,.16);
+  border-color: #f2d4ff;
+  box-shadow: 0 0 0 2px rgba(210,158,255,.34), 0 0 40px rgba(155,68,255,.62), 0 22px 48px rgba(0,0,0,.52), inset 0 1px 0 rgba(255,255,255,.16);
 }
 
 .menuButton,
@@ -166,10 +155,10 @@
   width: 58px;
   min-height: 58px;
   align-self: stretch;
-  border-radius: 21px;
-  background: linear-gradient(160deg, rgba(36,29,93,.98), rgba(14,27,70,.98));
-  border: 1px solid rgba(180,143,255,.58);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.11), 0 0 20px rgba(102,79,255,.24);
+  border-radius: 22px;
+  border: 1px solid rgba(185,147,255,.62);
+  background: linear-gradient(160deg, rgba(35,28,91,.99), rgba(13,27,69,.99));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 0 20px rgba(105,79,255,.27);
 }
 
 .menuButton:hover,
@@ -183,8 +172,8 @@
 
 .searchIcon {
   flex: 0 0 auto;
-  color: #f6f3ff;
-  opacity: .96;
+  color: #faf8ff;
+  opacity: .98;
 }
 
 .searchBar textarea {
@@ -198,58 +187,57 @@
   outline: 0;
   background: transparent;
   color: #fff;
-  caret-color: #f4c7ff;
+  caret-color: #efc8ff;
   font: inherit;
-  font-size: clamp(1rem, 2.6vw, 1.12rem);
+  font-size: clamp(1rem, 2.7vw, 1.13rem);
   font-weight: 650;
   line-height: 1.38;
-  letter-spacing: .055em;
+  letter-spacing: .045em;
   padding: 5px 0;
 }
 
-.searchBar textarea::placeholder { color: rgba(255,255,255,.8); }
+.searchBar textarea::placeholder { color: rgba(255,255,255,.82); }
 
 .phiButton {
   width: 58px;
   height: 58px;
   border-radius: 50%;
-  border: 1px solid rgba(233,198,255,.92);
-  background: radial-gradient(circle at 36% 28%, #d879ff 0%, #8d29d9 38%, #3b126f 78%, #190c3a 100%);
+  border: 1px solid rgba(239,207,255,.94);
+  background: radial-gradient(circle at 36% 28%, #db7cff 0%, #912dde 38%, #3d1373 78%, #190c3a 100%);
   font-family: Georgia, "Times New Roman", serif;
   font-size: 2.2rem;
   line-height: 1;
-  text-shadow: 0 0 14px rgba(255,255,255,.62);
-  box-shadow: 0 0 0 3px rgba(157,71,255,.22), 0 0 22px rgba(169,74,255,.62), inset 0 1px 0 rgba(255,255,255,.32);
+  text-shadow: 0 0 14px rgba(255,255,255,.64);
+  box-shadow: 0 0 0 3px rgba(158,72,255,.23), 0 0 24px rgba(171,75,255,.66), inset 0 1px 0 rgba(255,255,255,.34);
 }
 
 @media (max-width: 720px) {
   .stage { min-height: 100svh; }
   .art { object-position: 50% 50%; }
   .controls {
-    top: 51.5%;
-    width: calc(100% - 18px);
-    gap: 8px;
+    top: 47%;
+    width: calc(100% - 16px);
+    gap: 7px;
   }
   .modeSwitch {
-    width: min(390px, 90%);
-    gap: 3px;
-    padding: 3px;
+    width: 96%;
+    gap: 6px;
   }
   .modeButton {
-    min-height: 34px;
-    padding: 6px 5px;
-    font-size: .78rem;
+    min-height: 42px;
+    padding: 7px 6px;
+    font-size: .82rem;
   }
   .searchBar {
     min-height: 68px;
-    gap: 9px;
+    gap: 8px;
     padding: 6px;
-    border-radius: 24px;
+    border-radius: 25px;
   }
   .menuButton {
     width: 52px;
     min-height: 52px;
-    border-radius: 18px;
+    border-radius: 19px;
   }
   .phiButton {
     width: 52px;
@@ -264,17 +252,18 @@
 
 @media (max-width: 420px) {
   .controls {
-    top: 52%;
-    width: calc(100% - 12px);
+    top: 46.7%;
+    width: calc(100% - 10px);
   }
-  .modeSwitch { width: 94%; }
+  .modeSwitch { gap: 5px; }
   .modeButton {
-    min-height: 32px;
-    font-size: .72rem;
+    min-height: 39px;
+    padding: 6px 4px;
+    font-size: .76rem;
   }
   .searchBar {
     min-height: 64px;
-    gap: 7px;
+    gap: 6px;
     padding: 5px;
   }
   .menuButton {
@@ -282,7 +271,7 @@
     min-height: 48px;
     border-radius: 17px;
   }
-  .searchIcon { width: 20px; height: 20px; }
+  .searchIcon { width: 19px; height: 19px; }
   .phiButton {
     width: 48px;
     height: 48px;
