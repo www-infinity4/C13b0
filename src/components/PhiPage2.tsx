@@ -1,12 +1,20 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { BookOpen, Check, ChevronDown, ExternalLink, Sparkles } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, Sparkles } from "lucide-react";
 import { appPath } from "@/lib/base-path";
 import { secureLoad, secureLoadDurable, secureSave, secureSaveDurable } from "@/lib/secure-storage";
 import { connectOrCreateWallet } from "@/lib/wallet";
 import { contentTerms, detectCatalogEntity, gateResearchSources } from "@/lib/phi-search-filters";
 import { loadInfinityProfile, profileContextText } from "@/lib/infinity-profile";
+import {
+  buildDefinitionOverview,
+  buildSemanticExpansionCards,
+  buildSemanticStoryboard,
+  semanticallyRepeats,
+  spawnSemanticExpansionCards,
+  type SemanticCard,
+} from "@/lib/phi-semantic-expansion";
 import styles from "./PhiPage2.module.css";
 
 type HistoryItem = { query: string; resolved: string; kind: string; at: number };
@@ -27,7 +35,7 @@ type StoryBeat = { id: string; title: string; body: string; source?: Source; ima
 type ResearchNote = { id: string; title: string; body: string; source?: Source };
 type RefinementPass = { id: string; terms: string[]; sourceCount: number; at: number; origin?: "discovery" | "keyword" };
 type RefinementState = { baseConclusion: string; passes: RefinementPass[] };
-type DiscoveryTopic = { key: string; title: string; body: string; keyword: string };
+type DiscoveryTopic = SemanticCard;
 type EvidenceCard = { index: number; title: string; body: string; source?: Source; imageUrl?: string };
 
 const HISTORY = "infinity_phi_context_v1";
@@ -35,6 +43,7 @@ const PAPERS = "infinity_phi_research_v1";
 const PAPER_PREFIX = "infinity_phi_paper_v2_";
 const LEDGER = "c13b0_infinity_token_ledger_v3";
 const REFINE_PREFIX = "infinity_phi_refinement_v1_";
+const SELECTION_PREFIX = "infinity_phi_selection_v2_";
 
 const clean = (value: unknown) => String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 const splitSentences = (value: string) => clean(value).split(/(?<=[.!?])\s+/).map(clean).filter((item) => item.length > 42);
@@ -278,8 +287,9 @@ function makePaper(query: string, resolved: string, identity: Identity, sources:
     return bScore - aScore;
   }).map((item) => item.text);
   const unique = dedupeLines(ranked, 26);
-  const overview = unique.slice(0, 3).join(" ") || `Infinity Phi opened the search for ${query}, but live source providers did not return enough usable material yet.`;
-  const overviewParts = dedupeLines(splitSentences(overview), 4);
+  const fallbackOverview = unique.slice(0, 2).join(" ") || `Infinity Phi opened the search for ${query}, but live source providers did not return enough usable material yet.`;
+  const overview = buildDefinitionOverview(query, sources, fallbackOverview) || fallbackOverview;
+  const overviewParts = dedupeLines(splitSentences(overview), 2);
   const used = overviewParts;
   return {
     id: id || `phi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -288,7 +298,7 @@ function makePaper(query: string, resolved: string, identity: Identity, sources:
     identity,
     title: intentionalTitle(query, identity),
     overview: overviewParts.join(" "),
-    findings: unique.filter((line) => !used.some((usedLine) => nearDuplicate(usedLine, line))).slice(0, 20),
+    findings: unique.filter((line) => !used.some((usedLine) => nearDuplicate(usedLine, line)) && !semanticallyRepeats(line, used)).slice(0, 20),
     sources: dedupeSources(sources),
     created: created || Date.now(),
   };
@@ -422,9 +432,20 @@ export default function PhiPage2() {
   const [refinementPasses, setRefinementPasses] = useState<RefinementPass[]>([]);
   const [baseConclusion, setBaseConclusion] = useState("");
   const [activeDiscovery, setActiveDiscovery] = useState<string | null>(null);
+  const [spawnedTopics, setSpawnedTopics] = useState<SemanticCard[]>([]);
 
-  const topics = useMemo(() => paper ? storyDiscoveryTopics(paper) : [], [paper]);
-  const evidenceCards = useMemo(() => paper ? makeEvidenceCards(paper) : [], [paper]);
+  const baseTopics = useMemo(() => paper ? buildSemanticExpansionCards(paper.query, paper.overview, paper.sources, paper.findings, "", [], 10) : [], [paper]);
+  const topics = useMemo(() => {
+    const seen = new Set<string>();
+    return [...baseTopics, ...spawnedTopics].filter((topic) => {
+      if (seen.has(topic.key)) return false;
+      seen.add(topic.key);
+      return true;
+    }).slice(0, 18);
+  }, [baseTopics, spawnedTopics]);
+  const chosenTopics = useMemo(() => topics.filter((topic) => refinementPasses.some((pass) => pass.terms.some((term) => term.toLowerCase() === topic.keyword.toLowerCase()))), [topics, refinementPasses]);
+  const storyboard = useMemo(() => paper ? buildSemanticStoryboard(paper.query, paper.overview, chosenTopics, researchNotes) : [], [paper, chosenTopics, researchNotes]);
+  const evidenceCards = useMemo(() => paper ? makeEvidenceCards(paper).filter((card) => !semanticallyRepeats(card.body, [paper.overview, ...topics.map((topic) => topic.body)])) : [], [paper, topics]);
   const storyBeats = useMemo(() => {
     if (!paper || !researchNotes.length) return [];
     const shapedPaper: Paper = {
@@ -440,6 +461,23 @@ export default function PhiPage2() {
     const seen = new Set<string>();
     return (paper?.sources || []).flatMap((source) => source.imageUrl && !seen.has(source.imageUrl) ? (seen.add(source.imageUrl), [{ url: source.imageUrl, source }]) : []);
   }, [paper]);
+
+  useEffect(() => {
+    if (!paper) return;
+    const state = {
+      branches: [],
+      branchIds: chosenTopics.map((topic) => topic.key),
+      branchBodies: chosenTopics.map((topic) => topic.body),
+      terms: refinementPasses.flatMap((pass) => pass.terms),
+      imageUrls: visualPool.slice(0, Math.min(12, topics.length)).map((item) => item.url),
+      notes: storyboard,
+      deepNotes: storyboard.map((item) => item.body),
+      updatedAt: new Date().toISOString(),
+    };
+    secureSave(`${SELECTION_PREFIX}${paper.id}`, state);
+    const timer = window.setTimeout(() => { void secureSaveDurable(`${SELECTION_PREFIX}${paper.id}`, state).catch(() => undefined); }, 350);
+    return () => window.clearTimeout(timer);
+  }, [paper, chosenTopics, refinementPasses, storyboard, visualPool, topics.length]);
 
   async function saveRefinementState(paperId: string, state: RefinementState) {
     secureSave(`${REFINE_PREFIX}${paperId}`, state);
@@ -467,6 +505,7 @@ export default function PhiPage2() {
     setRefineStatus("");
     setBaseConclusion("");
     setActiveDiscovery(null);
+    setSpawnedTopics([]);
     secureSave(`${PAPER_PREFIX}${id}`, shell, "session");
     const nextHistory = [...currentHistory, { query: q, resolved: resolved.resolved, kind: resolved.kind, at: Date.now() }].slice(-80);
     setHistory(nextHistory);
@@ -524,6 +563,17 @@ export default function PhiPage2() {
     setPaper(next);
     setRefinementPasses(passes);
     setResearchNotes(notesForFocus(next, freshTerms.join(" "), seed?.body));
+    if (seed) {
+      const spawned = spawnSemanticExpansionCards(next.query, next.overview, seed, next.sources, next.findings, topics);
+      setSpawnedTopics((current) => {
+        const seen = new Set<string>();
+        return [...current, ...spawned].filter((topic) => {
+          if (seen.has(topic.key) || topics.some((existing) => existing.key === topic.key)) return false;
+          seen.add(topic.key);
+          return true;
+        }).slice(-8);
+      });
+    }
     setRefineBusy(false);
     setKeywordInput("");
     setRefineStatus(gathered.length
@@ -618,47 +668,18 @@ export default function PhiPage2() {
           <nav className="phi-tabs"><span className="active">AI overview</span></nav>
           <div className="phi-result-grid">
             <section className="phi-answer">
-              <section className="phi-editorial-hero" aria-label="Editorial title and lead image">
+              <section className="phi-editorial-hero" aria-label="AI overview">
                 <div className="phi-editorial-copy">
-                  <span className="phi-editorial-kicker"><BookOpen size={15} /> Research edition</span>
                   <div className="phi-identity"><Check size={14} /> {paper.identity.kind === "element" ? `${paper.identity.name} · ${paper.identity.symbol} · atomic number ${paper.identity.number}` : paper.identity.name}</div>
                   <p className="phi-editorial-deck">{paper.overview}</p>
                 </div>
               </section>
 
-              <section className="phi-living-section" aria-labelledby="phi-discovery-heading">
-                <div className="phi-living-heading">
-                  <div><h2 id="phi-discovery-heading">Research cards</h2></div>
-                  <p>The overview starts factual. These orange cards break the research into useful parts; choosing what matters is what begins shaping your story.</p>
-                </div>
-                <div className="phi-orange-grid">
-                  {topics.map((topic, index) => {
-                    const selected = refinementPasses.some((pass) => pass.terms.some((term) => term.toLowerCase() === topic.keyword.toLowerCase()));
-                    const image = visualPool[index]?.url;
-                    const active = activeDiscovery === topic.key;
-                    return <article className={`phi-orange-card${selected || active ? " selected" : ""}`} key={topic.key}>
-                      <button type="button" className="phi-orange-main" onClick={() => void applyRefinementTerms([topic.keyword], "discovery", topic)} aria-pressed={selected}>
-                        {image ? <img src={image} alt="" loading="lazy" /> : <div className="phi-orange-image-fallback">φ</div>}
-                        <div className="phi-orange-copy">
-                          <small>{selected ? "Included in this article" : `Discovery ${String(index + 1).padStart(2, "0")}`}</small>
-                          <h3>{topic.title}</h3>
-                          <p>{topic.body}</p>
-                        </div>
-                      </button>
-                      <div className="phi-orange-actions">
-                        <button type="button" disabled={refineBusy} onClick={() => void applyRefinementTerms([topic.keyword], "discovery", topic)}>{selected ? "Read this direction" : "Learn & add"}</button>
-                        <a href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}&q=${encodeURIComponent(paper.query)}&resolved=${encodeURIComponent(paper.resolved)}&phone=1`}><span className="phi-card-orb">φ</span> Workbench</a>
-                      </div>
-                    </article>;
-                  })}
-                </div>
-              </section>
-
               <section className="phi-refine-panel" aria-labelledby="phi-refine-heading">
                 <div className="phi-refine-head">
-                  <small>Professional shortcut · optional</small>
-                  <h2 id="phi-refine-heading">Already know what you want to add?</h2>
-                  <p className="phi-base-conclusion">Search 1 stays locked to <b>{paper.query}</b>. This box is only for people who already know extra terms; the orange cards above remain the normal discovery path.</p>
+                  <small>Refine this subject · optional</small>
+                  <h2 id="phi-refine-heading">Make the subject more specific before you expand it</h2>
+                  <p className="phi-base-conclusion">The original subject stays attached while this pass sharpens what you meant. Example: <b>corn</b> can become <b>white corn tortillas</b> before the orange expansion deck grows.</p>
                 </div>
                 {refinementPasses.length > 0 && <div className="phi-refinement-passes">
                   {refinementPasses.map((pass, index) => <div className="phi-refinement-pass" key={pass.id}><b>Pass {index + 2}</b><span>{pass.terms.join(" · ")}</span><small>{pass.sourceCount} new matches</small></div>)}
@@ -669,27 +690,42 @@ export default function PhiPage2() {
                     <textarea id="phi-keyword-search" value={keywordInput} onChange={(event) => setKeywordInput(event.target.value)} placeholder={isCoinQuery(paper.query) ? "proof, business strike, PCGS grades, auction records" : "Add specific terms or phrases, separated by commas"} />
                     <button type="submit" disabled={refineBusy}>{refineBusy ? "Researching…" : "Add research"}</button>
                   </div>
-                  <p className="phi-keyword-help">Each comma-separated direction is searched independently while “{paper.query}” remains attached to every search.</p>
+                  <p className="phi-keyword-help">Add a specific phrase or several comma-separated directions. Phi keeps “{paper.query}” as the parent subject while updating the research and orange expansion deck.</p>
                   {refineStatus && <div className="phi-refine-status">{refineStatus}</div>}
                 </form>
               </section>
 
-              {storyBeats.length > 0 && <section className="phi-living-section" aria-labelledby="phi-story-heading">
+
+              <section className="phi-living-section" aria-labelledby="phi-discovery-heading">
                 <div className="phi-living-heading">
-                  <div><h2 id="phi-story-heading">Story taking shape from your choices</h2></div>
-                  <p>This section appears only after your orange-card or research-note choices start defining what the article should actually explain.</p>
+                  <div><h2 id="phi-discovery-heading">Expand the overview</h2></div>
+                  <p>The overview only answers what the subject is. Orange cards answer the next useful questions without repeating it. Open one and Phi researches that direction, adds it to the magazine brief, and can spawn new related orange branches.</p>
                 </div>
-                <div className="phi-magazine-story">
-                  {(showFullStory ? storyBeats : storyBeats.slice(0, 2)).map((beat) => <article className="phi-story-beat" key={beat.id}>
-                    <div className="phi-story-copy"><h3>{beat.title}</h3><p>{beat.body}</p></div>
-                    <div className="phi-story-media">{beat.imageUrl && <img src={beat.imageUrl} alt={beat.source?.title || beat.title} loading="lazy" />}</div>
-                  </article>)}
-                  {storyBeats.length > 2 && <button type="button" className="phi-read-more" onClick={toggleFullStory}><span>{showFullStory ? "Collapse the full story" : "Read the full article"}</span><span>{showFullStory ? "−" : "+"}</span></button>}
+                <div className="phi-orange-grid">
+                  {topics.map((topic, index) => {
+                    const selected = refinementPasses.some((pass) => pass.terms.some((term) => term.toLowerCase() === topic.keyword.toLowerCase()));
+                    const image = visualPool[index]?.url;
+                    const active = activeDiscovery === topic.key;
+                    return <article className={`phi-orange-card${selected || active ? " selected" : ""}`} key={topic.key}>
+                      <button type="button" className="phi-orange-main" onClick={() => void applyRefinementTerms([topic.keyword], "discovery", topic)} aria-pressed={selected}>
+                        {image ? <img src={image} alt="" loading="lazy" /> : <div className="phi-orange-image-fallback">φ</div>}
+                        <div className="phi-orange-copy">
+                          <small>{selected ? "Included in your magazine" : topic.intent === "next" ? "Related expansion" : `${topic.intent.toUpperCase()} · ${String(index + 1).padStart(2, "0")}`}</small>
+                          <h3>{topic.title}</h3>
+                          <p>{topic.body}</p>
+                        </div>
+                      </button>
+                      <div className="phi-orange-actions">
+                        <button type="button" disabled={refineBusy} onClick={() => void applyRefinementTerms([topic.keyword], "discovery", topic)}>{selected ? "Included · explore deeper" : "Research & add"}</button>
+                        <a href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}&q=${encodeURIComponent(paper.query)}&resolved=${encodeURIComponent(paper.resolved)}&phone=1`}><span className="phi-card-orb">φ</span> Workbench</a>
+                      </div>
+                    </article>;
+                  })}
                 </div>
-              </section>}
+              </section>
 
               {evidenceCards.length > 0 && <section className="phi-living-section" aria-labelledby="phi-evidence-heading">
-                <div className="phi-living-heading"><div><h2 id="phi-evidence-heading">More directions found in the research</h2></div><p>These orange cards come from the actual source material. Open one when it sounds useful; you can ignore the rest.</p></div>
+                <div className="phi-living-heading"><div><h2 id="phi-evidence-heading">Related realms to carry forward</h2></div><p>These source-backed directions sit outside your current draft but may be worth bringing into the magazine. Phi does not claim other-user activity here until real shared-reading telemetry exists.</p></div>
                 <div className="phi-orange-grid">
                   {evidenceCards.map((card) => {
                     const expanded = expandedEvidence === card.index;
@@ -698,23 +734,20 @@ export default function PhiPage2() {
                         {card.imageUrl ? <img src={card.imageUrl} alt={card.source?.title || card.title} loading="lazy" /> : <div className="phi-orange-image-fallback">φ</div>}
                         <div className="phi-orange-copy"><small>{expanded ? "Reading this direction" : `Research direction ${String(card.index + 1).padStart(2, "0")}`}</small><h3>{card.title}</h3><p>{card.body}</p></div>
                       </button>
-                      <div className="phi-orange-actions"><button type="button" onClick={() => readEvidence(card)}>{expanded ? "Show less" : "Read more"}</button><a href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}&q=${encodeURIComponent(paper.query)}&resolved=${encodeURIComponent(paper.resolved)}&phone=1`}><span className="phi-card-orb">φ</span> Build from this research</a></div>
+                      <div className="phi-orange-actions"><button type="button" onClick={() => readEvidence(card)}>{expanded ? "Show less" : "Preview direction"}</button><a href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}&q=${encodeURIComponent(paper.query)}&resolved=${encodeURIComponent(paper.resolved)}&phone=1`}><span className="phi-card-orb">φ</span> Open for magazine</a></div>
                     </article>;
                   })}
                 </div>
               </section>}
 
               <section className="phi-living-section phi-purple-section" aria-labelledby="phi-notes-heading">
-                <div className="phi-living-heading"><div><h2 id="phi-notes-heading">Research notes</h2></div><p>Purple cards are the working memory created by what you read, what you choose, and any professional keyword passes you add.</p></div>
+                <div className="phi-living-heading"><div><h2 id="phi-notes-heading">Storyboard draft</h2></div><p>Purple is the finalized editorial brief produced from the directions you chose. Read it as a draft plan; it is no longer another research deck you have to click through.</p></div>
                 <div className="phi-purple-grid">
-                  {researchNotes.length === 0 ? <div className="phi-purple-empty">Nothing has to be selected. Read the full story for broad notes, or tap any orange direction when something catches your interest.</div> : researchNotes.map((note, index) => {
-                    const expanded = expandedNote === note.id;
-                    return <article className={`phi-purple-card${expanded ? " expanded" : ""}`} key={note.id}>
-                      <button type="button" className="phi-purple-main" onClick={() => setExpandedNote(expanded ? null : note.id)}><small>Research note {String(index + 1).padStart(2, "0")}{note.source ? ` · ${note.source.provider}` : ""}</small><h3>{note.title}</h3><p>{note.body}</p></button>
-                      <a className="phi-purple-build" href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}&q=${encodeURIComponent(paper.query)}&resolved=${encodeURIComponent(paper.resolved)}&phone=1`}><span className="phi-card-orb">φ</span> Expand this note in the workbench</a>
-                    </article>;
-                  })}
+                  {storyboard.length === 0 ? <div className="phi-purple-empty">Choose an orange direction or add a specific refinement above. Phi will assemble those decisions into a non-repeating storyboard here.</div> : storyboard.map((note, index) => <article className="phi-purple-card" key={note.id}>
+                    <div className="phi-purple-main"><small>Draft section {String(index + 1).padStart(2, "0")}</small><h3>{note.title}</h3><p>{note.body}</p></div>
+                  </article>)}
                 </div>
+                {storyboard.length > 0 && <a className="phi-purple-build" href={`${appPath("phi/magazine")}?id=${encodeURIComponent(paper.id)}`}><span className="phi-card-orb">φ</span> Create publication from this storyboard</a>}
               </section>
 
               <section className="phi-living-section phi-green-section" aria-labelledby="phi-sources-heading">
@@ -729,8 +762,8 @@ export default function PhiPage2() {
               </section>
 
               <section className={styles.finish}>
-                <a className={styles.fullSite} href={`${appPath("phi/magazine")}?id=${encodeURIComponent(paper.id)}`}><span>φ</span><div><b>Build the full website from everything</b><small>No selections are required. The original search, every refinement you added, and all current research travel into the clean publication.</small></div></a>
-                <a className={styles.workbench} href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}&q=${encodeURIComponent(paper.query)}&resolved=${encodeURIComponent(paper.resolved)}&phone=1`}><b>Open page-two workbench</b><small>Use this only when you want to select several orange directions, individual images, or purple notes before the final publication.</small></a>
+                <a className={styles.fullSite} href={`${appPath("phi/magazine")}?id=${encodeURIComponent(paper.id)}`}><span>φ</span><div><b>Create the publication</b><small>The AI overview stays concise; your chosen orange expansions and purple storyboard control the deeper magazine.</small></div></a>
+                <a className={styles.workbench} href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}&q=${encodeURIComponent(paper.query)}&resolved=${encodeURIComponent(paper.resolved)}&phone=1`}><b>Open advanced workbench</b><small>Use this only when you want manual image selection, several branches at once, or deeper production control.</small></a>
               </section>
 
               <form onSubmit={submit} className="phi-followup"><Sparkles size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Start a different subject" /><button>Search</button></form>
