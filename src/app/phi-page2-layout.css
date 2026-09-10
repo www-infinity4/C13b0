@@ -37,6 +37,11 @@
   margin-top: 18px;
 }
 
+/* Keep the visible orange layer simple: one fixed 15-card discovery set. */
+.phi-living-result section[aria-labelledby="phi-evidence-heading"] {
+  display: none !important;
+}
+
 @media (max-width: 820px) {
   .phi-living-result .phi-editorial-hero {
     margin-top: 0;
