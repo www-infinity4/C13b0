@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   Share2,
   ExternalLink,
+  UserRound,
 } from "lucide-react";
 import Navigation from "@/components/Navigation";
 import { appPath } from "@/lib/base-path";
@@ -26,6 +27,7 @@ const LEDGER = "c13b0_infinity_token_ledger_v3",
   PAGES = "c13b0_infinity_puck_pages_v1";
 const links = [
   { href: "phi", label: "Infinity φ home", icon: Search },
+  { href: "phi/profile", label: "Profile & AI context", icon: UserRound },
   { href: "spark", label: "Search & research", icon: BookOpen },
   { href: "studio/build", label: "Website builder", icon: Wand2 },
   { href: "wallet", label: "Token wallet", icon: Wallet },
@@ -332,8 +334,7 @@ export default function SiteChrome({
                   </section>
                 )}
                 <p className="mt-auto border-t border-white/10 pt-4 text-xs text-white/45">
-                  Research, websites and wallet state stay linked to their token
-                  IDs.
+                  Research, websites, profile context and wallet state stay linked to your Infinity workspace.
                 </p>
               </aside>
             </div>
