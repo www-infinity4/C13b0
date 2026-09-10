@@ -17,9 +17,6 @@
   background: #020714;
 }
 
-/* Picture three is the actual front surface. On phones it fills the screen by
-   cropping the outer red/blue wings while preserving the central Phi and its
-   original search line. */
 .art {
   position: absolute;
   inset: 0;
@@ -53,8 +50,6 @@
   border: 0;
 }
 
-/* The controls are deliberately aligned to the search line already drawn in
-   picture three. The real search bar covers that drawn bar and makes it live. */
 .controls {
   position: absolute;
   left: 50%;
@@ -209,6 +204,12 @@
   line-height: 1;
   text-shadow: 0 0 14px rgba(255,255,255,.64);
   box-shadow: 0 0 0 3px rgba(158,72,255,.23), 0 0 24px rgba(171,75,255,.66), inset 0 1px 0 rgba(255,255,255,.34);
+}
+
+/* The landing screen is the whole front page; do not append the generic
+   footer beneath it. */
+:global(body:has(.infinity-phi-front) .open-source-global-footer) {
+  display: none !important;
 }
 
 @media (max-width: 720px) {
