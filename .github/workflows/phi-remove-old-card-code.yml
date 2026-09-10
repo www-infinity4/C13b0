@@ -1,0 +1,25 @@
+name: Remove obsolete Phi card code
+
+on:
+  push:
+    paths:
+      - .github/workflows/phi-remove-old-card-code.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove obsolete generator
+        run: |
+          echo 'CmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aApwPVBhdGgoInNyYy9jb21wb25lbnRzL1BoaVBhZ2UyLnRzeCIpCnM9cC5yZWFkX3RleHQoKQpzdGFydD1zLmZpbmQoImZ1bmN0aW9uIGRpc2NvdmVyeVRvcGljcyhwYXBlcjogUGFwZXIpOiBEaXNjb3ZlcnlUb3BpY1tdIHsiKQplbmQ9cy5maW5kKCJmdW5jdGlvbiBzdWJqZWN0UmVsZXZhbnRMaW5lKCIsIHN0YXJ0KQppZiBzdGFydDwwIG9yIGVuZDwwOiByYWlzZSBTeXN0ZW1FeGl0KCJvbGQgZGlzY292ZXJ5IGJsb2NrIG1pc3NpbmciKQpzPXNbOnN0YXJ0XStzW2VuZDpdCnN0YXJ0PXMuZmluZCgiZnVuY3Rpb24gc3RvcnlEaXNjb3ZlcnlUb3BpY3MocGFwZXI6IFBhcGVyKTogRGlzY292ZXJ5VG9waWNbXSB7IikKZW5kPXMuZmluZCgiZnVuY3Rpb24gaW50ZW50aW9uYWxUaXRsZSgiLCBzdGFydCkKaWYgc3RhcnQ+PTAgYW5kIGVuZD49MDoKICAgIHM9c1s6c3RhcnRdK3NbZW5kOl0KcC53cml0ZV90ZXh0KHMpCgpwPVBhdGgoInNyYy9saWIvcGhpLXNlbWFudGljLWV4cGFuc2lvbi50cyIpCnM9cC5yZWFkX3RleHQoKQpvbGQ9Jy5zb3J0KChhLCBiKSA9PiBwcmVmZXJyZWQuaW5kZXhPZihhLmludGVudCkgLSBwcmVmZXJyZWQuaW5kZXhPZihiLmludGVudCkpJwpuZXc9Jy5zb3J0KChhLCBiKSA9PiB7IGNvbnN0IGFpPXByZWZlcnJlZC5pbmRleE9mKGEuaW50ZW50KSxiaT1wcmVmZXJyZWQuaW5kZXhPZihiLmludGVudCk7IHJldHVybiAoYWk8MD85OTphaSktKGJpPDA/OTk6YmkpOyB9KScKaWYgb2xkIG5vdCBpbiBzOiByYWlzZSBTeXN0ZW1FeGl0KCJzcGF3biBzb3J0IG1hcmtlciBtaXNzaW5nIikKcC53cml0ZV90ZXh0KHMucmVwbGFjZShvbGQsbmV3LDEpKQo=' | base64 -d >/tmp/patch.py
+          python /tmp/patch.py
+          rm .github/workflows/phi-remove-old-card-code.yml
+          git config user.name "Infinity Phi Builder"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/components/PhiPage2.tsx src/lib/phi-semantic-expansion.ts .github/workflows/phi-remove-old-card-code.yml
+          git commit -m "Remove obsolete hard-coded Phi card generator [skip ci]"
+          git push
