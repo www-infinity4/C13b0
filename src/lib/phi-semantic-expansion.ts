@@ -280,7 +280,7 @@ export function spawnSemanticExpansionCards(
   const generated = buildSemanticExpansionCards(subject, overview, sources, findings, focus, existing, 8);
   const preferred = preferredByIntent[seed.intent] || [];
   return generated
-    .sort((a, b) => preferred.indexOf(a.intent) - preferred.indexOf(b.intent))
+    .sort((a, b) => { const ai=preferred.indexOf(a.intent),bi=preferred.indexOf(b.intent); return (ai<0?99:ai)-(bi<0?99:bi); })
     .filter((card) => card.key !== seed.key && !semanticallyRepeats(card.body, existing.map((item) => item.body)))
     .slice(0, 4);
 }

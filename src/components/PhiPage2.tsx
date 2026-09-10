@@ -208,43 +208,6 @@ function isCoinQuery(query: string) {
   return /\b(quarter|dime|nickel|cent|penny|half dollar|dollar|coin|coinage|numismatic|mint)\b/i.test(query);
 }
 
-function discoveryTopics(paper: Paper): DiscoveryTopic[] {
-  if (isCoinQuery(paper.query)) return [
-    { key: "mintage", title: "Mintage and mint production", keyword: "mintage mint production mint location", body: "Mintage tells you how many examples were struck and where they were made. It is the starting point for understanding supply, but a high or low mintage does not by itself determine rarity or value." },
-    { key: "business", title: "Business strikes", keyword: "business strike circulation strike", body: "A business strike is made for ordinary circulation rather than special collector presentation. Learning this distinction keeps circulation coins separate from proofs when you compare production, condition, and value." },
-    { key: "proof", title: "Proof issues", keyword: "proof strike proof mintage", body: "Proofs are specially prepared collector coins made with different production care than normal circulation strikes. Their mintage, surfaces, grading language, and market values should usually be studied separately." },
-    { key: "grading", title: "Grading and certification", keyword: "PCGS grading mint state proof grade certification", body: "Grading describes preservation and eye appeal. For modern U.S. coins, a small change in numerical grade can create a large value difference, so the article should explain the scale before quoting prices." },
-    { key: "value", title: "Value by grade", keyword: "PCGS price guide value by grade auction value", body: "A useful value section is a grade-by-grade range rather than one price. It should distinguish guide values from actual market sales and keep proof and business-strike values separate." },
-    { key: "composition", title: "Metal, weight, and specifications", keyword: "silver composition weight diameter specifications", body: "Composition, weight, diameter, and silver content identify what the coin physically is. These specifications also help explain melt value, historical production, and authenticity checks." },
-    { key: "varieties", title: "Varieties and errors", keyword: "die varieties errors doubled die repunched mint mark", body: "Varieties come from repeatable die differences, while errors come from something going wrong during manufacture. Either can make an otherwise common date much more interesting to collectors." },
-    { key: "population", title: "Population and condition rarity", keyword: "PCGS population report condition rarity census", body: "A coin can be common overall but difficult in a very high grade. Population reports help explain condition rarity by showing how many examples have been certified at each level." },
-    { key: "auction", title: "Auction history and real sales", keyword: "auction records realized prices sales history", body: "Auction records show what buyers actually paid. They are especially useful when price guides lag the market or when high-grade examples trade infrequently." },
-    { key: "history", title: "Design and historical context", keyword: "design history United States Mint historical context", body: "The date makes more sense when it is placed inside the design series, Mint policy, and the historical period in which the coin was produced." },
-  ];
-
-  if (paper.identity.kind === "element") return [
-    { key: "identity", title: "Atomic identity and periodic position", keyword: "atomic number periodic group electron configuration", body: "Start with where the element sits in the periodic table and why its electron structure matters. That foundation makes later chemistry easier to understand." },
-    { key: "occurrence", title: "Where it occurs", keyword: "natural occurrence minerals ores abundance", body: "Occurrence explains whether the element is found free, in minerals, or only in compounds, and how abundant or scarce it is in usable deposits." },
-    { key: "properties", title: "Physical and chemical properties", keyword: "physical properties chemical properties melting boiling density", body: "Properties connect the element's atomic structure to what it does in the laboratory and in engineered materials." },
-    { key: "compounds", title: "Compounds and oxidation states", keyword: "compounds oxidation states oxides halides chemistry", body: "Compounds show the practical chemistry of the element: which oxidation states are stable, what it bonds with, and which forms matter most." },
-    { key: "isotopes", title: "Isotopes and nuclear behavior", keyword: "isotopes half life radioactive stable isotopes", body: "Isotopes can change stability, decay behavior, tracing uses, and nuclear applications without changing the element's chemical identity." },
-    { key: "uses", title: "Applications and engineered uses", keyword: "applications technology industrial uses materials", body: "Applications show how the element's properties are turned into devices, alloys, catalysts, phosphors, magnets, or other useful systems." },
-    { key: "safety", title: "Safety and exposure", keyword: "health safety toxicity exposure hazards", body: "Safety deserves its own section so chemical toxicity, dust exposure, radioactivity, and workplace handling are not mixed together." },
-    { key: "frontier", title: "Open research questions", keyword: "recent research unresolved questions advanced materials", body: "A research frontier section separates established facts from questions that scientists are still testing." },
-  ];
-
-  return [
-    { key: "definition", title: "What it is and what it is not", keyword: "definition terminology categories", body: "A strong article begins by defining the subject clearly and separating it from neighboring ideas that are easy to confuse with it." },
-    { key: "history", title: "How it developed", keyword: "history origin development timeline", body: "History explains how the subject reached its current form and which changes mattered most along the way." },
-    { key: "mechanism", title: "How it works", keyword: "how it works mechanism process", body: "The mechanism section turns a label into an explanation by showing the steps, parts, or causes that make the subject work." },
-    { key: "types", title: "Major types and categories", keyword: "types categories variants classification", body: "Categories help the reader see which differences are fundamental and which are just variations inside the same idea." },
-    { key: "evidence", title: "Measurements and evidence", keyword: "data evidence measurements statistics", body: "Evidence gives the article anchors: measurements, records, experiments, statistics, or other observations that can be checked." },
-    { key: "uses", title: "Real-world uses", keyword: "applications examples use cases", body: "Applications show why the subject matters outside a definition and which situations make it useful." },
-    { key: "limits", title: "Limits, risks, and failure points", keyword: "limitations risks problems failures", body: "A serious explanation includes where the idea stops working, what can go wrong, and which claims should not be overstated." },
-    { key: "future", title: "What to investigate next", keyword: "future research open questions developments", body: "Open questions turn the article into a research path by showing what is established and what still deserves investigation." },
-  ];
-}
-
 function subjectRelevantLine(text: string, query: string, identity: Identity) {
   const lower = clean(text).toLowerCase();
   if (identity.kind === "element") {
@@ -255,19 +218,6 @@ function subjectRelevantLine(text: string, query: string, identity: Identity) {
   if (!anchors.length) return true;
   const hits = anchors.filter((word) => lower.includes(word)).length;
   return hits >= Math.min(2, anchors.length);
-}
-
-function storyDiscoveryTopics(paper: Paper): DiscoveryTopic[] {
-  const storyLines = dedupeLines([...splitSentences(paper.overview), ...paper.findings], 14);
-  const storyCards = storyLines.map((body, index) => {
-    const source = bestSourceFor(body, paper.sources);
-    const title = evidenceTitle(paper, body, source, index);
-    const keyword = [title, ...[...wordSet(body)].slice(0, 5)].join(" ");
-    return { key: `story-${index}-${body.length}`, title, body, keyword };
-  });
-  const used = new Set(storyCards.map((card) => card.title.toLowerCase()));
-  const guided = discoveryTopics(paper).filter((topic) => !used.has(topic.title.toLowerCase()));
-  return [...storyCards, ...guided].slice(0, 16);
 }
 
 function intentionalTitle(query: string, identity: Identity) {
