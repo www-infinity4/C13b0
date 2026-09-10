@@ -27,7 +27,7 @@ const TASK = new Set([
 const INTERNAL = /\b(orange card|orange cards|purple card|purple cards|magazine brief|storyboard draft|contextual keyword pass|research & add|open advanced workbench|create publication|phi keeps|the overview only answers|choose an orange direction)\b/i;
 const clean = (value: unknown) => String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 const sentenceList = (value: string) => clean(value).split(/(?<=[.!?])\s+/).map(clean).filter((line) => line.length > 42 && !INTERNAL.test(line));
-const rawTokens = (value: string) => clean(value).toLowerCase().match(/[a-z0-9]+(?:-[a-z0-9]+)?/g) || [];
+const rawTokens = (value: string): string[] => Array.from(clean(value).toLowerCase().match(/[a-z0-9]+(?:-[a-z0-9]+)?/g) || []);
 
 export function semanticTerms(value: string) {
   const raw = rawTokens(value);
