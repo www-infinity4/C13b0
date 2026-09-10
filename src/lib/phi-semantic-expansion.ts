@@ -24,12 +24,15 @@ const TASK = new Set([
   "find", "search", "show", "tell", "learn", "information", "info", "please", "about",
 ]);
 
+const INTERNAL = /\b(orange card|orange cards|purple card|purple cards|magazine brief|storyboard draft|contextual keyword pass|research & add|open advanced workbench|create publication|phi keeps|the overview only answers|choose an orange direction)\b/i;
 const clean = (value: unknown) => String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-const sentenceList = (value: string) => clean(value).split(/(?<=[.!?])\s+/).map(clean).filter((line) => line.length > 42);
+const sentenceList = (value: string) => clean(value).split(/(?<=[.!?])\s+/).map(clean).filter((line) => line.length > 42 && !INTERNAL.test(line));
 const rawTokens = (value: string) => clean(value).toLowerCase().match(/[a-z0-9]+(?:-[a-z0-9]+)?/g) || [];
 
 export function semanticTerms(value: string) {
-  const withoutCommon = removeStopwords(rawTokens(value), eng);
+  const raw = rawTokens(value);
+  let withoutCommon = raw;
+  try { withoutCommon = removeStopwords(raw, eng); } catch { withoutCommon = raw; }
   return [...new Set(withoutCommon.filter((word) => word.length > 2 && !TASK.has(word)))];
 }
 
@@ -41,27 +44,35 @@ function overlap(a: string, b: string) {
   return score;
 }
 
-function jaccard(a: string, b: string) {
+function similarity(a: string, b: string) {
   const left = setOf(a), right = setOf(b);
   if (!left.size || !right.size) return clean(a).toLowerCase() === clean(b).toLowerCase() ? 1 : 0;
   let shared = 0;
   left.forEach((word) => { if (right.has(word)) shared += 1; });
   const union = new Set([...left, ...right]).size;
-  return union ? shared / union : 0;
+  return { jaccard: union ? shared / union : 0, shared, left: left.size, right: right.size };
 }
 
 export function semanticallyRepeats(text: string, prior: string[]) {
   const candidate = clean(text);
-  if (!candidate) return true;
-  if (prior.some((old) => jaccard(candidate, old) >= 0.58)) return true;
-  if (!prior.length) return false;
-  const fuse = new Fuse(prior.map((body) => ({ body })), {
-    keys: ["body"],
-    includeScore: true,
-    threshold: 0.22,
-    ignoreLocation: true,
-  });
-  return Boolean(fuse.search(candidate, { limit: 1 })[0]?.score !== undefined && (fuse.search(candidate, { limit: 1 })[0]?.score || 1) < 0.12);
+  if (!candidate || INTERNAL.test(candidate)) return true;
+  for (const oldRaw of prior) {
+    const old = clean(oldRaw);
+    if (!old) continue;
+    const sim = similarity(candidate, old);
+    if (typeof sim === "number") {
+      if (sim >= 0.98) return true;
+      continue;
+    }
+    if (sim.jaccard >= 0.82) return true;
+    const lengthRatio = Math.min(candidate.length, old.length) / Math.max(candidate.length, old.length);
+    if (sim.shared >= 5 && lengthRatio >= 0.72) {
+      const fuse = new Fuse([{ body: old }], { keys: ["body"], includeScore: true, threshold: 0.12, ignoreLocation: true });
+      const result = fuse.search(candidate, { limit: 1 })[0];
+      if (result?.score !== undefined && result.score < 0.055) return true;
+    }
+  }
+  return false;
 }
 
 export function dedupeSemantic(items: string[], against: string[] = [], limit = 40) {
@@ -69,7 +80,7 @@ export function dedupeSemantic(items: string[], against: string[] = [], limit = 
   const prior = against.map(clean).filter(Boolean);
   for (const raw of items) {
     const line = clean(raw);
-    if (!line || semanticallyRepeats(line, [...prior, ...out])) continue;
+    if (!line || INTERNAL.test(line) || semanticallyRepeats(line, [...prior, ...out])) continue;
     out.push(line);
     if (out.length >= limit) break;
   }
@@ -127,11 +138,7 @@ function verbs(value: string) {
   } catch { return []; }
 }
 
-type IntentSpec = {
-  id: string;
-  cues: RegExp;
-  base: number;
-};
+type IntentSpec = { id: string; cues: RegExp; base: number };
 
 const INTENTS: IntentSpec[] = [
   { id: "made", cues: /\b(make|made|manufactur|produce|production|formed|formation|create|created|synthes|prepare|process|ripen|culture|fabricat|extract|refin)\w*\b/i, base: 5 },
@@ -190,7 +197,7 @@ function paragraphFor(seed: string, all: string[], overview: string) {
     .sort((a, b) => b.score - a.score);
   const extra = ranked.find((item) => item.score > 0)?.line;
   const body = dedupeSemantic([seed, extra || ""], [overview], 2).join(" ");
-  return body || seed;
+  return body || (!semanticallyRepeats(seed, [overview]) ? seed : "");
 }
 
 function stableKey(intent: string, body: string) {
@@ -200,58 +207,38 @@ function stableKey(intent: string, body: string) {
   return `${intent}-${Math.abs(hash).toString(36)}`;
 }
 
-export function buildSemanticExpansionCards(
-  subject: string,
-  overview: string,
-  sources: SemanticSource[],
-  findings: string[] = [],
-  focus = "",
-  exclude: SemanticCard[] = [],
-  limit = 12,
-): SemanticCard[] {
+export function buildSemanticExpansionCards(subject: string, overview: string, sources: SemanticSource[], findings: string[] = [], focus = "", exclude: SemanticCard[] = [], limit = 12): SemanticCard[] {
   const records = sourceSentences(sources);
+  const findingRecords = findings.map((body, index) => ({ body: clean(body), source: undefined as SemanticSource | undefined, sourceIndex: sources.length + index, sentenceIndex: 0 })).filter((record) => record.body && !INTERNAL.test(record.body));
+  const candidates = [...records, ...findingRecords];
   const all = dedupeSemantic([...findings, ...records.map((record) => record.body)], [overview], 80);
   const usedBodies = [...exclude.map((card) => card.body), overview];
   const cards: SemanticCard[] = [];
 
   for (const spec of INTENTS) {
-    const best = records
+    const best = candidates
       .map((record) => ({ ...record, score: intentScore(record.body, subject, spec, focus) }))
       .filter((record) => record.score > 0 && !semanticallyRepeats(record.body, usedBodies))
       .sort((a, b) => b.score - a.score)[0];
     if (!best) continue;
     const body = paragraphFor(best.body, all, overview);
-    if (!body || semanticallyRepeats(body, usedBodies)) continue;
+    if (!body || INTERNAL.test(body) || semanticallyRepeats(body, usedBodies)) continue;
     const title = titleFor(subject, spec.id, body);
     const keywords = [...semanticTerms(title), ...semanticTerms(body).slice(0, 7)];
-    cards.push({
-      key: stableKey(spec.id, body),
-      title,
-      body,
-      keyword: [...new Set(keywords)].join(" "),
-      intent: spec.id,
-      source: best.source,
-    });
+    cards.push({ key: stableKey(spec.id, body), title, body, keyword: [...new Set(keywords)].join(" "), intent: spec.id, source: best.source });
     usedBodies.push(body);
     if (cards.length >= limit) break;
   }
 
   if (cards.length < Math.min(6, limit)) {
-    const fallback = all
-      .filter((body) => !semanticallyRepeats(body, usedBodies))
-      .sort((a, b) => subjectHit(b, subject) - subjectHit(a, subject));
+    const fallback = all.filter((body) => !semanticallyRepeats(body, usedBodies)).sort((a, b) => subjectHit(b, subject) - subjectHit(a, subject));
     for (const body of fallback) {
       const intent = INTENTS.find((spec) => spec.cues.test(body))?.id || "next";
       const source = records.find((record) => record.body === body)?.source;
-      cards.push({
-        key: stableKey(intent, body),
-        title: titleFor(subject, intent, body),
-        body: paragraphFor(body, all, overview),
-        keyword: [...semanticTerms(body).slice(0, 8)].join(" "),
-        intent,
-        source,
-      });
-      usedBodies.push(body);
+      const paragraph = paragraphFor(body, all, overview);
+      if (!paragraph || INTERNAL.test(paragraph) || semanticallyRepeats(paragraph, usedBodies)) continue;
+      cards.push({ key: stableKey(intent, paragraph), title: titleFor(subject, intent, paragraph), body: paragraph, keyword: [...semanticTerms(paragraph).slice(0, 8)].join(" "), intent, source });
+      usedBodies.push(paragraph);
       if (cards.length >= limit) break;
     }
   }
@@ -259,42 +246,27 @@ export function buildSemanticExpansionCards(
   return cards;
 }
 
-export function spawnSemanticExpansionCards(
-  subject: string,
-  overview: string,
-  seed: SemanticCard,
-  sources: SemanticSource[],
-  findings: string[],
-  existing: SemanticCard[],
-) {
+export function spawnSemanticExpansionCards(subject: string, overview: string, seed: SemanticCard, sources: SemanticSource[], findings: string[], existing: SemanticCard[]) {
   const focus = `${seed.title} ${seed.keyword} ${seed.body}`;
   const preferredByIntent: Record<string, string[]> = {
-    when: ["origin", "who", "evidence", "comparison"],
-    origin: ["when", "who", "where", "why"],
-    mechanism: ["why", "comparison", "usefulness", "evidence"],
-    usefulness: ["used", "mechanism", "comparison", "why"],
-    made: ["mechanism", "why", "types", "where"],
-    used: ["usefulness", "comparison", "mechanism", "future"],
+    when: ["origin", "who", "evidence", "comparison"], origin: ["when", "who", "where", "why"],
+    mechanism: ["why", "comparison", "usefulness", "evidence"], usefulness: ["used", "mechanism", "comparison", "why"],
+    made: ["mechanism", "why", "types", "where"], used: ["usefulness", "comparison", "mechanism", "future"],
     types: ["comparison", "used", "made", "where"],
   };
   const generated = buildSemanticExpansionCards(subject, overview, sources, findings, focus, existing, 8);
   const preferred = preferredByIntent[seed.intent] || [];
   return generated
-    .sort((a, b) => { const ai=preferred.indexOf(a.intent),bi=preferred.indexOf(b.intent); return (ai<0?99:ai)-(bi<0?99:bi); })
+    .sort((a, b) => { const ai = preferred.indexOf(a.intent), bi = preferred.indexOf(b.intent); return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi); })
     .filter((card) => card.key !== seed.key && !semanticallyRepeats(card.body, existing.map((item) => item.body)))
     .slice(0, 4);
 }
 
-export function buildSemanticStoryboard<T extends { title: string; body: string }>(
-  subject: string,
-  overview: string,
-  chosenCards: SemanticCard[],
-  notes: T[],
-) {
+export function buildSemanticStoryboard<T extends { title: string; body: string }>(subject: string, overview: string, chosenCards: SemanticCard[], notes: T[]) {
   const candidates = [
     ...chosenCards.map((card) => ({ title: card.title.replace(/\?$/, ""), body: card.body, intent: card.intent })),
     ...notes.map((note) => ({ title: clean(note.title), body: clean(note.body), intent: "note" })),
-  ].filter((item) => item.body && !semanticallyRepeats(item.body, [overview]));
+  ].filter((item) => item.body && !INTERNAL.test(item.body) && !semanticallyRepeats(item.body, [overview]));
   const out: { id: string; title: string; body: string }[] = [];
   for (const item of candidates) {
     if (semanticallyRepeats(item.body, out.map((old) => old.body))) continue;
