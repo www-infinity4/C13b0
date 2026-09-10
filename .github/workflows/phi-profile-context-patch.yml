@@ -1,0 +1,62 @@
+name: Wire Phi profile context
+
+on:
+  push:
+    paths:
+      - .github/workflows/phi-profile-context-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Connect reusable profile context
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p=Path('src/components/PhiPage2.tsx')
+          s=p.read_text()
+          old='import { contentTerms, detectCatalogEntity, gateResearchSources } from "@/lib/phi-search-filters";\nimport styles from "./PhiPage2.module.css";'
+          new='import { contentTerms, detectCatalogEntity, gateResearchSources } from "@/lib/phi-search-filters";\nimport { loadInfinityProfile, profileContextText } from "@/lib/infinity-profile";\nimport styles from "./PhiPage2.module.css";'
+          if old not in s: raise SystemExit('PhiPage2 import marker missing')
+          s=s.replace(old,new,1)
+          old='''      const rawSources = (await hardTimeout(research(resolved.resolved), 7500)) || [];
+      const context = currentHistory.slice(-12).map((item) => `${item.query} ${item.resolved}`).join(" ");
+      const gated = gateResearchSources(rawSources, q, resolved.identity, context);'''
+          new='''      const rawSources = (await hardTimeout(research(resolved.resolved), 7500)) || [];
+      const profile = await loadInfinityProfile().catch(() => null);
+      const savedContext = profile ? profileContextText(profile) : "";
+      const context = [currentHistory.slice(-12).map((item) => `${item.query} ${item.resolved}`).join(" "), savedContext].filter(Boolean).join(" ");
+      const gated = gateResearchSources(rawSources, q, resolved.identity, context);'''
+          if old not in s: raise SystemExit('PhiPage2 context marker missing')
+          p.write_text(s.replace(old,new,1))
+
+          p=Path('src/components/PhiCodeBuilderV2.tsx')
+          s=p.read_text()
+          old='import { capabilitiesFor, capabilityAccessPlan, CODER_CAPABILITIES } from "@/lib/coder-capabilities";\nimport styles from "./PhiCodeBuilder.module.css";'
+          new='import { capabilitiesFor, capabilityAccessPlan, CODER_CAPABILITIES } from "@/lib/coder-capabilities";\nimport { loadInfinityProfile, profileContextText } from "@/lib/infinity-profile";\nimport styles from "./PhiCodeBuilder.module.css";'
+          if old not in s: raise SystemExit('Code import marker missing')
+          s=s.replace(old,new,1)
+          old=' const [prompt,setPrompt]=useState("");const [iteration,setIteration]=useState("");const [iterations,setIterations]=useState<string[]>([]);const [steps,setSteps]=useState<string[]>([]);const [building,setBuilding]=useState(true);const [saved,setSaved]=useState("");const [sourceReady,setSourceReady]=useState<string[]>([]);'
+          new=' const [prompt,setPrompt]=useState("");const [iteration,setIteration]=useState("");const [iterations,setIterations]=useState<string[]>([]);const [steps,setSteps]=useState<string[]>([]);const [building,setBuilding]=useState(true);const [saved,setSaved]=useState("");const [sourceReady,setSourceReady]=useState<string[]>([]);const [savedProfileContext,setSavedProfileContext]=useState("");'
+          if old not in s: raise SystemExit('Code state marker missing')
+          s=s.replace(old,new,1)
+          old=' useEffect(()=>{const q=new URLSearchParams(location.search).get("q")||"Interactive Infinity app";setPrompt(q);setSteps(["Reading product intent…","Choosing interaction and visual engines…","Composing the first working preview…"]);const t=window.setTimeout(()=>{setSteps(s=>[...s,"Preview ready. Keep iterating as long as you want."]);setBuilding(false)},800);return()=>clearTimeout(t)},[]);'
+          new=' useEffect(()=>{const q=new URLSearchParams(location.search).get("q")||"Interactive Infinity app";setPrompt(q);setSteps(["Reading product intent…","Choosing interaction and visual engines…","Composing the first working preview…"]);void loadInfinityProfile().then((profile)=>setSavedProfileContext(profileContextText(profile))).catch(()=>{});const t=window.setTimeout(()=>{setSteps(s=>[...s,"Preview ready. Keep iterating as long as you want."]);setBuilding(false)},800);return()=>clearTimeout(t)},[]);'
+          if old not in s: raise SystemExit('Code effect marker missing')
+          s=s.replace(old,new,1)
+          old=' const combined=useMemo(()=>[prompt,...iterations].join(" "),[prompt,iterations]);const html=useMemo(()=>generatedHtml(prompt,iterations),[prompt,iterations]);const caps=useMemo(()=>{const matches=capabilitiesFor(combined,"code");return matches.length?matches:CODER_CAPABILITIES.slice(0,4)},[combined]);const sourcePlan=useMemo(()=>capabilityAccessPlan(combined,"code"),[combined]);'
+          new=' const combined=useMemo(()=>[prompt,...iterations].join(" "),[prompt,iterations]);const routingContext=useMemo(()=>[combined,savedProfileContext].filter(Boolean).join("\\n"),[combined,savedProfileContext]);const html=useMemo(()=>generatedHtml(prompt,iterations),[prompt,iterations]);const caps=useMemo(()=>{const matches=capabilitiesFor(routingContext,"code");return matches.length?matches:CODER_CAPABILITIES.slice(0,4)},[routingContext]);const sourcePlan=useMemo(()=>capabilityAccessPlan(routingContext,"code"),[routingContext]);'
+          if old not in s: raise SystemExit('Code routing marker missing')
+          p.write_text(s.replace(old,new,1))
+          PY
+          rm .github/workflows/phi-profile-context-patch.yml
+          git config user.name "Infinity Phi Builder"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/components/PhiPage2.tsx src/components/PhiCodeBuilderV2.tsx .github/workflows/phi-profile-context-patch.yml
+          git commit -m "Use saved profile context across Phi Search and Code [skip ci]"
+          git push
