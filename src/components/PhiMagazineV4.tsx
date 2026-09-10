@@ -85,7 +85,7 @@ function seedImages(paper:Paper,selection:SelectionState){const preferred=[...(s
 function mergeImages(current:CommonsImage[],incoming:CommonsImage[],limit=90){const seen=new Set<string>();return[...current,...incoming].filter((img)=>img.url&&!seen.has(img.url)&&seen.add(img.url)).slice(0,limit);}
 async function imageBatch(prompts:string[],limit=24){const settled=await Promise.allSettled(prompts.map((q)=>commonsSearch(q,limit)));return settled.flatMap((r)=>r.status==="fulfilled"?r.value:[]);}
 function matchImages(sectionText:string,images:CommonsImage[],used:Set<string>,count=2){const ranked=images.map((image)=>({image,score:overlap(image.title,sectionText)})).sort((a,b)=>b.score-a.score);const chosen:CommonsImage[]=[];for(const item of ranked){if(used.has(item.image.url))continue;if(item.score<=0&&chosen.length>0)continue;chosen.push(item.image);used.add(item.image.url);if(chosen.length>=count)break;}if(chosen.length<count){for(const image of images){if(!used.has(image.url)){chosen.push(image);used.add(image.url);if(chosen.length>=count)break;}}}return chosen;}
-function makeSections(material:string[],sources:Source[],images:CommonsImae[],paper:Paper,selection:SelectionState){
+function makeSections(material:string[],sources:Source[],images:CommonsImage[],paper:Paper,selection:SelectionState){
   const unique=dedupeSemantic(material,[paper.overview],30);
   const groups:string[][]=[];
   for(let i=0;i<unique.length;i+=2)groups.push(unique.slice(i,i+2));
