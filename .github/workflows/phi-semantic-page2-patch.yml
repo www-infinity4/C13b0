@@ -1,0 +1,192 @@
+name: Apply Phi semantic page two
+
+on:
+  push:
+    paths:
+      - .github/workflows/phi-semantic-page2-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch page two semantic flow
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/components/PhiPage2.tsx')
+          s=p.read_text()
+
+          old='import { BookOpen, Check, ChevronDown, ExternalLink, Sparkles } from "lucide-react";'
+          new='import { Check, ChevronDown, ExternalLink, Sparkles } from "lucide-react";'
+          s=s.replace(old,new,1)
+
+          old='import { loadInfinityProfile, profileContextText } from "@/lib/infinity-profile";\nimport styles from "./PhiPage2.module.css";'
+          new='''import { loadInfinityProfile, profileContextText } from "@/lib/infinity-profile";
+import {
+  buildDefinitionOverview,
+  buildSemanticExpansionCards,
+  buildSemanticStoryboard,
+  semanticallyRepeats,
+  spawnSemanticExpansionCards,
+  type SemanticCard,
+} from "@/lib/phi-semantic-expansion";
+import styles from "./PhiPage2.module.css";'''
+          if old not in s: raise SystemExit('semantic import marker missing')
+          s=s.replace(old,new,1)
+
+          s=s.replace('type DiscoveryTopic = { key: string; title: string; body: string; keyword: string };','type DiscoveryTopic = SemanticCard;',1)
+          s=s.replace('const REFINE_PREFIX = "infinity_phi_refinement_v1_";','const REFINE_PREFIX = "infinity_phi_refinement_v1_";\nconst SELECTION_PREFIX = "infinity_phi_selection_v2_";',1)
+
+          old='''  const overview = unique.slice(0, 3).join(" ") || `Infinity Phi opened the search for ${query}, but live source providers did not return enough usable material yet.`;
+  const overviewParts = dedupeLines(splitSentences(overview), 4);
+  const used = overviewParts;'''
+          new='''  const fallbackOverview = unique.slice(0, 2).join(" ") || `Infinity Phi opened the search for ${query}, but live source providers did not return enough usable material yet.`;
+  const overview = buildDefinitionOverview(query, sources, fallbackOverview) || fallbackOverview;
+  const overviewParts = dedupeLines(splitSentences(overview), 2);
+  const used = overviewParts;'''
+          if old not in s: raise SystemExit('overview marker missing')
+          s=s.replace(old,new,1)
+          s=s.replace('findings: unique.filter((line) => !used.some((usedLine) => nearDuplicate(usedLine, line))).slice(0, 20),','findings: unique.filter((line) => !used.some((usedLine) => nearDuplicate(usedLine, line)) && !semanticallyRepeats(line, used)).slice(0, 20),',1)
+
+          old='''  const [baseConclusion, setBaseConclusion] = useState("");
+  const [activeDiscovery, setActiveDiscovery] = useState<string | null>(null);
+
+  const topics = useMemo(() => paper ? storyDiscoveryTopics(paper) : [], [paper]);
+  const evidenceCards = useMemo(() => paper ? makeEvidenceCards(paper) : [], [paper]);'''
+          new='''  const [baseConclusion, setBaseConclusion] = useState("");
+  const [activeDiscovery, setActiveDiscovery] = useState<string | null>(null);
+  const [spawnedTopics, setSpawnedTopics] = useState<SemanticCard[]>([]);
+
+  const baseTopics = useMemo(() => paper ? buildSemanticExpansionCards(paper.query, paper.overview, paper.sources, paper.findings, "", [], 10) : [], [paper]);
+  const topics = useMemo(() => {
+    const seen = new Set<string>();
+    return [...baseTopics, ...spawnedTopics].filter((topic) => {
+      if (seen.has(topic.key)) return false;
+      seen.add(topic.key);
+      return true;
+    }).slice(0, 18);
+  }, [baseTopics, spawnedTopics]);
+  const chosenTopics = useMemo(() => topics.filter((topic) => refinementPasses.some((pass) => pass.terms.some((term) => term.toLowerCase() === topic.keyword.toLowerCase()))), [topics, refinementPasses]);
+  const storyboard = useMemo(() => paper ? buildSemanticStoryboard(paper.query, paper.overview, chosenTopics, researchNotes) : [], [paper, chosenTopics, researchNotes]);
+  const evidenceCards = useMemo(() => paper ? makeEvidenceCards(paper).filter((card) => !semanticallyRepeats(card.body, [paper.overview, ...topics.map((topic) => topic.body)])) : [], [paper, topics]);'''
+          if old not in s: raise SystemExit('state/topic marker missing')
+          s=s.replace(old,new,1)
+
+          marker='''  const visualPool = useMemo(() => {
+    const seen = new Set<string>();
+    return (paper?.sources || []).flatMap((source) => source.imageUrl && !seen.has(source.imageUrl) ? (seen.add(source.imageUrl), [{ url: source.imageUrl, source }]) : []);
+  }, [paper]);'''
+          addition=marker+'''
+
+  useEffect(() => {
+    if (!paper) return;
+    const state = {
+      branches: [],
+      branchIds: chosenTopics.map((topic) => topic.key),
+      branchBodies: chosenTopics.map((topic) => topic.body),
+      terms: refinementPasses.flatMap((pass) => pass.terms),
+      imageUrls: visualPool.slice(0, Math.min(12, topics.length)).map((item) => item.url),
+      notes: storyboard,
+      deepNotes: storyboard.map((item) => item.body),
+      updatedAt: new Date().toISOString(),
+    };
+    secureSave(`${SELECTION_PREFIX}${paper.id}`, state);
+    const timer = window.setTimeout(() => { void secureSaveDurable(`${SELECTION_PREFIX}${paper.id}`, state).catch(() => undefined); }, 350);
+    return () => window.clearTimeout(timer);
+  }, [paper, chosenTopics, refinementPasses, storyboard, visualPool, topics.length]);'''
+          if marker not in s: raise SystemExit('visual pool marker missing')
+          s=s.replace(marker,addition,1)
+
+          s=s.replace('''    setBaseConclusion("");
+    setActiveDiscovery(null);''','''    setBaseConclusion("");
+    setActiveDiscovery(null);
+    setSpawnedTopics([]);''',1)
+
+          old='''    setPaper(next);
+    setRefinementPasses(passes);
+    setResearchNotes(notesForFocus(next, freshTerms.join(" "), seed?.body));
+    setRefineBusy(false);'''
+          new='''    setPaper(next);
+    setRefinementPasses(passes);
+    setResearchNotes(notesForFocus(next, freshTerms.join(" "), seed?.body));
+    if (seed) {
+      const spawned = spawnSemanticExpansionCards(next.query, next.overview, seed, next.sources, next.findings, topics);
+      setSpawnedTopics((current) => {
+        const seen = new Set<string>();
+        return [...current, ...spawned].filter((topic) => {
+          if (seen.has(topic.key) || topics.some((existing) => existing.key === topic.key)) return false;
+          seen.add(topic.key);
+          return true;
+        }).slice(-8);
+      });
+    }
+    setRefineBusy(false);'''
+          if old not in s: raise SystemExit('refinement marker missing')
+          s=s.replace(old,new,1)
+
+          s=s.replace('''              <section className="phi-editorial-hero" aria-label="Editorial title and lead image">
+                <div className="phi-editorial-copy">
+                  <span className="phi-editorial-kicker"><BookOpen size={15} /> Research edition</span>
+                  <div className="phi-identity"><Check size={14} /> {paper.identity.kind === "element" ? `${paper.identity.name} · ${paper.identity.symbol} · atomic number ${paper.identity.number}` : paper.identity.name}</div>
+                  <p className="phi-editorial-deck">{paper.overview}</p>
+                </div>
+              </section>''','''              <section className="phi-editorial-hero" aria-label="AI overview">
+                <div className="phi-editorial-copy">
+                  <div className="phi-identity"><Check size={14} /> {paper.identity.kind === "element" ? `${paper.identity.name} · ${paper.identity.symbol} · atomic number ${paper.identity.number}` : paper.identity.name}</div>
+                  <p className="phi-editorial-deck">{paper.overview}</p>
+                </div>
+              </section>''',1)
+
+          # Move the secondary contextual search directly under AI overview.
+          discovery_start=s.index('              <section className="phi-living-section" aria-labelledby="phi-discovery-heading">')
+          refine_start=s.index('              <section className="phi-refine-panel"', discovery_start)
+          story_start=s.index('              {storyBeats.length > 0', refine_start)
+          discovery=s[discovery_start:refine_start]
+          refine=s[refine_start:story_start]
+          s=s[:discovery_start]+refine+'\n'+discovery+s[story_start:]
+
+          s=s.replace('<small>Professional shortcut · optional</small>\n                  <h2 id="phi-refine-heading">Already know what you want to add?</h2>\n                  <p className="phi-base-conclusion">Search 1 stays locked to <b>{paper.query}</b>. This box is only for people who already know extra terms; the orange cards above remain the normal discovery path.</p>','<small>Refine this subject · optional</small>\n                  <h2 id="phi-refine-heading">Make the subject more specific before you expand it</h2>\n                  <p className="phi-base-conclusion">The original subject stays attached while this pass sharpens what you meant. Example: <b>corn</b> can become <b>white corn tortillas</b> before the orange expansion deck grows.</p>',1)
+          s=s.replace('<p className="phi-keyword-help">Each comma-separated direction is searched independently while “{paper.query}” remains attached to every search.</p>','<p className="phi-keyword-help">Add a specific phrase or several comma-separated directions. Phi keeps “{paper.query}” as the parent subject while updating the research and orange expansion deck.</p>',1)
+
+          s=s.replace('<div><h2 id="phi-discovery-heading">Research cards</h2></div>\n                  <p>The overview starts factual. These orange cards break the research into useful parts; choosing what matters is what begins shaping your story.</p>','<div><h2 id="phi-discovery-heading">Expand the overview</h2></div>\n                  <p>The overview only answers what the subject is. Orange cards answer the next useful questions without repeating it. Open one and Phi researches that direction, adds it to the magazine brief, and can spawn new related orange branches.</p>',1)
+          s=s.replace('{selected ? "Included in this article" : `Discovery ${String(index + 1).padStart(2, "0")}`}','{selected ? "Included in your magazine" : topic.intent === "next" ? "Related expansion" : `${topic.intent.toUpperCase()} · ${String(index + 1).padStart(2, "0")}`}',1)
+          s=s.replace('{selected ? "Read this direction" : "Learn & add"}','{selected ? "Included · explore deeper" : "Research & add"}',1)
+
+          # Remove the repeated mid-page story rendering. Purple storyboard is the draft.
+          story_start=s.index('              {storyBeats.length > 0')
+          evidence_start=s.index('              {evidenceCards.length > 0', story_start)
+          s=s[:story_start]+s[evidence_start:]
+
+          s=s.replace('<div className="phi-living-heading"><div><h2 id="phi-evidence-heading">More directions found in the research</h2></div><p>These orange cards come from the actual source material. Open one when it sounds useful; you can ignore the rest.</p></div>','<div className="phi-living-heading"><div><h2 id="phi-evidence-heading">Related realms to carry forward</h2></div><p>These source-backed directions sit outside your current draft but may be worth bringing into the magazine. Phi does not claim other-user activity here until real shared-reading telemetry exists.</p></div>',1)
+          s=s.replace('<button type="button" onClick={() => readEvidence(card)}>{expanded ? "Show less" : "Read more"}</button><a href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}&q=${encodeURIComponent(paper.query)}&resolved=${encodeURIComponent(paper.resolved)}&phone=1`}><span className="phi-card-orb">φ</span> Build from this research</a>','<button type="button" onClick={() => readEvidence(card)}>{expanded ? "Show less" : "Preview direction"}</button><a href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}&q=${encodeURIComponent(paper.query)}&resolved=${encodeURIComponent(paper.resolved)}&phone=1`}><span className="phi-card-orb">φ</span> Open for magazine</a>',1)
+
+          purple_start=s.index('              <section className="phi-living-section phi-purple-section"')
+          green_start=s.index('              <section className="phi-living-section phi-green-section"', purple_start)
+          purple='''              <section className="phi-living-section phi-purple-section" aria-labelledby="phi-notes-heading">
+                <div className="phi-living-heading"><div><h2 id="phi-notes-heading">Storyboard draft</h2></div><p>Purple is the finalized editorial brief produced from the directions you chose. Read it as a draft plan; it is no longer another research deck you have to click through.</p></div>
+                <div className="phi-purple-grid">
+                  {storyboard.length === 0 ? <div className="phi-purple-empty">Choose an orange direction or add a specific refinement above. Phi will assemble those decisions into a non-repeating storyboard here.</div> : storyboard.map((note, index) => <article className="phi-purple-card" key={note.id}>
+                    <div className="phi-purple-main"><small>Draft section {String(index + 1).padStart(2, "0")}</small><h3>{note.title}</h3><p>{note.body}</p></div>
+                  </article>)}
+                </div>
+                {storyboard.length > 0 && <a className="phi-purple-build" href={`${appPath("phi/magazine")}?id=${encodeURIComponent(paper.id)}`}><span className="phi-card-orb">φ</span> Create publication from this storyboard</a>}
+              </section>
+
+'''
+          s=s[:purple_start]+purple+s[green_start:]
+
+          s=s.replace('<b>Build the full website from everything</b><small>No selections are required. The original search, every refinement you added, and all current research travel into the clean publication.</small>','<b>Create the publication</b><small>The AI overview stays concise; your chosen orange expansions and purple storyboard control the deeper magazine.</small>',1)
+          s=s.replace('<b>Open page-two workbench</b><small>Use this only when you want to select several orange directions, individual images, or purple notes before the final publication.</small>','<b>Open advanced workbench</b><small>Use this only when you want manual image selection, several branches at once, or deeper production control.</small>',1)
+
+          p.write_text(s)
+          PY
+          rm .github/workflows/phi-semantic-page2-patch.yml
+          git config user.name "Infinity Phi Builder"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/components/PhiPage2.tsx .github/workflows/phi-semantic-page2-patch.yml
+          git commit -m "Rebuild page two as semantic expansion storyboard [skip ci]"
+          git push
