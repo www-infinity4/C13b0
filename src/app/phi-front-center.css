@@ -26,7 +26,10 @@
   width: 100%;
 }
 
-.phi-front-menu-button {
+.phi-front-menu-button,
+.phi-front-menu-button[data-intent="search"],
+.phi-front-menu-button[data-intent="code"],
+.phi-front-menu-button[data-intent="create"] {
   display: grid;
   place-items: center;
   flex: 0 0 50px;
@@ -36,26 +39,11 @@
   padding: 0;
   border: 1px solid rgba(255,255,255,.28);
   border-radius: 16px;
-  background: #ffe64f;
-  color: #1d1a00;
+  background: #16904d;
+  color: #fff;
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(2,72,39,.24);
   transition: transform .15s ease, background .15s ease, color .15s ease, filter .15s ease, box-shadow .15s ease;
-}
-
-.phi-front-menu-button[data-intent="search"] {
-  background: #ffe64f;
-  color: #1d1a00;
-}
-
-.phi-front-menu-button[data-intent="code"] {
-  background: #16904d;
-  color: #fff;
-}
-
-.phi-front-menu-button[data-intent="create"] {
-  background: #2879d7;
-  color: #fff;
 }
 
 .phi-front-menu-button:hover,
