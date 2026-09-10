@@ -307,81 +307,130 @@ function indexedCard(card: SemanticCard, index: number, depth = 1, parent?: Sema
   };
 }
 
+function detailQuestion(subject: string, body: string) {
+  const subjectTerms = new Set(semanticTerms(subject));
+  const detail = semanticTerms(body)
+    .filter((term) => !subjectTerms.has(term) && !/^(who|what|when|where|why|how)$/.test(term))
+    .slice(0, 4)
+    .join(" ");
+  return detail
+    ? `What does the evidence show about ${subject} and ${detail}?`
+    : `What additional evidence is available about ${subject}?`;
+}
+
+function cardFromVisualSource(subject: string, source: SemanticSource, overview: string, usedTitles: string[]) {
+  const lines = sentenceList(source.excerpt);
+  const ranked = lines.flatMap((line) => INTENTS.map((spec) => ({ line, spec, score: intentScore(line, subject, spec) })))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  for (const item of ranked) {
+    const body = paragraphFor(item.line, lines, overview);
+    if (!body || INTERNAL.test(body)) continue;
+    const title = titleFor(subject, item.spec.id, body);
+    if (!isValidSemanticQuestion(title) || semanticallyRepeats(title, usedTitles)) continue;
+    return {
+      key: stableKey(item.spec.id, `${title}:${body}`),
+      title,
+      body,
+      keyword: [...new Set([...semanticTerms(title), ...semanticTerms(body).slice(0, 10)])].join(" "),
+      intent: item.spec.id,
+      source,
+    } as SemanticCard;
+  }
+
+  const body = lines[0];
+  if (!body) return undefined;
+  const title = detailQuestion(subject, body);
+  if (!isValidSemanticQuestion(title) || semanticallyRepeats(title, usedTitles)) return undefined;
+  return {
+    key: stableKey("evidence", `${title}:${body}`),
+    title,
+    body,
+    keyword: [...new Set([...semanticTerms(title), ...semanticTerms(body).slice(0, 10)])].join(" "),
+    intent: "evidence",
+    source,
+  } as SemanticCard;
+}
+
 /**
  * Jeopardy-style generation: collect answer sentences first, classify them, then
- * turn only supported classifications into clean questions. The answer is the
- * reusable node; the orange card is a navigational question pointing at it.
+ * turn only supported classifications into clean questions. The visible orange
+ * layer is intentionally fixed at 15 cards. Hash depth remains in the data, not
+ * as extra orange-card rows on the research page.
  */
 export function buildSemanticExpansionCards(subject: string, overview: string, sources: SemanticSource[], findings: string[] = [], focus = "", exclude: SemanticCard[] = [], limit = 12): SemanticCard[] {
   const stableSubject = normalizeSemanticSubject(subject);
+  const targetLimit = focus ? limit : Math.max(limit, 15);
   const records = sourceSentences(sources);
   const findingRecords = findings.map((body, index) => ({ body: clean(body), source: undefined as SemanticSource | undefined, sourceIndex: sources.length + index, sentenceIndex: 0 })).filter((record) => record.body && !INTERNAL.test(record.body));
   const candidates = [...records, ...findingRecords];
-  const all = dedupeSemantic([...findings, ...records.map((record) => record.body)], [overview], 100);
+  const all = dedupeSemantic([...findings, ...records.map((record) => record.body)], [overview], 120);
   const excludedTitles = exclude.map((card) => card.title);
   const cards: SemanticCard[] = [];
+  const usedAnswers: string[] = [];
+
+  // The page assigns images in source order. Build the first cards from those
+  // exact image-bearing sources so image N belongs to orange card N.
+  const seenImages = new Set<string>();
+  const visualSources = sources.filter((source) => {
+    if (!source.imageUrl || seenImages.has(source.imageUrl)) return false;
+    seenImages.add(source.imageUrl);
+    return true;
+  });
+  for (const source of visualSources) {
+    if (cards.length >= targetLimit) break;
+    const card = cardFromVisualSource(stableSubject, source, overview, [...excludedTitles, ...cards.map((item) => item.title)]);
+    if (!card || semanticallyRepeats(card.body, usedAnswers)) continue;
+    cards.push(card);
+    usedAnswers.push(card.body);
+  }
 
   for (const spec of INTENTS) {
+    if (cards.length >= targetLimit) break;
     const best = candidates
       .map((record) => ({ ...record, score: intentScore(record.body, stableSubject, spec, focus) }))
-      .filter((record) => record.score > 0)
+      .filter((record) => record.score > 0 && !semanticallyRepeats(record.body, usedAnswers))
       .sort((a, b) => b.score - a.score)[0];
     if (!best) continue;
     const body = paragraphFor(best.body, all, overview);
-    if (!body || INTERNAL.test(body)) continue;
+    if (!body || INTERNAL.test(body) || semanticallyRepeats(body, usedAnswers)) continue;
     const title = titleFor(stableSubject, spec.id, body);
     if (!isValidSemanticQuestion(title) || semanticallyRepeats(title, [...excludedTitles, ...cards.map((card) => card.title)])) continue;
     const keywords = [...semanticTerms(title), ...semanticTerms(body).slice(0, 10)];
     cards.push({ key: stableKey(spec.id, `${title}:${body}`), title, body, keyword: [...new Set(keywords)].join(" "), intent: spec.id, source: best.source });
-    if (cards.length >= limit) break;
+    usedAnswers.push(body);
   }
 
-  if (cards.length < Math.min(6, limit)) {
-    const usedAnswers = cards.map((card) => card.body);
-    const fallback = all.filter((body) => !semanticallyRepeats(body, usedAnswers)).sort((a, b) => subjectHit(b, stableSubject) - subjectHit(a, stableSubject));
+  if (cards.length < targetLimit) {
+    const fallback = all
+      .filter((body) => !semanticallyRepeats(body, usedAnswers))
+      .sort((a, b) => subjectHit(b, stableSubject) - subjectHit(a, stableSubject));
     for (const body of fallback) {
-      const intent = INTENTS.find((spec) => spec.cues.test(body))?.id || "next";
+      if (cards.length >= targetLimit) break;
       const source = records.find((record) => record.body === body)?.source;
       const paragraph = paragraphFor(body, all, overview);
-      if (!paragraph || INTERNAL.test(paragraph)) continue;
-      const title = titleFor(stableSubject, intent, paragraph);
+      if (!paragraph || INTERNAL.test(paragraph) || semanticallyRepeats(paragraph, usedAnswers)) continue;
+      const inferred = INTENTS.find((spec) => spec.cues.test(paragraph))?.id || "evidence";
+      let title = titleFor(stableSubject, inferred, paragraph);
+      if (!isValidSemanticQuestion(title) || semanticallyRepeats(title, [...excludedTitles, ...cards.map((card) => card.title)])) {
+        title = detailQuestion(stableSubject, paragraph);
+      }
       if (!isValidSemanticQuestion(title) || semanticallyRepeats(title, [...excludedTitles, ...cards.map((card) => card.title)])) continue;
-      cards.push({ key: stableKey(intent, `${title}:${paragraph}`), title, body: paragraph, keyword: [...semanticTerms(paragraph).slice(0, 10)].join(" "), intent, source });
-      if (cards.length >= limit) break;
+      cards.push({ key: stableKey(inferred, `${title}:${paragraph}`), title, body: paragraph, keyword: [...semanticTerms(paragraph).slice(0, 10)].join(" "), intent: inferred, source });
+      usedAnswers.push(paragraph);
     }
   }
 
-  return cards.map((card, index) => indexedCard(card, index, 1));
+  return cards.slice(0, targetLimit).map((card, index) => indexedCard(card, index, 1));
 }
 
-export function spawnSemanticExpansionCards(subject: string, overview: string, seed: SemanticCard, sources: SemanticSource[], findings: string[], existing: SemanticCard[]) {
-  const stableSubject = normalizeSemanticSubject(subject);
-  const focus = `${seed.title} ${seed.keyword} ${seed.body}`;
-  const preferredByIntent: Record<string, string[]> = {
-    definition: ["origin", "who", "when", "where", "used", "types"],
-    who: ["when", "origin", "where", "evidence"],
-    when: ["origin", "who", "evidence", "used"],
-    where: ["made", "industry", "used", "why"],
-    origin: ["when", "who", "where", "why"],
-    mechanism: ["why", "comparison", "used", "evidence"],
-    why: ["mechanism", "used", "comparison", "future"],
-    made: ["mechanism", "why", "types", "where"],
-    used: ["why", "mechanism", "comparison", "future"],
-    types: ["comparison", "used", "made", "where"],
-  };
-  const generated = buildSemanticExpansionCards(stableSubject, overview, sources, findings, focus, existing, 12);
-  const preferred = preferredByIntent[seed.intent] || [];
-  const depth = Math.min((seed.depth || 1) + 1, 7);
-  const chosen = generated
-    .sort((a, b) => {
-      const ai = preferred.indexOf(a.intent), bi = preferred.indexOf(b.intent);
-      const preferredScore = (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
-      if (preferredScore) return preferredScore;
-      return overlap(b.body, focus) - overlap(a.body, focus);
-    })
-    .filter((card) => card.key !== seed.key && !semanticallyRepeats(card.title, existing.map((item) => item.title)))
-    .slice(0, 6);
-  return chosen.map((card, index) => indexedCard(card, index, depth, seed));
+/**
+ * Orange cards no longer spawn more orange cards on click. A click deepens the
+ * selected answer through the existing research/purple-storyboard flow instead.
+ */
+export function spawnSemanticExpansionCards(_subject: string, _overview: string, _seed: SemanticCard, _sources: SemanticSource[], _findings: string[], _existing: SemanticCard[]) {
+  return [] as SemanticCard[];
 }
 
 export function buildSemanticStoryboard<T extends { title: string; body: string }>(subject: string, overview: string, chosenCards: SemanticCard[], notes: T[]) {
