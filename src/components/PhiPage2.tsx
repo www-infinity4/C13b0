@@ -627,20 +627,20 @@ export default function PhiPage2() {
 
               <section className="phi-refine-panel" aria-labelledby="phi-refine-heading">
                 <div className="phi-refine-head">
-                  <small>Refine this subject · optional</small>
-                  <h2 id="phi-refine-heading">Make the subject more specific before you expand it</h2>
-                  <p className="phi-base-conclusion">The original subject stays attached while this pass sharpens what you meant. Example: <b>corn</b> can become <b>white corn tortillas</b> before the orange expansion deck grows.</p>
+                  <small>Refine search · optional</small>
+                  <h2 id="phi-refine-heading">Add a more specific direction</h2>
+                  
                 </div>
                 {refinementPasses.length > 0 && <div className="phi-refinement-passes">
                   {refinementPasses.map((pass, index) => <div className="phi-refinement-pass" key={pass.id}><b>Pass {index + 2}</b><span>{pass.terms.join(" · ")}</span><small>{pass.sourceCount} new matches</small></div>)}
                 </div>}
                 <form className="phi-keyword-form" onSubmit={runRefinement}>
-                  <label className="phi-keyword-label" htmlFor="phi-keyword-search"><small>Contextual keyword pass</small><b>Add as many specific directions as you need</b></label>
+                  <label className="phi-keyword-label" htmlFor="phi-keyword-search"><small>Secondary search</small><b>Keep the same subject and make it more specific</b></label>
                   <div className="phi-keyword-row">
                     <textarea id="phi-keyword-search" value={keywordInput} onChange={(event) => setKeywordInput(event.target.value)} placeholder={isCoinQuery(paper.query) ? "proof, business strike, PCGS grades, auction records" : "Add specific terms or phrases, separated by commas"} />
                     <button type="submit" disabled={refineBusy}>{refineBusy ? "Researching…" : "Add research"}</button>
                   </div>
-                  <p className="phi-keyword-help">Add a specific phrase or several comma-separated directions. Phi keeps “{paper.query}” as the parent subject while updating the research and orange expansion deck.</p>
+                  
                   {refineStatus && <div className="phi-refine-status">{refineStatus}</div>}
                 </form>
               </section>
@@ -648,10 +648,11 @@ export default function PhiPage2() {
 
               <section className="phi-living-section" aria-labelledby="phi-discovery-heading">
                 <div className="phi-living-heading">
-                  <div><h2 id="phi-discovery-heading">Expand the overview</h2></div>
-                  <p>The overview only answers what the subject is. Orange cards answer the next useful questions without repeating it. Open one and Phi researches that direction, adds it to the magazine brief, and can spawn new related orange branches.</p>
+                  <div><h2 id="phi-discovery-heading">Explore further</h2></div>
+                  
                 </div>
                 <div className="phi-orange-grid">
+                  {!topics.length && !busy && <div className="phi-purple-empty">No deeper cards returned from this source pass. <button type="button" onClick={() => void runSearch(paper.query, history)}>Retry subject research</button></div>}
                   {topics.map((topic, index) => {
                     const selected = refinementPasses.some((pass) => pass.terms.some((term) => term.toLowerCase() === topic.keyword.toLowerCase()));
                     const image = visualPool[index]?.url;
@@ -675,7 +676,7 @@ export default function PhiPage2() {
               </section>
 
               {evidenceCards.length > 0 && <section className="phi-living-section" aria-labelledby="phi-evidence-heading">
-                <div className="phi-living-heading"><div><h2 id="phi-evidence-heading">Related realms to carry forward</h2></div><p>These source-backed directions sit outside your current draft but may be worth bringing into the magazine. Phi does not claim other-user activity here until real shared-reading telemetry exists.</p></div>
+                <div className="phi-living-heading"><div><h2 id="phi-evidence-heading">Related realms to carry forward</h2></div></div>
                 <div className="phi-orange-grid">
                   {evidenceCards.map((card) => {
                     const expanded = expandedEvidence === card.index;
@@ -691,9 +692,9 @@ export default function PhiPage2() {
               </section>}
 
               <section className="phi-living-section phi-purple-section" aria-labelledby="phi-notes-heading">
-                <div className="phi-living-heading"><div><h2 id="phi-notes-heading">Storyboard draft</h2></div><p>Purple is the finalized editorial brief produced from the directions you chose. Read it as a draft plan; it is no longer another research deck you have to click through.</p></div>
+                <div className="phi-living-heading"><div><h2 id="phi-notes-heading">Storyboard draft</h2></div></div>
                 <div className="phi-purple-grid">
-                  {storyboard.length === 0 ? <div className="phi-purple-empty">Choose an orange direction or add a specific refinement above. Phi will assemble those decisions into a non-repeating storyboard here.</div> : storyboard.map((note, index) => <article className="phi-purple-card" key={note.id}>
+                  {storyboard.length === 0 ? <div className="phi-purple-empty">The storyboard will appear after you choose an orange direction.</div> : storyboard.map((note, index) => <article className="phi-purple-card" key={note.id}>
                     <div className="phi-purple-main"><small>Draft section {String(index + 1).padStart(2, "0")}</small><h3>{note.title}</h3><p>{note.body}</p></div>
                   </article>)}
                 </div>

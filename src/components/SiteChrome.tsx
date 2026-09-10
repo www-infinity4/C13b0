@@ -164,7 +164,7 @@ export default function SiteChrome({
               onMouseDown={() => setOpen(false)}
             >
               <aside
-                className="flex h-full w-[min(90vw,23rem)] flex-col bg-[linear-gradient(180deg,#071a34,#0a2b4b)] p-5 text-white"
+                className="flex h-full w-[min(90vw,23rem)] flex-col bg-[linear-gradient(180deg,#071f16,#0b4129)] p-5 text-white"
                 onMouseDown={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between border-b border-white/10 pb-4">
@@ -179,7 +179,7 @@ export default function SiteChrome({
                     )}
                     <div>
                       <b className="font-serif text-2xl">Infinity Phi</b>
-                      <p className="text-[11px] uppercase tracking-[.18em] text-blue-200/55">
+                      <p className="text-[11px] uppercase tracking-[.18em] text-emerald-200/65">
                         Phi workspace
                       </p>
                     </div>
@@ -229,7 +229,7 @@ export default function SiteChrome({
                 )}
                 {panel === "wallet" && (
                   <section className="mt-6 min-h-0 flex-1 overflow-y-auto">
-                    <p className="text-xs font-black uppercase tracking-[.18em] text-blue-200/60">
+                    <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-200/65">
                       Unified Infinity wallet
                     </p>
                     {wallet ? (
@@ -256,7 +256,7 @@ export default function SiteChrome({
                     )}
                     {!!wallet && !!tokens.length && (
                       <div className="mt-5 grid gap-2">
-                        <p className="text-xs font-black uppercase tracking-[.18em] text-blue-200/60">Itemized tokens</p>
+                        <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-200/65">Itemized tokens</p>
                         {tokens.slice(0, 25).map((token) => (
                           <a key={token.id} href={`${appPath("wallet")}?token=${encodeURIComponent(token.id)}`} onClick={() => setOpen(false)} className="rounded-xl border border-white/10 bg-white/5 p-4">
                             <small className="font-bold uppercase text-[#f0bd55]">{token.stage || "token"}</small>
@@ -270,7 +270,7 @@ export default function SiteChrome({
                 )}
                 {panel === "history" && (
                   <section className="mt-6 min-h-0 flex-1 overflow-y-auto">
-                    <p className="mb-3 text-xs font-black uppercase tracking-[.18em] text-blue-200/60">
+                    <p className="mb-3 text-xs font-black uppercase tracking-[.18em] text-emerald-200/65">
                       Generated websites
                     </p>
                     {built.length ? (
@@ -300,7 +300,7 @@ export default function SiteChrome({
                         saved.
                       </p>
                     )}
-                    <p className="mb-3 mt-6 text-xs font-black uppercase tracking-[.18em] text-blue-200/60">
+                    <p className="mb-3 mt-6 text-xs font-black uppercase tracking-[.18em] text-emerald-200/65">
                       Research history
                     </p>
                     {tokens.length ? (
