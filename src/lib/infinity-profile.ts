@@ -31,6 +31,12 @@ export type InfinityProfile={
   country:string;
   signature:string;
   contextNotes:string;
+  publicName:string;
+  publicAbout:string;
+  publicEmail:string;
+  publicPhone:string;
+  publicWebsite:string;
+  publicAddress:string;
   activeBusinessId:string;
   activeWebsite:string;
   businesses:InfinityBusiness[];
@@ -40,7 +46,7 @@ export type InfinityProfile={
 export const PROFILE_KEY="infinity_identity_profile_v1";
 
 export const EMPTY_PROFILE:InfinityProfile={
-  version:1,displayName:"",legalName:"",email:"",phone:"",address1:"",address2:"",city:"",region:"",postalCode:"",country:"",signature:"",contextNotes:"",activeBusinessId:"",activeWebsite:"",businesses:[],updated:0,
+  version:1,displayName:"",legalName:"",email:"",phone:"",address1:"",address2:"",city:"",region:"",postalCode:"",country:"",signature:"",contextNotes:"",publicName:"",publicAbout:"",publicEmail:"",publicPhone:"",publicWebsite:"",publicAddress:"",activeBusinessId:"",activeWebsite:"",businesses:[],updated:0,
 };
 
 export function blankBusiness(name=""):InfinityBusiness{return{id:`business-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,name,contactName:"",email:"",phone:"",address1:"",address2:"",city:"",region:"",postalCode:"",country:"",website:"",workspace:"",notes:""};}
@@ -82,6 +88,17 @@ export function profileContext(profile:InfinityProfile){
     workspace:business?.workspace||"",
     businessNotes:business?.notes||"",
     business,
+  };
+}
+
+export function publicPublicationContext(profile:InfinityProfile){
+  return {
+    name:profile.publicName||"",
+    about:profile.publicAbout||"",
+    email:profile.publicEmail||"",
+    phone:profile.publicPhone||"",
+    website:profile.publicWebsite||"",
+    address:profile.publicAddress||"",
   };
 }
 
