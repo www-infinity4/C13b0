@@ -8,6 +8,7 @@ import "./phi-front-center.css";
 import "./open-source-credits.css";
 import SiteChrome from "@/components/SiteChrome";
 import AppRuntime from "@/components/AppRuntime";
+import PhiFetchGuard from "@/components/PhiFetchGuard";
 import OpenSourceBuildCredits from "@/components/OpenSourceBuildCredits";
 import OpenSourceUsageRuntime from "@/components/OpenSourceUsageRuntime";
 
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className="scroll-smooth">
       <body className="min-h-screen antialiased" style={{ background: "var(--background)" }}>
+        <PhiFetchGuard />
         <AppRuntime />
         <OpenSourceUsageRuntime />
         <SiteChrome>{children}</SiteChrome>
