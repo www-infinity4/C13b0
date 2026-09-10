@@ -1,0 +1,115 @@
+name: Repair Phi page two regression
+
+on:
+  push:
+    paths:
+      - .github/workflows/fix-page-two-regression.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Repair page two and menu
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p=Path('src/components/PhiPage2.tsx')
+          s=p.read_text()
+
+          old='''              <section className="phi-refine-panel" aria-labelledby="phi-refine-heading">
+                <div className="phi-refine-head">
+                  <small>Refine this subject · optional</small>
+                  <h2 id="phi-refine-heading">Make the subject more specific before you expand it</h2>
+                  <p className="phi-base-conclusion">The original subject stays attached while this pass sharpens what you meant. Example: <b>corn</b> can become <b>white corn tortillas</b> before the orange expansion deck grows.</p>
+                </div>'''
+          new='''              {!busy && <section className="phi-refine-panel" aria-labelledby="phi-refine-heading">
+                <div className="phi-refine-head">
+                  <small>Refine search · optional</small>
+                  <h2 id="phi-refine-heading">Add a more specific direction</h2>
+                </div>'''
+          if old not in s: raise SystemExit('refine marker missing')
+          s=s.replace(old,new,1)
+
+          old='''                  <label className="phi-keyword-label" htmlFor="phi-keyword-search"><small>Contextual keyword pass</small><b>Add as many specific directions as you need</b></label>'''
+          new='''                  <label className="phi-keyword-label" htmlFor="phi-keyword-search"><small>Secondary search</small><b>Keep the same subject and make it more specific</b></label>'''
+          if old not in s: raise SystemExit('keyword label missing')
+          s=s.replace(old,new,1)
+
+          old='''                  <p className="phi-keyword-help">Add a specific phrase or several comma-separated directions. Phi keeps “{paper.query}” as the parent subject while updating the research and orange expansion deck.</p>'''
+          if old not in s: raise SystemExit('keyword help missing')
+          s=s.replace(old,'',1)
+
+          old='''              </section>\n\n\n              <section className="phi-living-section" aria-labelledby="phi-discovery-heading">'''
+          new='''              </section>}\n\n\n              {!busy && <section className="phi-living-section" aria-labelledby="phi-discovery-heading">'''
+          if old not in s: raise SystemExit('refine close marker missing')
+          s=s.replace(old,new,1)
+
+          old='''                <div className="phi-living-heading">
+                  <div><h2 id="phi-discovery-heading">Expand the overview</h2></div>
+                  <p>The overview only answers what the subject is. Orange cards answer the next useful questions without repeating it. Open one and Phi researches that direction, adds it to the magazine brief, and can spawn new related orange branches.</p>
+                </div>'''
+          new='''                <div className="phi-living-heading">
+                  <div><h2 id="phi-discovery-heading">Explore further</h2></div>
+                </div>'''
+          if old not in s: raise SystemExit('orange heading missing')
+          s=s.replace(old,new,1)
+
+          old='''                <div className="phi-orange-grid">
+                  {topics.map((topic, index) => {'''
+          new='''                <div className="phi-orange-grid">
+                  {!topics.length && <div className="phi-purple-empty">No deeper source-backed cards returned yet. <button type="button" onClick={() => void runSearch(paper.query, history)}>Retry research</button></div>}
+                  {topics.map((topic, index) => {'''
+          if old not in s: raise SystemExit('orange grid missing')
+          s=s.replace(old,new,1)
+
+          old='''              </section>\n\n              {evidenceCards.length > 0 && <section className="phi-living-section" aria-labelledby="phi-evidence-heading">'''
+          new='''              </section>}\n\n              {!busy && evidenceCards.length > 0 && <section className="phi-living-section" aria-labelledby="phi-evidence-heading">'''
+          if old not in s: raise SystemExit('orange close missing')
+          s=s.replace(old,new,1)
+
+          old='''                <div className="phi-living-heading"><div><h2 id="phi-evidence-heading">Related realms to carry forward</h2></div><p>These source-backed directions sit outside your current draft but may be worth bringing into the magazine. Phi does not claim other-user activity here until real shared-reading telemetry exists.</p></div>'''
+          new='''                <div className="phi-living-heading"><div><h2 id="phi-evidence-heading">Related realms to carry forward</h2></div></div>'''
+          if old not in s: raise SystemExit('related realms heading missing')
+          s=s.replace(old,new,1)
+
+          old='''              <section className="phi-living-section phi-purple-section" aria-labelledby="phi-notes-heading">
+                <div className="phi-living-heading"><div><h2 id="phi-notes-heading">Storyboard draft</h2></div><p>Purple is the finalized editorial brief produced from the directions you chose. Read it as a draft plan; it is no longer another research deck you have to click through.</p></div>'''
+          new='''              {!busy && <section className="phi-living-section phi-purple-section" aria-labelledby="phi-notes-heading">
+                <div className="phi-living-heading"><div><h2 id="phi-notes-heading">Storyboard draft</h2></div></div>'''
+          if old not in s: raise SystemExit('purple heading missing')
+          s=s.replace(old,new,1)
+
+          old='''              </section>\n\n              <section className="phi-living-section phi-green-section" aria-labelledby="phi-sources-heading">'''
+          new='''              </section>}\n\n              {!busy && <section className="phi-living-section phi-green-section" aria-labelledby="phi-sources-heading">'''
+          if old not in s: raise SystemExit('purple close missing')
+          s=s.replace(old,new,1)
+
+          old='''              </section>\n\n              <section className={styles.finish}>'''
+          new='''              </section>}\n\n              {!busy && <section className={styles.finish}>'''
+          if old not in s: raise SystemExit('sources close missing')
+          s=s.replace(old,new,1)
+
+          old='''              </section>\n\n              <form onSubmit={submit} className="phi-followup">'''
+          new='''              </section>}\n\n              <form onSubmit={submit} className="phi-followup">'''
+          if old not in s: raise SystemExit('finish close missing')
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('src/components/SiteChrome.tsx')
+          s=p.read_text()
+          s=s.replace('bg-[linear-gradient(180deg,#071a34,#0a2b4b)]','bg-[linear-gradient(180deg,#071f16,#0b4129)]')
+          s=s.replace('text-blue-200/55','text-emerald-200/65')
+          s=s.replace('text-blue-200/60','text-emerald-200/65')
+          p.write_text(s)
+          PY
+          rm .github/workflows/fix-page-two-regression.yml
+          git config user.name "Infinity Phi Builder"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/components/PhiPage2.tsx src/components/SiteChrome.tsx .github/workflows/fix-page-two-regression.yml
+          git commit -m "Repair page two cards and green menu [skip ci]"
+          git push
