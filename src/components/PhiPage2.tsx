@@ -6,6 +6,7 @@ import { appPath } from "@/lib/base-path";
 import { secureLoad, secureLoadDurable, secureSave, secureSaveDurable } from "@/lib/secure-storage";
 import { connectOrCreateWallet } from "@/lib/wallet";
 import { contentTerms, detectCatalogEntity, gateResearchSources } from "@/lib/phi-search-filters";
+import { loadInfinityProfile, profileContextText } from "@/lib/infinity-profile";
 import styles from "./PhiPage2.module.css";
 
 type HistoryItem = { query: string; resolved: string; kind: string; at: number };
@@ -471,7 +472,9 @@ export default function PhiPage2() {
     setHistory(nextHistory);
     try {
       const rawSources = (await hardTimeout(research(resolved.resolved), 7500)) || [];
-      const context = currentHistory.slice(-12).map((item) => `${item.query} ${item.resolved}`).join(" ");
+      const profile = await loadInfinityProfile().catch(() => null);
+      const savedContext = profile ? profileContextText(profile) : "";
+      const context = [currentHistory.slice(-12).map((item) => `${item.query} ${item.resolved}`).join(" "), savedContext].filter(Boolean).join(" ");
       const gated = gateResearchSources(rawSources, q, resolved.identity, context);
       const sources = gated.sources;
       const next = makePaper(q, resolved.resolved, resolved.identity, sources, id);
