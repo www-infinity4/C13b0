@@ -191,46 +191,72 @@ function intentScore(body: string, subject: string, spec: IntentSpec, focus = ""
 }
 
 function discoveryQuestion(subject: string, body: string) {
-  if (/\bdiscover\w*\b/i.test(body)) return `How was ${subject} discovered?`;
-  if (/\binvent\w*\b/i.test(body)) return `How was ${subject} invented?`;
+  const { past } = semanticSubjectAgreement(subject);
+  if (/\bdiscover\w*\b/i.test(body)) return `How ${past} ${subject} discovered?`;
+  if (/\binvent\w*\b/i.test(body)) return `How ${past} ${subject} invented?`;
   return `Where did ${subject} originate?`;
+}
+
+const PLURAL_PRONOUNS = new Set(["they", "these", "those", "we", "you"]);
+const PLURAL_IRREGULARS = new Set(["children", "data", "feet", "geese", "men", "mice", "people", "teeth", "women"]);
+const SINGULAR_S_ENDINGS = new Set([
+  "analysis", "apparatus", "basis", "business", "census", "class", "focus", "gas", "glass", "headquarters",
+  "mathematics", "means", "news", "physics", "process", "series", "species", "status", "thesis", "virus",
+]);
+
+/** Infer the grammatical number of the subject heading used in generated cards. */
+export function semanticSubjectIsPlural(value: string) {
+  const subject = normalizeSemanticSubject(value).toLowerCase();
+  if (/\b(?:and|&)\b/.test(subject)) return true;
+  const headPhrase = subject.split(/\b(?:of|in|for|with|from|about)\b/)[0];
+  const words = headPhrase.match(/[a-z]+(?:-[a-z]+)?/g) || [];
+  const head = words.at(-1) || "";
+  if (PLURAL_PRONOUNS.has(head) || PLURAL_IRREGULARS.has(head)) return true;
+  if (SINGULAR_S_ENDINGS.has(head) || /(?:ss|us|is|ics)$/.test(head)) return false;
+  return /s$/.test(head);
+}
+
+function semanticSubjectAgreement(subject: string) {
+  const plural = semanticSubjectIsPlural(subject);
+  return { present: plural ? "are" : "is", past: plural ? "were" : "was", auxiliary: plural ? "do" : "does" } as const;
 }
 
 function titleFor(subject: string, intent: string, body: string) {
   const subjectName = normalizeSemanticSubject(subject);
+  const { present, past, auxiliary } = semanticSubjectAgreement(subjectName);
   const lower = body.toLowerCase();
-  if (intent === "definition") return `What is ${subjectName}?`;
+  if (intent === "definition") return `What ${present} ${subjectName}?`;
   if (intent === "who") {
     if (/\bdiscover\w*\b/.test(lower)) return `Who discovered ${subjectName}?`;
     if (/\binvent\w*\b/.test(lower)) return `Who invented ${subjectName}?`;
     return `Who played a major role in ${subjectName}?`;
   }
   if (intent === "when") {
-    if (/\bdiscover\w*\b/.test(lower)) return `When was ${subjectName} discovered?`;
-    if (/\b(first|early)\b.*\b(use|used|application)\w*\b|\b(use|used)\w*\b.*\b(first|early)\b/.test(lower)) return `When was ${subjectName} first put to major use?`;
-    if (/\binvent\w*\b/.test(lower)) return `When was ${subjectName} invented?`;
+    if (/\bdiscover\w*\b/.test(lower)) return `When ${past} ${subjectName} discovered?`;
+    if (/\b(first|early)\b.*\b(use|used|application)\w*\b|\b(use|used)\w*\b.*\b(first|early)\b/.test(lower)) return `When ${past} ${subjectName} first put to major use?`;
+    if (/\binvent\w*\b/.test(lower)) return `When ${past} ${subjectName} invented?`;
     return `When did ${subjectName} become important?`;
   }
   if (intent === "where") {
-    if (/\b(grown|crop|cultivat)\w*\b/.test(lower)) return `Where is ${subjectName} grown?`;
-    if (/\b(produc|manufactur|refin)\w*\b/.test(lower)) return `Where is ${subjectName} produced?`;
-    if (/\b(found|occurs|mine|mineral|deposit|native|reserve)\w*\b/.test(lower)) return `Where is ${subjectName} found?`;
-    return `Where is ${subjectName} most important?`;
+    if (/\b(grown|crop|cultivat)\w*\b/.test(lower)) return `Where ${present} ${subjectName} grown?`;
+    if (/\b(produc|manufactur|refin)\w*\b/.test(lower)) return `Where ${present} ${subjectName} produced?`;
+    if (/\b(found|occurs|mine|mineral|deposit|native|reserve)\w*\b/.test(lower)) return `Where ${present} ${subjectName} found?`;
+    return `Where ${present} ${subjectName} most important?`;
   }
   if (intent === "origin") return discoveryQuestion(subjectName, body);
-  if (intent === "used") return `What is ${subjectName} used for?`;
-  if (intent === "made") return `How is ${subjectName} produced?`;
+  if (intent === "used") return `What ${present} ${subjectName} used for?`;
+  if (intent === "made") return `How ${present} ${subjectName} produced?`;
   if (intent === "why") {
-    if (/\brare|scarce|abundan|supply\w*\b/.test(lower)) return `Why is ${subjectName} rare or difficult to supply?`;
-    return `Why is ${subjectName} important?`;
+    if (/\brare|scarce|abundan|supply\w*\b/.test(lower)) return `Why ${present} ${subjectName} rare or difficult to supply?`;
+    return `Why ${present} ${subjectName} important?`;
   }
   if (intent === "mechanism") {
-    if (/\b(alloy|strength|creep|resistance|temperature|material)\w*\b/.test(lower)) return `How does ${subjectName} affect material performance?`;
-    if (/\b(react|reaction|bond|electron|oxidation|chemical)\w*\b/.test(lower)) return `How does ${subjectName} behave chemically?`;
-    return `How does ${subjectName} work in this context?`;
+    if (/\b(alloy|strength|creep|resistance|temperature|material)\w*\b/.test(lower)) return `How ${auxiliary} ${subjectName} affect material performance?`;
+    if (/\b(react|reaction|bond|electron|oxidation|chemical)\w*\b/.test(lower)) return `How ${auxiliary} ${subjectName} behave chemically?`;
+    return `How ${auxiliary} ${subjectName} work in this context?`;
   }
   if (intent === "types") return `What types or forms of ${subjectName} are there?`;
-  if (intent === "comparison") return `What is ${subjectName} most useful to compare with?`;
+  if (intent === "comparison") return `What ${present} ${subjectName} most useful to compare with?`;
   if (intent === "safety") return `What risks are associated with ${subjectName}?`;
   if (intent === "evidence") return `How strong is the evidence about ${subjectName}?`;
   if (intent === "future") return `How could ${subjectName} be used in the future?`;
@@ -244,6 +270,15 @@ export function isValidSemanticQuestion(value: string) {
   if (words.length !== 1) return false;
   if (/\b(how is what|how does what|what is what|who is who|when is when|where is where|why is why)\b/i.test(title)) return false;
   if (/\b(undefined|null|nan)\b/i.test(title)) return false;
+  const present = title.match(/^(?:What|Where|Why|How)\s+(is|are)\s+(.+?)\?$/i);
+  if (present) {
+    const subject = present[2].replace(/\s+(?:grown|produced|found|most important|used for|rare or difficult to supply|important|most useful to compare with)$/i, "");
+    if (present[1].toLowerCase() !== semanticSubjectAgreement(subject).present) return false;
+  }
+  const past = title.match(/^(?:When|How)\s+(was|were)\s+(.+?)\s+(?:discovered|invented|first put to major use)\?$/i);
+  if (past && past[1].toLowerCase() !== semanticSubjectAgreement(past[2]).past) return false;
+  const auxiliary = title.match(/^How\s+(does|do)\s+(.+?)\s+(?:affect|behave|work)\b/i);
+  if (auxiliary && auxiliary[1].toLowerCase() !== semanticSubjectAgreement(auxiliary[2]).auxiliary) return false;
   return title.length >= 8 && title.length <= 150;
 }
 
