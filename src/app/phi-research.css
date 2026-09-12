@@ -517,3 +517,40 @@
     height: 72px;
   }
 }
+
+
+.phi-orange-actions .phi-share-card {
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 231, 176, .55);
+  border-radius: 999px;
+  background: rgba(255,255,255,.1);
+}
+.phi-shared-orange-card {
+  margin: 18px 0;
+  padding: 15px;
+  display: grid;
+  grid-template-columns: 130px minmax(0,1fr);
+  gap: 16px;
+  color: white;
+  border: 1px solid #ef985e;
+  border-radius: 22px;
+  background: linear-gradient(145deg,#d96319,#8d310b);
+}
+.phi-shared-orange-card img,
+.phi-shared-orange-card > .phi-orange-image-fallback {
+  width: 130px;
+  min-height: 130px;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 15px;
+}
+.phi-shared-orange-card small { color: #ffe0b5; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.phi-shared-orange-card h2 { margin: 5px 0 8px; }
+.phi-shared-orange-card p { margin: 0 0 10px; line-height: 1.55; }
+.phi-shared-orange-card a { color: white; font-weight: 850; }
+@media (max-width:640px) {
+  .phi-orange-actions { flex-wrap: wrap; }
+  .phi-shared-orange-card { grid-template-columns: 88px minmax(0,1fr); }
+  .phi-shared-orange-card img,
+  .phi-shared-orange-card > .phi-orange-image-fallback { width: 88px; min-height: 88px; }
+}
