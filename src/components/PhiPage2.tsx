@@ -37,6 +37,7 @@ type RefinementPass = { id: string; terms: string[]; sourceCount: number; at: nu
 type RefinementState = { baseConclusion: string; passes: RefinementPass[] };
 type DiscoveryTopic = SemanticCard;
 type EvidenceCard = { index: number; title: string; body: string; source?: Source; imageUrl?: string };
+type ShareableCard = { title: string; body: string; source?: string; imageUrl?: string };
 
 const HISTORY = "infinity_phi_context_v1";
 const PAPERS = "infinity_phi_research_v1";
@@ -342,6 +343,50 @@ function parseKeywordDirections(raw: string) {
   return [...new Set(selected.map(clean).filter(Boolean))].slice(0, 12);
 }
 
+function awardSharedCardCredit(reference: string) {
+  const attemptId = `phi-card-share-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const read = (key: string, fallback: any) => {
+    try { return JSON.parse(localStorage.getItem(key) || "null") || fallback; } catch { return fallback; }
+  };
+  const session = read("starquest_session", null);
+  const users = read("starquest_users", {});
+  const signedIn = session?.key && users[session.key];
+  const wallet: any = signedIn || read("starquest_guest_profile_v1", {
+    key: "__guest__", username: "Guest", tokens: 0, shareCount: 0, pendingShareCredits: 0,
+    shareEvents: [], ledger: [], watchHistory: [], watchPositions: {}, unlockedContent: {},
+  });
+  wallet.tokens = Math.max(0, Number(wallet.tokens) || 0);
+  wallet.shareCount = Math.max(0, Number(wallet.shareCount) || 0) + 1;
+  wallet.pendingShareCredits = Math.max(0, Number(wallet.pendingShareCredits) || 0) + 1;
+  wallet.shareEvents = Array.isArray(wallet.shareEvents) ? wallet.shareEvents : [];
+  wallet.ledger = Array.isArray(wallet.ledger) ? wallet.ledger : [];
+  wallet.shareEvents.push({ id: attemptId, attemptId, contentId: reference, method: "web_share_api", confirmed: true, verified: true, createdAt: Date.now() });
+  let awarded = 0;
+  while (wallet.pendingShareCredits >= 10) {
+    wallet.pendingShareCredits -= 10;
+    wallet.tokens += 1;
+    awarded += 1;
+  }
+  wallet.ledger.push({
+    id: `tx-${attemptId}`, type: awarded ? "share_reward" : "share_credit", amount: awarded,
+    balance: wallet.tokens, pendingShareCredits: wallet.pendingShareCredits,
+    reason: awarded ? "Share reward: 10 completed shares" : `Confirmed share receipt ${wallet.pendingShareCredits}/10`,
+    referenceId: attemptId, createdAt: Date.now(),
+  });
+  wallet.shareEvents = wallet.shareEvents.slice(-250);
+  wallet.ledger = wallet.ledger.slice(-500);
+  if (signedIn) {
+    users[session.key] = wallet;
+    localStorage.setItem("starquest_users", JSON.stringify(users));
+  } else {
+    localStorage.setItem("starquest_guest_profile_v1", JSON.stringify(wallet));
+  }
+  window.dispatchEvent(new CustomEvent("starquest:share-progress", { detail: {
+    progressToNextCoin: wallet.pendingShareCredits, awarded, balance: wallet.tokens,
+  }}));
+  return { progressToNextCoin: wallet.pendingShareCredits, awarded, balance: wallet.tokens };
+}
+
 async function persistPaper(paper: Paper, history: HistoryItem[]) {
   secureSave(`${PAPER_PREFIX}${paper.id}`, paper, "session");
   secureSave(`${PAPER_PREFIX}${paper.id}`, paper);
@@ -383,6 +428,7 @@ export default function PhiPage2() {
   const [baseConclusion, setBaseConclusion] = useState("");
   const [activeDiscovery, setActiveDiscovery] = useState<string | null>(null);
   const [spawnedTopics, setSpawnedTopics] = useState<SemanticCard[]>([]);
+  const [sharedCard, setSharedCard] = useState<ShareableCard | null>(null);
 
   const baseTopics = useMemo(() => paper ? buildSemanticExpansionCards(paper.query, paper.overview, paper.sources, paper.findings, "", [], 10) : [], [paper]);
   const topics = useMemo(() => {
@@ -544,6 +590,32 @@ export default function PhiPage2() {
     await applyRefinementTerms(terms, "keyword");
   }
 
+
+  async function shareOrangeCard(card: ShareableCard) {
+    const q = `${card.title} related news`;
+    const params = new URLSearchParams({
+      q, run: "1", cardTitle: card.title, cardBody: card.body.slice(0, 1400),
+      source: card.source || "", image: card.imageUrl || "",
+    });
+    const shareUrl = `${location.origin}${appPath("phi")}?${params.toString()}`;
+    if (!navigator.share) {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        setNotice("Card link copied. Open Android Share to earn 1/10 StarCoin.");
+      } catch {
+        setNotice("Sharing is unavailable in this browser.");
+      }
+      return;
+    }
+    try {
+      await navigator.share({ title: card.title, text: card.body.slice(0, 420), url: shareUrl });
+      const reward = awardSharedCardCredit(shareUrl);
+      setNotice(reward.awarded ? "Shared · 1 StarCoin completed!" : `Shared · StarCoin progress ${reward.progressToNextCoin}/10`);
+    } catch (error) {
+      if (!(error instanceof DOMException) || error.name !== "AbortError") setNotice("Share did not complete.");
+    }
+  }
+
   function readEvidence(card: EvidenceCard) {
     if (!paper) return;
     const opening = expandedEvidence !== card.index;
@@ -560,8 +632,13 @@ export default function PhiPage2() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const initial = params.get("q") || "";
+    const cardTitle = params.get("cardTitle") || "";
+    const cardBody = params.get("cardBody") || "";
+    const cardSource = params.get("source") || "";
+    const cardImage = params.get("image") || "";
+    const initial = params.get("q") || cardTitle || "";
     const id = params.get("id") || "";
+    if (cardTitle) setSharedCard({ title: cardTitle, body: cardBody, source: cardSource, imageUrl: cardImage });
     const localHistory = secureLoad<HistoryItem[]>(HISTORY, []);
     if (localHistory.length) setHistory(localHistory);
     if (initial) {
@@ -625,6 +702,11 @@ export default function PhiPage2() {
                 </div>
               </section>
 
+              {sharedCard && <section className="phi-shared-orange-card" aria-label="Shared orange card">
+                {sharedCard.imageUrl ? <img src={sharedCard.imageUrl} alt="" /> : <div className="phi-orange-image-fallback">φ</div>}
+                <div><small>Shared orange card</small><h2>{sharedCard.title}</h2><p>{sharedCard.body}</p>{sharedCard.source && <a href={sharedCard.source} target="_blank" rel="noreferrer">Open evidence source</a>}</div>
+              </section>}
+
               <section className="phi-refine-panel" aria-labelledby="phi-refine-heading">
                 <div className="phi-refine-head">
                   <small>Refine search · optional</small>
@@ -668,6 +750,7 @@ export default function PhiPage2() {
                       </button>
                       <div className="phi-orange-actions">
                         <button type="button" disabled={refineBusy} onClick={() => void applyRefinementTerms([topic.keyword], "discovery", topic)}>{selected ? "Included · explore deeper" : "Research & add"}</button>
+                        <button type="button" className="phi-share-card" onClick={() => void shareOrangeCard({ title: topic.title, body: topic.body, source: bestSourceFor(topic.body, paper.sources)?.url, imageUrl: image })}>Share card · +1/10 ⭐</button>
                         <a href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}&q=${encodeURIComponent(paper.query)}&resolved=${encodeURIComponent(paper.resolved)}&phone=1`}><span className="phi-card-orb">φ</span> Workbench</a>
                       </div>
                     </article>;
@@ -685,7 +768,7 @@ export default function PhiPage2() {
                         {card.imageUrl ? <img src={card.imageUrl} alt={card.source?.title || card.title} loading="lazy" /> : <div className="phi-orange-image-fallback">φ</div>}
                         <div className="phi-orange-copy"><small>{expanded ? "Reading this direction" : `Research direction ${String(card.index + 1).padStart(2, "0")}`}</small><h3>{card.title}</h3><p>{card.body}</p></div>
                       </button>
-                      <div className="phi-orange-actions"><button type="button" onClick={() => readEvidence(card)}>{expanded ? "Show less" : "Preview direction"}</button><a href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}&q=${encodeURIComponent(paper.query)}&resolved=${encodeURIComponent(paper.resolved)}&phone=1`}><span className="phi-card-orb">φ</span> Open for magazine</a></div>
+                      <div className="phi-orange-actions"><button type="button" onClick={() => readEvidence(card)}>{expanded ? "Show less" : "Preview direction"}</button><button type="button" className="phi-share-card" onClick={() => void shareOrangeCard({ title: card.title, body: card.body, source: card.source?.url, imageUrl: card.imageUrl })}>Share card · +1/10 ⭐</button><a href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}&q=${encodeURIComponent(paper.query)}&resolved=${encodeURIComponent(paper.resolved)}&phone=1`}><span className="phi-card-orb">φ</span> Open for magazine</a></div>
                     </article>;
                   })}
                 </div>
