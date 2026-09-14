@@ -20,22 +20,32 @@ export type PhiSearchFilterTrace = {
   after: number;
 };
 
+export type PhiSearchDomain =
+  | "chemistry"
+  | "coins"
+  | "software"
+  | "screen"
+  | "news"
+  | "sports"
+  | "public-affairs"
+  | "general";
+
 export const PHI_SEARCH_FILTERS = [
   { id: "normalize", label: "Normalize spelling, punctuation, casing, and spacing" },
-  { id: "task-words", label: "Remove task words such as research, explain, find, and overview from subject matching" },
+  { id: "task-words", label: "Remove task words such as research, explain, latest, overview, and context from subject matching" },
   { id: "entity-lock", label: "Lock recognized entities before broad retrieval terms can compete" },
   { id: "phrase-lock", label: "Preserve meaningful multi-word phrases as one search idea" },
-  { id: "domain-lock", label: "Keep results in the detected subject domain" },
+  { id: "domain-lock", label: "Keep results in the detected subject domain, including film/TV and news" },
   { id: "title-anchor", label: "Require or strongly prefer the subject in result titles" },
   { id: "passage-anchor", label: "Require the subject inside the actual source passage" },
   { id: "lexical-coverage", label: "Score how much of the meaningful query the source actually covers" },
   { id: "fuzzy-repair", label: "Allow small spelling differences without letting unrelated words through" },
-  { id: "negative-gate", label: "Reject sources dominated by unrelated subject vocabulary" },
-  { id: "authority-weight", label: "Prefer direct encyclopedic and scholarly subject matches over incidental mentions" },
+  { id: "negative-gate", label: "Reject or heavily demote results from the wrong domain" },
+  { id: "authority-weight", label: "Prefer direct encyclopedic, primary, and domain-appropriate sources" },
   { id: "duplicate-collapse", label: "Collapse duplicate titles, URLs, and near-identical passages" },
   { id: "source-diversity", label: "Prevent one provider from filling the whole overview when alternatives exist" },
   { id: "context-gate", label: "Use recent Phi context only as a tie-breaker, never as a replacement for the current query" },
-  { id: "final-threshold", label: "Apply a final relevance floor before a source can enter AI Overview" },
+  { id: "final-threshold", label: "Apply a domain-aware relevance floor before a source can enter AI Overview" },
 ] as const;
 
 const TASK_WORDS = new Set([
@@ -43,6 +53,8 @@ const TASK_WORDS = new Set([
   "explain", "explanation", "overview", "information", "info", "learn", "learning",
   "search", "find", "show", "tell", "about", "please", "need", "want", "look",
   "looking", "question", "questions", "answer", "answers", "deep", "deeper",
+  "latest", "recent", "background", "context", "analysis", "related", "similar",
+  "news", "developments", "evidence", "source", "sources",
 ]);
 
 const COMMON_WORDS = new Set([
@@ -53,15 +65,24 @@ const COMMON_WORDS = new Set([
   "also", "only", "some", "most", "many", "does", "doing", "been", "were",
 ]);
 
-const DOMAIN_CUES: Record<string, string[]> = {
+const DOMAIN_CUES: Record<Exclude<PhiSearchDomain, "general">, string[]> = {
   chemistry: ["element", "atomic", "atom", "periodic", "isotope", "oxidation", "compound", "metal", "chemistry", "chemical", "electron"],
   coins: ["coin", "mintage", "mint", "proof", "strike", "grade", "pcgs", "numismatic", "auction", "denomination"],
   software: ["software", "code", "program", "app", "api", "javascript", "typescript", "python", "repository"],
+  screen: ["film", "movie", "cinema", "television", "tv", "episode", "series", "director", "actor", "actress", "cast", "plot", "screenplay", "production", "reception", "box office"],
+  news: ["breaking", "headline", "report", "reported", "journalist", "coverage", "current events"],
+  sports: ["sports", "football", "baseball", "basketball", "hockey", "nascar", "race", "game", "season", "score", "team", "league"],
+  "public-affairs": ["election", "government", "president", "congress", "court", "policy", "law", "senate", "governor", "administration"],
 };
+
+const SCREEN_TEXT = /\b(film|movie|cinema|television|tv series|episode|director|actor|actress|cast|screenplay|box office|production|reception|premiered|released)\b/i;
+const NEWS_TEXT = /\b(news|reported|reporting|journalist|breaking|coverage|headline|according to)\b/i;
+const SPORTS_TEXT = /\b(nfl|nba|mlb|nhl|nascar|football|baseball|basketball|hockey|race|season|team|league|game)\b/i;
+const PUBLIC_AFFAIRS_TEXT = /\b(election|government|president|congress|senate|court|policy|law|administration|governor)\b/i;
 
 const OUTLIER_CUES = [
   "methane", "livestock", "rainforest", "deforestation", "agriculture", "emissions",
-  "football", "soccer", "recipe", "celebrity", "tourism", "weather forecast",
+  "recipe", "tourism", "weather forecast",
 ];
 
 export function normalizeSearchText(value: unknown) {
@@ -96,19 +117,29 @@ export function detectCatalogEntity<T extends { symbol: string; number: number }
   return null;
 }
 
-function detectedDomain(query: string, identity: PhiSearchIdentity) {
+export function classifySearchDomain(query: string, identity: PhiSearchIdentity): PhiSearchDomain {
   if (identity.kind === "element") return "chemistry";
   const lower = normalizeSearchText(query).toLowerCase();
-  let best = "general";
+  let best: PhiSearchDomain = "general";
   let bestScore = 0;
-  for (const [domain, cues] of Object.entries(DOMAIN_CUES)) {
-    const score = cues.filter((cue) => lower.includes(cue)).length;
+  for (const [domain, cues] of Object.entries(DOMAIN_CUES) as [Exclude<PhiSearchDomain, "general">, string[]][]) {
+    const score = cues.reduce((total, cue) => total + (lower.includes(cue) ? (cue.includes(" ") ? 3 : 1) : 0), 0);
     if (score > bestScore) {
       bestScore = score;
       best = domain;
     }
   }
-  return best;
+  return bestScore > 0 ? best : "general";
+}
+
+function sourceDomainHints(source: PhiSearchSource) {
+  const text = `${normalizeSearchText(source.title)} ${normalizeSearchText(source.excerpt)}`;
+  return {
+    screen: SCREEN_TEXT.test(text),
+    news: NEWS_TEXT.test(text),
+    sports: SPORTS_TEXT.test(text),
+    publicAffairs: PUBLIC_AFFAIRS_TEXT.test(text),
+  };
 }
 
 function tokenDistance(a: string, b: string) {
@@ -150,10 +181,10 @@ function sourceScore(source: PhiSearchSource, query: string, identity: PhiSearch
   const text = `${title} ${excerpt}`;
   const words = text.match(/[a-z0-9]+(?:-[a-z0-9]+)?/g) || [];
   const terms = contentTerms(query);
-  const domain = detectedDomain(query, identity);
+  const domain = classifySearchDomain(query, identity);
+  const hints = sourceDomainHints(source);
   let score = 0;
 
-  // 3. entity lock
   if (identity.kind === "element") {
     const entity = identity.name.toLowerCase();
     const exactTitle = new RegExp(`\\b${esc(entity)}\\b`, "i").test(title);
@@ -163,19 +194,16 @@ function sourceScore(source: PhiSearchSource, query: string, identity: PhiSearch
     if (exactBody) score += 12;
   }
 
-  // 4. phrase lock
   const phrase = terms.join(" ");
   if (terms.length > 1 && phrase && text.includes(phrase)) score += 9;
 
-  // 5. domain lock
   if (domain !== "general") {
     const cues = DOMAIN_CUES[domain] || [];
     const domainHits = cues.filter((cue) => text.includes(cue)).length;
-    if (domainHits) score += Math.min(8, domainHits * 2);
-    else if (identity.kind !== "element") score -= 3;
+    if (domainHits) score += Math.min(10, domainHits * 2);
+    else if (identity.kind !== "element") score -= 4;
   }
 
-  // 6-9. title, passage, lexical, fuzzy gates
   let exactHits = 0;
   let fuzzyHits = 0;
   for (const term of terms) {
@@ -189,20 +217,37 @@ function sourceScore(source: PhiSearchSource, query: string, identity: PhiSearch
       fuzzyHits += 1;
     }
   }
+
   if (terms.length && exactHits + fuzzyHits === 0) return -1000;
   score += exactHits * 2;
 
-  // 10. negative/outlier gate
+  if (domain === "general" && exactHits > 0) {
+    if (hints.screen) score += 8;
+    if (hints.news) score += 4;
+    if (hints.sports) score += 5;
+    if (hints.publicAffairs) score += 5;
+  }
+
   const outliers = OUTLIER_CUES.filter((cue) => text.includes(cue)).length;
   if (outliers && identity.kind === "element" && !title.includes(identity.name.toLowerCase())) score -= 18 * outliers;
   else score -= 3 * outliers;
 
-  // 11. authority weighting
-  if (source.provider === "Wikipedia" && title.includes(identity.name.toLowerCase())) score += 7;
-  if (source.provider === "Crossref" && exactHits > 0) score += 4;
-  if (source.provider === "DuckDuckGo" && exactHits === 0) score -= 4;
+  if (source.provider === "Wikipedia") {
+    score += 5;
+    if (exactHits > 0) score += 4;
+    if ((domain === "screen" || domain === "general") && hints.screen) score += 8;
+  }
+  if (source.provider === "Crossref") {
+    if (domain === "chemistry") score += 5;
+    else if (domain === "screen" || hints.screen) score -= 14;
+    else if (domain === "news" || domain === "sports" || domain === "public-affairs") score -= 8;
+    else if (exactHits > 0) score += 2;
+  }
+  if (source.provider === "DuckDuckGo") {
+    if (exactHits === 0) score -= 4;
+    else if ((domain === "screen" && hints.screen) || (domain === "news" && hints.news)) score += 5;
+  }
 
-  // 14. context only as tie-breaker
   const contextTerms = new Set(contentTerms(context));
   let contextHits = 0;
   contextTerms.forEach((term) => { if (text.includes(term)) contextHits += 1; });
@@ -223,7 +268,6 @@ export function gateResearchSources(
     .filter((source) => source.title && source.excerpt);
   trace.push({ id: "normalize", label: PHI_SEARCH_FILTERS[0].label, before: sources.length, after: current.length });
 
-  // Task words are removed by contentTerms before relevance scoring.
   trace.push({ id: "task-words", label: PHI_SEARCH_FILTERS[1].label, before: current.length, after: current.length });
 
   const scored = current
@@ -232,7 +276,6 @@ export function gateResearchSources(
     .sort((a, b) => b.score - a.score);
   trace.push({ id: "entity-lock", label: PHI_SEARCH_FILTERS[2].label, before: current.length, after: scored.length });
 
-  // Stages 4-11 are represented in sourceScore; report their surviving population.
   for (const filter of PHI_SEARCH_FILTERS.slice(3, 11)) {
     trace.push({ id: filter.id, label: filter.label, before: scored.length, after: scored.length });
   }
@@ -258,7 +301,14 @@ export function gateResearchSources(
   trace.push({ id: "source-diversity", label: PHI_SEARCH_FILTERS[12].label, before: deduped.length, after: diverse.length });
   trace.push({ id: "context-gate", label: PHI_SEARCH_FILTERS[13].label, before: diverse.length, after: diverse.length });
 
-  const floor = identity.kind === "element" ? 10 : Math.max(3, contentTerms(query).length * 2);
+  const domain = classifySearchDomain(query, identity);
+  const termCount = contentTerms(query).length;
+  const floor =
+    identity.kind === "element" ? 10 :
+    domain === "screen" ? 5 :
+    ["news", "sports", "public-affairs"].includes(domain) ? 5 :
+    Math.max(3, Math.min(10, termCount * 2));
+
   const final = diverse.filter((entry) => entry.score >= floor).slice(0, 32);
   trace.push({ id: "final-threshold", label: PHI_SEARCH_FILTERS[14].label, before: diverse.length, after: final.length });
 
