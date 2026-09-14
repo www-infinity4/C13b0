@@ -18,7 +18,8 @@
   },
   "include": [
     "cartoon-engine/**/*.ts",
-    "src/token-engine/patterns.ts"
+    "src/token-engine/patterns.ts",
+    "src/types/**/*.d.ts"
   ],
   "exclude": ["node_modules", "cartoon-engine/__tests__/**"]
 }

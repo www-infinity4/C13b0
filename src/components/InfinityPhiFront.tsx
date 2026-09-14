@@ -7,6 +7,7 @@ import styles from "./InfinityPhiFront.module.css";
 
 export default function InfinityPhiFront() {
   const [query, setQuery] = useState("");
+  const [searchActive, setSearchActive] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -23,6 +24,18 @@ export default function InfinityPhiFront() {
       setEmbeddedMenu(false);
     };
   }, []);
+
+  useEffect(() => {
+    if (!searchActive) return;
+    const onEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSearchActive(false);
+        inputRef.current?.blur();
+      }
+    };
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
+  }, [searchActive]);
 
   function resizeInput(target: HTMLTextAreaElement) {
     target.style.height = "0px";
@@ -51,9 +64,26 @@ export default function InfinityPhiFront() {
     window.dispatchEvent(new Event("infinity-open-menu"));
   }
 
+  function activateSearch() {
+    setSearchActive(true);
+    window.requestAnimationFrame(() => inputRef.current?.focus());
+  }
+
+  function showFullImage() {
+    if (!searchActive) return;
+    setSearchActive(false);
+    inputRef.current?.blur();
+  }
+
   return (
     <main className={`${styles.page} infinity-phi-front`}>
-      <section className={styles.stage} aria-label="Infinity Phi Search">
+      <section
+        className={`${styles.stage} ${searchActive ? styles.searchActive : ""}`}
+        aria-label="Infinity Phi Search"
+        onClick={(event) => {
+          if (event.target === event.currentTarget) showFullImage();
+        }}
+      >
         <img
           className={styles.art}
           src="/C13b0/infinity-phi-share.png"
@@ -65,13 +95,14 @@ export default function InfinityPhiFront() {
 
         <div className={styles.controls}>
           <nav className={styles.modeSwitch} aria-label="Infinity Phi modes">
-            <a
-              href={appPath("")}
+            <button
+              type="button"
               className={`${styles.modeButton} ${styles.searchMode}`}
-              aria-current="page"
+              aria-pressed={searchActive}
+              onClick={activateSearch}
             >
               Search <span>φ</span>
-            </a>
+            </button>
             <a
               href={appPath("phi/code")}
               className={`${styles.modeButton} ${styles.codeMode}`}
@@ -86,7 +117,11 @@ export default function InfinityPhiFront() {
             </a>
           </nav>
 
-          <form className={styles.searchBar} onSubmit={submit}>
+          <form
+            className={styles.searchBar}
+            onSubmit={submit}
+            onClick={(event) => event.stopPropagation()}
+          >
             <button
               type="button"
               className={styles.menuButton}

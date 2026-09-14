@@ -11,7 +11,7 @@
   isolation: isolate;
   width: 100%;
   min-height: 100dvh;
-  max-width: 1200px;
+  max-width: none;
   margin: 0 auto;
   overflow: hidden;
   background: #020714;
@@ -23,9 +23,12 @@
   z-index: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: 50% 50%;
   filter: saturate(1.08) contrast(1.04);
+  transform: scale(1);
+  transform-origin: 50% 50%;
+  transition: transform .72s cubic-bezier(.2,.78,.2,1), filter .55s ease;
   user-select: none;
   pointer-events: none;
 }
@@ -34,7 +37,8 @@
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: linear-gradient(180deg, rgba(1,4,14,.03), rgba(1,4,14,.01) 58%, rgba(1,4,14,.22));
+  background: linear-gradient(180deg, rgba(1,4,14,.02), transparent 58%, rgba(1,4,14,.14));
+  transition: background .55s ease;
   pointer-events: none;
 }
 
@@ -53,12 +57,12 @@
 .controls {
   position: absolute;
   left: 50%;
-  top: 47%;
+  top: 47.5%;
   z-index: 4;
   width: min(880px, calc(100% - 26px));
   transform: translate(-50%, -50%);
   display: grid;
-  gap: 9px;
+  gap: 11px;
 }
 
 .modeSwitch {
@@ -66,31 +70,65 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 9px;
-  width: min(650px, 86%);
+  width: min(590px, 88%);
   margin: 0 auto;
+  max-height: 54px;
+  opacity: 1;
+  transform: translateY(0);
+  transition: max-height .42s ease, margin .42s ease, opacity .28s ease, transform .42s ease;
 }
 
 .modeButton {
+  --accent: 201, 177, 255;
+  position: relative;
+  overflow: hidden;
   min-height: 46px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   padding: 8px 12px;
-  border: 1px solid rgba(255,255,255,.58);
+  border: 1px solid rgba(var(--accent),.44);
   border-radius: 999px;
+  appearance: none;
+  color: rgba(255,255,255,.94);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.09), transparent 48%),
+    linear-gradient(145deg, rgba(8,10,30,.78), rgba(7,14,35,.52));
   font-size: clamp(.82rem, 2.25vw, .98rem);
+  font-family: inherit;
   font-weight: 900;
   letter-spacing: .015em;
   text-decoration: none;
-  box-shadow: 0 8px 24px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.34);
-  transition: transform .15s ease, filter .15s ease;
+  text-shadow: 0 1px 8px rgba(0,0,0,.8);
+  box-shadow:
+    0 10px 28px rgba(0,0,0,.34),
+    0 0 18px rgba(var(--accent),.12),
+    inset 0 1px 0 rgba(255,255,255,.2),
+    inset 0 -10px 22px rgba(var(--accent),.1);
+  backdrop-filter: blur(12px) saturate(1.2);
+  cursor: pointer;
+  transition: transform .18s ease, filter .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+
+.modeButton::after {
+  content: "";
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  bottom: 2px;
+  height: 1px;
+  background: rgb(var(--accent));
+  box-shadow: 0 0 10px rgba(var(--accent),.8);
+  opacity: .82;
 }
 
 .modeButton span {
   font-family: Georgia, "Times New Roman", serif;
   font-size: 1.35em;
   line-height: 1;
+  color: rgb(var(--accent));
+  text-shadow: 0 0 12px rgba(var(--accent),.85);
 }
 
 .modeButton:hover,
@@ -102,19 +140,15 @@
 }
 
 .searchMode {
-  color: #10131c;
-  background: linear-gradient(145deg, #ffeb66, #efc629);
-  box-shadow: 0 8px 28px rgba(241,196,43,.28), 0 0 0 2px rgba(255,255,255,.15), inset 0 1px 0 rgba(255,255,255,.72);
+  --accent: 255, 215, 71;
 }
 
 .codeMode {
-  color: #fff;
-  background: linear-gradient(145deg, #22a85f, #087a3e);
+  --accent: 61, 220, 126;
 }
 
 .createMode {
-  color: #fff;
-  background: linear-gradient(145deg, #438fe7, #2169bd);
+  --accent: 88, 169, 255;
 }
 
 .searchBar {
@@ -130,6 +164,36 @@
   background: linear-gradient(180deg, rgba(6,7,31,.97), rgba(4,8,28,.97));
   box-shadow: 0 0 0 1px rgba(106,66,255,.52), 0 0 30px rgba(152,65,255,.48), 0 19px 42px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.12);
   backdrop-filter: blur(15px) saturate(1.18);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: scale(.82);
+  transition: opacity .28s ease .18s, transform .58s cubic-bezier(.2,.78,.2,1), visibility 0s linear .58s;
+}
+
+.searchActive .art {
+  transform: scale(1.34);
+  filter: saturate(1.14) contrast(1.08) brightness(.7);
+}
+
+.searchActive .scrim {
+  background: radial-gradient(circle at 50% 50%, rgba(3,4,19,.08) 0 22%, rgba(2,4,17,.52) 72%, rgba(1,3,12,.72) 100%);
+}
+
+.searchActive .modeSwitch {
+  max-height: 0;
+  margin-bottom: -11px;
+  opacity: 0;
+  transform: translateY(-20px) scale(.96);
+  pointer-events: none;
+}
+
+.searchActive .searchBar {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: scale(1);
+  transition: opacity .32s ease .16s, transform .58s cubic-bezier(.2,.78,.2,1), visibility 0s;
 }
 
 .searchBar:focus-within {
@@ -215,6 +279,7 @@
 @media (max-width: 720px) {
   .stage { min-height: 100svh; }
   .art { object-position: 50% 50%; }
+  .searchActive .art { transform: scale(2.35); }
   .controls {
     top: 47%;
     width: calc(100% - 16px);
@@ -228,6 +293,7 @@
     min-height: 42px;
     padding: 7px 6px;
     font-size: .82rem;
+    backdrop-filter: blur(9px) saturate(1.18);
   }
   .searchBar {
     min-height: 68px;
@@ -277,6 +343,14 @@
     width: 48px;
     height: 48px;
     font-size: 1.85rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .art,
+  .modeSwitch,
+  .searchBar {
+    transition-duration: .01ms !important;
   }
 }
 
