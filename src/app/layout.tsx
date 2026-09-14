@@ -11,6 +11,7 @@ import AppRuntime from "@/components/AppRuntime";
 import PhiFetchGuard from "@/components/PhiFetchGuard";
 import OpenSourceBuildCredits from "@/components/OpenSourceBuildCredits";
 import OpenSourceUsageRuntime from "@/components/OpenSourceUsageRuntime";
+import { appBase } from "@/lib/base-path";
 
 const siteUrl = "https://www-infinity4.github.io/C13b0/";
 const phiPreview = `${siteUrl}infinity-phi-share.png?v=20260908-phi-share-1`;
@@ -40,6 +41,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { themeColor: "#071f38", viewportFit: "cover" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const base = appBase();
   return (
     <html lang="en" className="scroll-smooth">
       <body className="min-h-screen antialiased" style={{ background: "var(--background)" }}>
@@ -49,6 +51,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <SiteChrome>{children}</SiteChrome>
         <OpenSourceBuildCredits className="open-source-global-footer" showChatGPT={false} />
         <Script src="https://www-infinity4.github.io/Mint-For-Infinity/unified-wallet.js?v=20260831-game-rewards1" strategy="afterInteractive" />
+        <Script src={`${base}/infinity-phi-gpt.js?v=20260913-1`} strategy="afterInteractive" />
       </body>
     </html>
   );
