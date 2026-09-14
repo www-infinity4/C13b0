@@ -2,7 +2,7 @@
   'use strict';
 
   const COLLECTION_KEY = 'phiShared:collection:v1';
-  const IMAGE_CACHE_KEY = 'infinityPhi:orangeImageCache:v2';
+  const LEGACY_IMAGE_CACHE_KEY = 'infinityPhi:orangeImageCache:v2';
   const MAX_CARDS = 24;
   const STOP = new Set([
     'what','when','where','which','who','whom','whose','why','how','is','are','was','were','be','been','being','do','does','did','can','could','would','should','will',
@@ -10,12 +10,8 @@
     'science','overview','question','answer','related','further','card','cards','infinity','phi'
   ]);
   let timer = 0;
-  let imageBusy = false;
-  const imageQueue = [];
-  const usedImages = new Set();
 
   const clean = (value, max = 5000) => String(value || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
-  const escapeHtml = (value) => clean(value, 3000).replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 
   function onPhiPage() { return /\/phi(?:\/|$)/.test(location.pathname); }
 
@@ -118,6 +114,8 @@
       url: source?.url || '',
       provider: source?.provider || 'Infinity Phi',
       domain: source?.provider || 'Infinity Phi research',
+      // Preserve the exact image already chosen by Infinity Phi. Source image is only
+      // a fallback when the card itself genuinely has no image.
       image: data.image || source?.image || '',
       imageVerified: Boolean(data.image || source?.image),
       sourceBacked: Boolean(source?.url),
@@ -146,7 +144,7 @@
       <section class="phi-source-reader-panel" role="dialog" aria-modal="true" aria-label="Original source reader">
         <header><div><small>Original source</small><strong id="phiSourceReaderTitle">Source</strong></div><div class="phi-source-reader-controls"><a id="phiSourceReaderExternal" href="#" target="_blank" rel="noopener">Open original ↗</a><button type="button" data-close-reader aria-label="Close source reader">×</button></div></header>
         <div class="phi-source-reader-note">The original publisher stays inside this reader when its site allows embedding. If the publisher blocks frames, use “Open original” and your Infinity Phi page stays here.</div>
-        <iframe id="phiSourceReaderFrame" title="Original source"></iframe>
+        <iframe id="phiSourceReaderFrame" title="Original source reader"></iframe>
       </section>`;
     document.body.appendChild(modal);
     modal.querySelectorAll('[data-close-reader]').forEach((node) => node.addEventListener('click', () => closeReader()));
@@ -205,137 +203,6 @@
     toast(`Researching deeper: ${terms.join(' · ')}`);
   }
 
-  function hash(value) {
-    let out = 2166136261;
-    for (const char of value) { out ^= char.charCodeAt(0); out = Math.imul(out, 16777619); }
-    return (out >>> 0).toString(36);
-  }
-
-  function imageCache() { return readJson(IMAGE_CACHE_KEY, {}); }
-  function saveImageCache(cache) {
-    try {
-      const trimmed = Object.fromEntries(Object.entries(cache).sort((a,b) => Number(b[1]?.at || 0) - Number(a[1]?.at || 0)).slice(0, 220));
-      localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify(trimmed));
-    } catch {}
-  }
-
-  function visualTopic(card) {
-    const data = cardData(card);
-    const query = queryText();
-    const terms = importantTerms(`${data.title} ${data.body}`, 8);
-    const subject = importantTerms(query, 4);
-    return [...new Set([...subject, ...terms])].slice(0, 8).join(' ');
-  }
-
-  function scoreImage(item, topic) {
-    const target = `${item.alt || ''} ${item.title || ''}`;
-    const rel = overlap(target, topic);
-    const phrase = clean(target).toLowerCase().includes(clean(topic).toLowerCase()) ? 4 : 0;
-    const landscape = item.width && item.height && item.width >= item.height ? 1 : 0;
-    return rel * 6 + phrase + landscape;
-  }
-
-  async function searchWikimedia(topic) {
-    try {
-      const endpoint = new URL('https://commons.wikimedia.org/w/api.php');
-      endpoint.search = new URLSearchParams({
-        action:'query', generator:'search', gsrsearch:topic, gsrnamespace:'6', gsrlimit:'12',
-        prop:'imageinfo', iiprop:'url|extmetadata|size', iiurlwidth:'1200', format:'json', origin:'*'
-      });
-      const response = await fetch(endpoint, { cache:'force-cache' });
-      if (!response.ok) return [];
-      const json = await response.json();
-      return Object.values(json?.query?.pages || {}).flatMap((page) => {
-        const info = page?.imageinfo?.[0];
-        if (!info?.url) return [];
-        const meta = info.extmetadata || {};
-        const license = clean(meta.LicenseShortName?.value || meta.License?.value || '').toLowerCase();
-        if (!/(public domain|cc0|cc by|cc-by|creative commons)/i.test(license)) return [];
-        const alt = clean(meta.ObjectName?.value || page.title?.replace(/^File:/,'') || topic);
-        return [{ url: info.thumburl || info.url, alt, width: info.width, height: info.height, sourceUrl: info.descriptionurl || info.url, title: page.title || alt }];
-      });
-    } catch { return []; }
-  }
-
-  async function searchOpenverse(topic) {
-    try {
-      const endpoint = new URL('https://api.openverse.org/v1/images/');
-      endpoint.search = new URLSearchParams({ q: topic, page_size:'12', license:'pdm,by,by-sa,cc0' });
-      const response = await fetch(endpoint, { cache:'force-cache' });
-      if (!response.ok) return [];
-      const json = await response.json();
-      return (json.results || []).flatMap((item) => item?.url ? [{
-        url: item.thumbnail || item.url,
-        alt: clean(item.title || topic),
-        title: clean(item.title || topic),
-        width: item.width,
-        height: item.height,
-        sourceUrl: item.foreign_landing_url || item.url
-      }] : []);
-    } catch { return []; }
-  }
-
-  async function findImage(card) {
-    const data = cardData(card);
-    const topic = visualTopic(card);
-    if (!topic) return '';
-    const key = hash(`${queryText()}|${data.title}|${data.body}`);
-    const cache = imageCache();
-    if (cache[key]?.url) return cache[key].url;
-
-    let candidates = await searchWikimedia(topic);
-    if (candidates.length < 3) candidates = [...candidates, ...(await searchOpenverse(topic))];
-    if (!candidates.length) {
-      const subject = importantTerms(queryText(), 3).join(' ');
-      if (subject && subject !== topic) candidates = await searchWikimedia(subject);
-    }
-    const ranked = candidates
-      .filter((item) => item.url && !usedImages.has(item.url))
-      .sort((a,b) => scoreImage(b, topic) - scoreImage(a, topic));
-    const best = ranked[0] || candidates.sort((a,b) => scoreImage(b, topic) - scoreImage(a, topic))[0];
-    if (!best?.url) return '';
-    cache[key] = { url: best.url, sourceUrl: best.sourceUrl || '', alt: best.alt || data.title, at: Date.now() };
-    saveImageCache(cache);
-    return best.url;
-  }
-
-  function applyImage(card, url) {
-    if (!url || !card.isConnected) return;
-    const main = card.querySelector('.phi-orange-main');
-    if (!main) return;
-    let image = main.querySelector('img');
-    if (!image) {
-      const fallback = main.querySelector('.phi-orange-image-fallback');
-      image = document.createElement('img');
-      image.loading = 'lazy';
-      image.alt = cardData(card).title;
-      if (fallback) fallback.replaceWith(image); else main.prepend(image);
-    }
-    image.src = url;
-    image.alt = cardData(card).title;
-    image.dataset.phiRelevantImage = '1';
-    usedImages.add(url);
-  }
-
-  function queueImage(card) {
-    if (card.dataset.phiImageQueued === '1') return;
-    card.dataset.phiImageQueued = '1';
-    imageQueue.push(card);
-    void drainImages();
-  }
-
-  async function drainImages() {
-    if (imageBusy) return;
-    imageBusy = true;
-    try {
-      while (imageQueue.length) {
-        const card = imageQueue.shift();
-        if (!card?.isConnected) continue;
-        try { applyImage(card, await findImage(card)); } catch {}
-      }
-    } finally { imageBusy = false; }
-  }
-
   function makeButton(label, className, handler) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -388,7 +255,8 @@
       store.dataset.stored = '1';
     }
 
-    queueImage(card);
+    // IMPORTANT: do not replace, search for, or re-rank the card image here.
+    // PhiPage2's original source/content pipeline owns the image choice.
   }
 
   function installStyles() {
@@ -415,6 +283,10 @@
     document.head.appendChild(style);
   }
 
+  function clearLegacyImageOverrideCache() {
+    try { localStorage.removeItem(LEGACY_IMAGE_CACHE_KEY); } catch {}
+  }
+
   function process() {
     if (!onPhiPage()) return;
     installStyles();
@@ -427,13 +299,11 @@
   }
 
   if (!onPhiPage()) return;
+  clearLegacyImageOverrideCache();
   process();
   const observer = new MutationObserver(schedule);
   observer.observe(document.documentElement, { childList:true, subtree:true, characterData:true });
-  window.addEventListener('infinityphi:gpt-cards-ready', () => {
-    cardNodes().forEach((card) => { card.dataset.phiImageQueued = '0'; });
-    schedule();
-  });
+  window.addEventListener('infinityphi:gpt-cards-ready', schedule);
   window.addEventListener('popstate', schedule);
   window.addEventListener('focus', schedule);
 })();
