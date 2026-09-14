@@ -34,6 +34,10 @@
     return { index, title, body, label };
   }
 
+  function currentCandidates() {
+    return cardNodes().map(candidateFromCard).filter((item) => item.title && item.body);
+  }
+
   function signatureFor(query, candidates) {
     const raw = `${query}|${candidates.map((item) => `${item.index}:${item.title}:${item.body}`).join('|')}`;
     let hash = 2166136261;
@@ -137,15 +141,15 @@
     const nodes = cardNodes();
     const query = queryText();
     if (!query || !nodes.length) return;
-    const candidates = nodes.map(candidateFromCard).filter((item) => item.title && item.body);
+    const candidates = currentCandidates();
     if (!candidates.length) return;
     const signature = signatureFor(query, candidates);
     if (signature === lastSignature && candidates.every((item) => nodes[item.index]?.dataset.gptCard === '1')) return;
 
     const cached = cacheRead(signature);
     if (cached?.length) {
-      lastSignature = signature;
       applyCards(cached);
+      lastSignature = signatureFor(query, currentCandidates());
       return;
     }
 
@@ -157,6 +161,7 @@
       if (!cards.length) throw new Error('empty_cards');
       cacheWrite(signature, cards);
       applyCards(cards);
+      lastSignature = signatureFor(query, currentCandidates());
       document.documentElement.dataset.infinityPhiGptCards = 'ready';
     } catch {
       // Semantic cards remain visible as a safe fallback when the GPT gateway is unavailable.
