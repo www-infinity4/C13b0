@@ -52,6 +52,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <OpenSourceBuildCredits className="open-source-global-footer" showChatGPT={false} />
         <Script src="https://www-infinity4.github.io/Mint-For-Infinity/unified-wallet.js?v=20260831-game-rewards1" strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-gpt.js?v=20260913-1`} strategy="afterInteractive" />
+        <Script src={`${base}/infinity-phi-card-gpt.js?v=20260914-gpt-cards1`} strategy="afterInteractive" />
       </body>
     </html>
   );
