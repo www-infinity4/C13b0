@@ -4,6 +4,7 @@ import android.app.PictureInPictureParams;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Rational;
+import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 
@@ -20,7 +21,14 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Infinity pages are intentionally capture/copy friendly. Never inherit a
+        // secure-window flag that would blank Android screenshots or screen capture.
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+
         WebView webView = getBridge().getWebView();
+        webView.setLongClickable(true);
+        webView.setHapticFeedbackEnabled(true);
         webView.addJavascriptInterface(new InfinityAndroidBridge(), "InfinityAndroid");
     }
 
