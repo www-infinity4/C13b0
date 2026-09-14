@@ -28,6 +28,7 @@ export type PhiSearchDomain =
   | "news"
   | "sports"
   | "public-affairs"
+  | "science"
   | "general";
 
 export const PHI_SEARCH_FILTERS = [
@@ -35,7 +36,7 @@ export const PHI_SEARCH_FILTERS = [
   { id: "task-words", label: "Remove task words such as research, explain, latest, overview, and context from subject matching" },
   { id: "entity-lock", label: "Lock recognized entities before broad retrieval terms can compete" },
   { id: "phrase-lock", label: "Preserve meaningful multi-word phrases as one search idea" },
-  { id: "domain-lock", label: "Keep results in the detected subject domain, including film/TV and news" },
+  { id: "domain-lock", label: "Keep results in the detected current-query domain; history may never replace it" },
   { id: "title-anchor", label: "Require or strongly prefer the subject in result titles" },
   { id: "passage-anchor", label: "Require the subject inside the actual source passage" },
   { id: "lexical-coverage", label: "Score how much of the meaningful query the source actually covers" },
@@ -44,7 +45,7 @@ export const PHI_SEARCH_FILTERS = [
   { id: "authority-weight", label: "Prefer direct encyclopedic, primary, and domain-appropriate sources" },
   { id: "duplicate-collapse", label: "Collapse duplicate titles, URLs, and near-identical passages" },
   { id: "source-diversity", label: "Prevent one provider from filling the whole overview when alternatives exist" },
-  { id: "context-gate", label: "Use recent Phi context only as a tie-breaker, never as a replacement for the current query" },
+  { id: "context-gate", label: "Use recent Phi context only as a weak tie-breaker, never as a replacement for the current query" },
   { id: "final-threshold", label: "Apply a domain-aware relevance floor before a source can enter AI Overview" },
 ] as const;
 
@@ -69,16 +70,18 @@ const DOMAIN_CUES: Record<Exclude<PhiSearchDomain, "general">, string[]> = {
   chemistry: ["element", "atomic", "atom", "periodic", "isotope", "oxidation", "compound", "metal", "chemistry", "chemical", "electron"],
   coins: ["coin", "mintage", "mint", "proof", "strike", "grade", "pcgs", "numismatic", "auction", "denomination"],
   software: ["software", "code", "program", "app", "api", "javascript", "typescript", "python", "repository"],
-  screen: ["film", "movie", "cinema", "television", "tv", "episode", "series", "director", "actor", "actress", "cast", "plot", "screenplay", "production", "reception", "box office"],
+  screen: ["film", "movie", "cinema", "television", "tv", "episode", "series", "director", "actor", "actress", "cast", "plot", "screenplay", "box office"],
   news: ["breaking", "headline", "report", "reported", "journalist", "coverage", "current events"],
   sports: ["sports", "football", "baseball", "basketball", "hockey", "nascar", "race", "game", "season", "score", "team", "league"],
   "public-affairs": ["election", "government", "president", "congress", "court", "policy", "law", "senate", "governor", "administration"],
+  science: ["science", "scientific", "scientist", "fringe science", "pseudoscience", "hypothesis", "theory", "experiment", "physics", "biology", "astronomy", "geology", "ecology", "neuroscience"],
 };
 
-const SCREEN_TEXT = /\b(film|movie|cinema|television|tv series|episode|director|actor|actress|cast|screenplay|box office|production|reception|premiered|released)\b/i;
+const SCREEN_TEXT = /\b(film|movie|cinema|television|tv series|episode|director|actor|actress|cast|screenplay|box office|premiered|released)\b/i;
 const NEWS_TEXT = /\b(news|reported|reporting|journalist|breaking|coverage|headline|according to)\b/i;
 const SPORTS_TEXT = /\b(nfl|nba|mlb|nhl|nascar|football|baseball|basketball|hockey|race|season|team|league|game)\b/i;
 const PUBLIC_AFFAIRS_TEXT = /\b(election|government|president|congress|senate|court|policy|law|administration|governor)\b/i;
+const SCIENCE_TEXT = /\b(science|scientific|scientist|researcher|experiment|evidence|hypothesis|theory|physics|biology|astronomy|geology|ecology|chemistry|laboratory|peer review|pseudoscience)\b/i;
 
 const OUTLIER_CUES = [
   "methane", "livestock", "rainforest", "deforestation", "agriculture", "emissions",
@@ -139,6 +142,7 @@ function sourceDomainHints(source: PhiSearchSource) {
     news: NEWS_TEXT.test(text),
     sports: SPORTS_TEXT.test(text),
     publicAffairs: PUBLIC_AFFAIRS_TEXT.test(text),
+    science: SCIENCE_TEXT.test(text),
   };
 }
 
@@ -175,13 +179,20 @@ function nearDuplicateText(a: string, b: string) {
   return shared / Math.min(left.size, right.size) >= 0.82;
 }
 
-function sourceScore(source: PhiSearchSource, query: string, identity: PhiSearchIdentity, context = "") {
+function sourceScore(
+  source: PhiSearchSource,
+  query: string,
+  identity: PhiSearchIdentity,
+  context = "",
+  domainOverride?: PhiSearchDomain,
+) {
   const title = normalizeSearchText(source.title).toLowerCase();
   const excerpt = normalizeSearchText(source.excerpt).toLowerCase();
   const text = `${title} ${excerpt}`;
   const words = text.match(/[a-z0-9]+(?:-[a-z0-9]+)?/g) || [];
   const terms = contentTerms(query);
-  const domain = classifySearchDomain(query, identity);
+  const currentQueryDomain = classifySearchDomain(query, identity);
+  const domain = domainOverride || currentQueryDomain;
   const hints = sourceDomainHints(source);
   let score = 0;
 
@@ -221,12 +232,14 @@ function sourceScore(source: PhiSearchSource, query: string, identity: PhiSearch
   if (terms.length && exactHits + fuzzyHits === 0) return -1000;
   score += exactHits * 2;
 
-  if (domain === "general" && exactHits > 0) {
-    if (hints.screen) score += 8;
-    if (hints.news) score += 4;
-    if (hints.sports) score += 5;
-    if (hints.publicAffairs) score += 5;
-  }
+  // Wrong-domain negative gate. A title collision with a TV series is not enough
+  // to turn a science/general query into a screen query.
+  if (hints.screen && domain !== "screen") score -= domain === "science" ? 24 : 12;
+  if (domain === "science" && hints.science) score += 8;
+  if (domain === "screen" && hints.screen) score += 10;
+  if (domain === "news" && hints.news) score += 6;
+  if (domain === "sports" && hints.sports) score += 7;
+  if (domain === "public-affairs" && hints.publicAffairs) score += 7;
 
   const outliers = OUTLIER_CUES.filter((cue) => text.includes(cue)).length;
   if (outliers && identity.kind === "element" && !title.includes(identity.name.toLowerCase())) score -= 18 * outliers;
@@ -235,10 +248,11 @@ function sourceScore(source: PhiSearchSource, query: string, identity: PhiSearch
   if (source.provider === "Wikipedia") {
     score += 5;
     if (exactHits > 0) score += 4;
-    if ((domain === "screen" || domain === "general") && hints.screen) score += 8;
+    if (domain === "screen" && hints.screen) score += 8;
+    if (domain === "science" && hints.science) score += 5;
   }
   if (source.provider === "Crossref") {
-    if (domain === "chemistry") score += 5;
+    if (domain === "chemistry" || domain === "science") score += 5;
     else if (domain === "screen" || hints.screen) score -= 14;
     else if (domain === "news" || domain === "sports" || domain === "public-affairs") score -= 8;
     else if (exactHits > 0) score += 2;
@@ -248,10 +262,12 @@ function sourceScore(source: PhiSearchSource, query: string, identity: PhiSearch
     else if ((domain === "screen" && hints.screen) || (domain === "news" && hints.news)) score += 5;
   }
 
+  // Context is intentionally tiny. It may break a tie, but can never overcome
+  // the current query's explicit domain or the wrong-domain penalty above.
   const contextTerms = new Set(contentTerms(context));
   let contextHits = 0;
   contextTerms.forEach((term) => { if (text.includes(term)) contextHits += 1; });
-  score += Math.min(2, contextHits) * 0.5;
+  score += Math.min(2, contextHits) * 0.25;
 
   return score;
 }
@@ -261,6 +277,7 @@ export function gateResearchSources(
   query: string,
   identity: PhiSearchIdentity,
   context = "",
+  domainOverride?: PhiSearchDomain,
 ) {
   const trace: PhiSearchFilterTrace[] = [];
   let current = sources
@@ -271,7 +288,7 @@ export function gateResearchSources(
   trace.push({ id: "task-words", label: PHI_SEARCH_FILTERS[1].label, before: current.length, after: current.length });
 
   const scored = current
-    .map((source) => ({ source, score: sourceScore(source, query, identity, context) }))
+    .map((source) => ({ source, score: sourceScore(source, query, identity, context, domainOverride) }))
     .filter((entry) => entry.score > -900)
     .sort((a, b) => b.score - a.score);
   trace.push({ id: "entity-lock", label: PHI_SEARCH_FILTERS[2].label, before: current.length, after: scored.length });
@@ -301,11 +318,12 @@ export function gateResearchSources(
   trace.push({ id: "source-diversity", label: PHI_SEARCH_FILTERS[12].label, before: deduped.length, after: diverse.length });
   trace.push({ id: "context-gate", label: PHI_SEARCH_FILTERS[13].label, before: diverse.length, after: diverse.length });
 
-  const domain = classifySearchDomain(query, identity);
+  const domain = domainOverride || classifySearchDomain(query, identity);
   const termCount = contentTerms(query).length;
   const floor =
     identity.kind === "element" ? 10 :
     domain === "screen" ? 5 :
+    domain === "science" ? 5 :
     ["news", "sports", "public-affairs"].includes(domain) ? 5 :
     Math.max(3, Math.min(10, termCount * 2));
 
