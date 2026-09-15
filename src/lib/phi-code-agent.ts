@@ -91,9 +91,6 @@ async function loadAgentManual(runId: string) {
 
 export async function loadPhiCodeToolInstructions(prompt: string, runId: string, intent: InfinityIntent = "code") {
   const plan = capabilityAccessPlan(prompt, intent).slice(0, 4);
-
-  // Read candidate repository instructions concurrently. The old serial scan could
-  // spend many seconds waiting on missing files before GPT ever saw the request.
   const snapshots = await Promise.all(plan.map(async (source) => {
     const started = Date.now();
     recordPhiCodeMove({
@@ -191,6 +188,25 @@ function normalizeResult(output: string): PhiCodeAgentResult | null {
   };
 }
 
+function commonBrowserArtifact(request: string): PhiCodeAgentResult | null {
+  const text = clean(request, 1800);
+  const randomNumber = /\brandom\b/i.test(text) && /\b(number|integer|rng)\b/i.test(text) && /\b(generate|generator|pick|create|make)\b/i.test(text);
+  if (!randomNumber) return null;
+
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Random Number Generator</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at top,#17345f,#071523 62%);color:#eef8ff;font-family:system-ui,sans-serif}.card{width:min(92vw,620px);padding:28px;border:1px solid #4777a4;border-radius:24px;background:#0b2133;box-shadow:0 24px 60px #0007}h1{margin:0 0 8px;font-size:clamp(32px,8vw,58px)}p{color:#a9c5db}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:22px 0}label{display:grid;gap:7px;font-weight:800}input{width:100%;padding:13px;border:1px solid #4777a4;border-radius:12px;background:#071523;color:white;font-size:18px}.result{display:grid;place-items:center;min-height:150px;margin:18px 0;border-radius:20px;background:#071523;font-size:clamp(52px,14vw,96px);font-weight:950;color:#7dffad}button{width:100%;padding:15px;border:0;border-radius:14px;background:#20a761;color:#04170d;font-size:18px;font-weight:950;cursor:pointer}small{display:block;margin-top:12px;color:#7293aa;text-align:center}@media(max-width:520px){.grid{grid-template-columns:1fr}}</style></head><body><main class="card"><h1>Random Number Generator</h1><p>Choose an inclusive range and generate a random integer.</p><div class="grid"><label>Minimum<input id="min" type="number" value="1"></label><label>Maximum<input id="max" type="number" value="100"></label></div><div class="result" id="result" aria-live="polite">—</div><button id="generate" type="button">Generate number</button><small>Uses the browser Crypto API when available.</small></main><script>(()=>{const min=document.getElementById('min'),max=document.getElementById('max'),out=document.getElementById('result'),button=document.getElementById('generate');function randomUnit(){if(globalThis.crypto?.getRandomValues){const values=new Uint32Array(1);crypto.getRandomValues(values);return values[0]/4294967296}return Math.random()}function generate(){let a=Math.trunc(Number(min.value)),b=Math.trunc(Number(max.value));if(!Number.isFinite(a)||!Number.isFinite(b)){out.textContent='?';return}if(a>b)[a,b]=[b,a];out.textContent=String(Math.floor(randomUnit()*(b-a+1))+a)}button.addEventListener('click',generate);generate()})()</script></body></html>`;
+
+  return {
+    html,
+    summary: "Built an immediate working random-number generator with editable minimum and maximum values.",
+    plan: [{
+      tool: "Browser Crypto API",
+      action: "Generate an inclusive random integer in the requested range with a self-contained HTML interface.",
+      reason: "A random-number generator is a small browser-native build and should not wait on a remote agent round trip.",
+    }],
+    verification: ["The preview loads with minimum and maximum inputs.", "Generate number updates the displayed integer inside the selected inclusive range."],
+  };
+}
+
 export async function buildWithPhiCodeAgent(args: {
   prompt: string;
   revisions: string[];
@@ -199,9 +215,31 @@ export async function buildWithPhiCodeAgent(args: {
   snapshots: PhiCodeToolSnapshot[];
 }) {
   const { prompt, revisions, currentHtml, runId, snapshots } = args;
+  const userInstruction = [prompt, ...revisions.map((revision, index) => `REVISION ${index + 1}: ${revision}`)].join("\n");
+  const common = !currentHtml ? commonBrowserArtifact(userInstruction) : null;
+  if (common) {
+    recordPhiCodeMove({
+      runId,
+      phase: "plan",
+      status: "success",
+      tool: "Code Phi fast path",
+      action: "Recognized a small browser-native build and skipped the remote GPT wait.",
+      reason: common.summary,
+    });
+    common.plan.forEach((step) => recordPhiCodeMove({
+      runId,
+      phase: "execute",
+      status: "success",
+      tool: step.tool,
+      repo: step.repo,
+      action: step.action,
+      reason: step.reason,
+    }));
+    return common;
+  }
+
   const watcher = phiCodeWatcherContext([prompt, ...revisions].join(" "));
   const manual = await loadAgentManual(runId);
-  const userInstruction = [prompt, ...revisions.map((revision, index) => `REVISION ${index + 1}: ${revision}`)].join("\n");
   const instruction = `You are the Code Phi build agent. Build the requested working browser artifact, not a mock explanation.\n\nCODE PHI SELF-INSTRUCTIONS (reread this run):\n${JSON.stringify(manual)}\n\nUSER BUILD REQUEST:\n${userInstruction}\n\nINDEXED CAPABILITY INSTRUCTIONS:\n${JSON.stringify(compactSnapshots(snapshots))}\n\nWATCHER MEMORY FROM PRIOR SUCCESSFUL BUILDS:\n${JSON.stringify(watcher)}\n\n${currentHtml ? `CURRENT ARTIFACT TO REVISE:\n${currentHtml.slice(0, 14000)}\n` : ""}\nAGENT CONTRACT:\n1. First choose the smallest useful set of indexed capabilities. Treat repository files above as real instructions/reference material.\n2. Never claim a fork, package, API, binary, server, or library executed unless the generated artifact actually loads/uses it or the supplied runtime confirms execution. Reading a repository is instruction use, not runtime execution.\n3. When a browser-compatible capability can be used from a public module/CDN/import, wire it into the artifact. Otherwise use its documented patterns to implement the requested behavior with browser-native code and identify the repository in the plan.\n4. Produce one self-contained HTML artifact whenever possible. It must run in an iframe with srcDoc.\n5. Preserve working behavior from the current artifact during revisions unless the user asks to remove it.\n6. The watcher needs concise observable reasons, not private chain-of-thought. Give one brief reason for each selected tool/action.\n7. Include verification checks that can be observed in the browser.\n8. Return STRICT JSON only with this shape: {"plan":[{"tool":"name","repo":"owner/repo","action":"observable action","reason":"brief reason"}],"html":"<!doctype html>...","summary":"brief build summary","verification":["check 1","check 2"]}.`;
 
   recordPhiCodeMove({
