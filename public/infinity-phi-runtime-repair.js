@@ -5,6 +5,8 @@
   const MAX_CARDS = 30;
   let timer = 0;
   let imagePassRunning = false;
+  let processRunning = false;
+  let rerunRequested = false;
 
   const clean = (value, max = 1800) => String(value || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
   const readJson = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; } };
@@ -66,12 +68,19 @@
     const fallback = card.querySelector('.phi-orange-image-fallback');
     const main = card.querySelector('.phi-orange-main');
     if (!fallback || !main) return false;
+
+    const rect = fallback.getBoundingClientRect();
+    const reservedHeight = Math.round(rect.height || 0);
     const img = document.createElement('img');
     img.src = url;
     img.alt = cardInfo(card).title || queryText() || 'Infinity Phi research image';
     img.loading = 'lazy';
     img.decoding = 'async';
     img.dataset.phiRepairImage = '1';
+    img.style.display = 'block';
+    img.style.width = '100%';
+    img.style.objectFit = 'cover';
+    if (reservedHeight > 24) img.style.height = `${reservedHeight}px`;
     fallback.replaceWith(img);
     return true;
   }
@@ -178,9 +187,11 @@
       if (!badge) {
         badge = document.createElement('span');
         badge.className = 'phi-starcoin-menu-badge';
+        badge.dataset.phiRepairOwned = '1';
         unifiedButton.appendChild(badge);
       }
-      badge.textContent = `⭐ ${state.tokens} · ${state.pending}/10`;
+      const badgeText = `⭐ ${state.tokens} · ${state.pending}/10`;
+      if (badge.textContent !== badgeText) badge.textContent = badgeText;
     }
     const walletHeading = [...aside.querySelectorAll('p')].find((node) => /Unified Infinity wallet/i.test(node.textContent || ''));
     const section = walletHeading?.closest('section');
@@ -189,9 +200,11 @@
       if (!readout) {
         readout = document.createElement('div');
         readout.id = 'phiStarCoinWalletReadout';
+        readout.dataset.phiRepairOwned = '1';
         walletHeading.insertAdjacentElement('afterend', readout);
       }
-      readout.innerHTML = `<b>⭐ StarCoin</b><strong>${state.tokens}</strong><span>${state.pending}/10 shares toward the next StarCoin</span>`;
+      const html = `<b>⭐ StarCoin</b><strong>${state.tokens}</strong><span>${state.pending}/10 shares toward the next StarCoin</span>`;
+      if (readout.innerHTML !== html) readout.innerHTML = html;
     }
   }
 
@@ -236,6 +249,7 @@
     if (document.getElementById('infinityPhiRuntimeRepairStyle')) return;
     const style = document.createElement('style');
     style.id = 'infinityPhiRuntimeRepairStyle';
+    style.dataset.phiRepairOwned = '1';
     style.textContent = `
       .phi-ai-overview-data-card{display:block!important;margin:18px 0 34px!important;padding:22px!important;border:1px solid #ff725f!important;border-radius:22px!important;background:linear-gradient(145deg,#c92d25,#8f1418)!important;box-shadow:0 14px 34px rgba(125,18,22,.2)!important}
       .phi-ai-overview-data-card .phi-editorial-deck{max-width:none!important;margin-top:15px!important;color:#ffe45f!important;font-family:Georgia,"Times New Roman",serif!important;font-size:clamp(1.08rem,2vw,1.35rem)!important;line-height:1.65!important}
@@ -243,28 +257,59 @@
       .phi-starcoin-menu-badge{margin-left:auto;padding:4px 8px;border-radius:999px;background:rgba(240,189,85,.16);color:#f0bd55;font-size:.72rem;font-weight:900;white-space:nowrap}
       #phiStarCoinWalletReadout{display:grid;grid-template-columns:1fr auto;gap:3px 12px;margin:12px 0 2px;padding:14px 15px;border:1px solid rgba(240,189,85,.28);border-radius:14px;background:rgba(240,189,85,.1)}
       #phiStarCoinWalletReadout b{color:#f0bd55}#phiStarCoinWalletReadout strong{font-size:1.3rem;color:white}#phiStarCoinWalletReadout span{grid-column:1/-1;color:rgba(255,255,255,.62);font-size:.78rem}
+      .phi-orange-main img[data-phi-repair-image="1"]{max-width:100%;object-position:center}
     `;
     document.head.appendChild(style);
   }
 
-  function process() {
-    if (!onPhi()) return;
-    installStyles();
-    installOverviewTreatment();
-    installWalletReadout();
-    patchShareWithRenderedImage();
-    void repairMissingImages();
+  async function process() {
+    if (!onPhi() || processRunning) return;
+    processRunning = true;
+    try {
+      installStyles();
+      installOverviewTreatment();
+      installWalletReadout();
+      patchShareWithRenderedImage();
+      await repairMissingImages();
+    } finally {
+      processRunning = false;
+      if (rerunRequested) {
+        rerunRequested = false;
+        schedule();
+      }
+    }
   }
 
   function schedule() {
     clearTimeout(timer);
-    timer = setTimeout(process, 160);
+    timer = setTimeout(() => { void process(); }, 220);
+  }
+
+  function mutationNeedsRepair(mutation) {
+    if (mutation.type !== 'childList' || !mutation.addedNodes?.length) return false;
+    for (const node of mutation.addedNodes) {
+      if (node.nodeType !== 1) continue;
+      const element = node;
+      if (element.dataset?.phiRepairOwned === '1' || element.dataset?.phiRepairImage === '1') continue;
+      if (element.id === 'infinityPhiRuntimeRepairStyle' || element.id === 'phiStarCoinWalletReadout') continue;
+      if (element.matches?.('.phi-orange-card,.phi-green-card,.phi-editorial-hero,aside')) return true;
+      if (element.closest?.('.phi-orange-card,.phi-green-card,.phi-editorial-hero,aside')) return true;
+      if (element.querySelector?.('.phi-orange-card,.phi-green-card,.phi-editorial-hero,aside')) return true;
+    }
+    return false;
   }
 
   if (!onPhi()) return;
-  process();
-  const observer = new MutationObserver(schedule);
-  observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+  void process();
+  const observer = new MutationObserver((mutations) => {
+    if (!mutations.some(mutationNeedsRepair)) return;
+    if (processRunning) {
+      rerunRequested = true;
+      return;
+    }
+    schedule();
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
   window.addEventListener('starquest:share-progress', schedule);
   window.addEventListener('infinity-wallet-updated', schedule);
   window.addEventListener('focus', schedule);
