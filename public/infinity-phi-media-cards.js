@@ -303,6 +303,12 @@
   }
 
   function rewriteWithOfficialSource(card, item, usedImages, fallbackImages) {
+    if (card.dataset.phiMediaSourceBacked === '1' && card.dataset.phiMediaUrl === item.url) {
+      const existingImage = clean(card.dataset.phiMediaImage || card.querySelector('.phi-orange-main img')?.src, 1400);
+      if (existingImage) usedImages.add(existingImage);
+      return;
+    }
+
     const heading = card.querySelector('h3');
     const paragraph = card.querySelector('.phi-orange-copy p') || card.querySelector('p');
     const label = card.querySelector('.phi-orange-copy small');
