@@ -6,9 +6,9 @@
   const previousPublicSearch = window.InfinityPhiSearchIntelligence?.searchPublicWeb?.bind(window.InfinityPhiSearchIntelligence);
   const clean = (value, max = 2200) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
   const VIDEO = /\b(video|videos|highlight|highlights|reel|reels|clip|clips|watch|replay|replays|footage)\b/i;
-  const SCHEDULE = /\b(schedule|schedules|fixture|fixtures|calendar|matchups?)\b/i;
+  const SCHEDULE = /\b(schedule|schedules|fixture|fixtures|calendar|matchups?|tournaments?)\b/i;
   const SCORE = /\b(scores?|results?|finals?|box score)\b/i;
-  const STANDINGS = /\b(standings?|rankings?|table)\b/i;
+  const STANDINGS = /\b(standings?|rankings?|table|points list)\b/i;
   const NEWS = /\b(news|headlines?|updates?|latest|breaking|coverage)\b/i;
 
   const LEAGUES = [
@@ -51,6 +51,16 @@
       news: ['NHL News', 'https://www.nhl.com/news', 'Official NHL news, reports and analysis.'],
       video: ['NHL Video', 'https://www.nhl.com/video', 'Official NHL video, highlights and clips.'],
       youtube: ['NHL on YouTube', 'https://www.youtube.com/@NHL', 'Official NHL YouTube channel for highlights and hockey video.'],
+    },
+    {
+      match: /\b(bowling|pba)\b/i,
+      provider: 'PBA',
+      schedule: ['2026 PBA Tour Schedule', 'https://www.pba.com/schedule/pba-tour', 'Official Professional Bowlers Association tour schedule with tournament dates, locations, qualifying windows and televised finals.'],
+      scores: ['PBA National Tour', 'https://www.pba.com/pba-tour/pba-national-tour', 'Official PBA National Tour information, events and tournament results context.'],
+      standings: ['PBA National Tour', 'https://www.pba.com/pba-tour/pba-national-tour', 'Official PBA National Tour information and season context.'],
+      news: ['Professional Bowlers Association', 'https://www.pba.com/', 'Official PBA source for professional bowling events, tour news, players and coverage.'],
+      video: ['PBA Ways to Watch', 'https://www.pba.com/watch', 'Official PBA watch hub with current coverage and YouTube highlights.'],
+      youtube: ['PBA Bowling on YouTube', 'https://www.youtube.com/@pbatour', 'Official Professional Bowlers Association YouTube channel with highlights, full telecasts, event previews and finals coverage.'],
     },
   ];
 
@@ -143,7 +153,7 @@
       ...(window.InfinityPhiSearchIntelligence || {}),
       searchPublicWeb: async (query) => dedupe([...officialSources(query), ...(await previousPublicSearch(query).catch(() => []))]),
       officialSources,
-      version: '2026-09-15-official-floor1',
+      version: '2026-09-15-official-floor2',
     };
   }
 })();
