@@ -1,7 +1,10 @@
 (() => {
   "use strict";
 
-  const PREVIEW_ENDPOINT = "https://infinity-rogers.marvaseater.workers.dev/share/phi";
+  // Keep the public URL on Infinity Phi. The old helper replaced the real card
+  // URL with a workers.dev preview URL, which made X/Twitter expose the worker
+  // address instead of the site and disconnected the share from the card page.
+  const PUBLIC_PHI_URL = "https://www-infinity4.github.io/Infinity-Phi/";
 
   function clean(value, max = 1400) {
     return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
@@ -11,43 +14,39 @@
     try {
       const url = new URL(String(raw || ""), location.href);
       const path = url.pathname.replace(/\/+$/, "");
-      const isPhi = path.endsWith("/C13b0/phi") || path.endsWith("/phi");
+      const isPhi = path.endsWith("/C13b0/phi") || path.endsWith("/phi") || path.endsWith("/Infinity-Phi");
       return isPhi && url.searchParams.has("cardTitle") ? url : null;
     } catch {
       return null;
     }
   }
 
-  function originalSearch(cardUrl) {
-    try {
-      const current = new URL(location.href);
-      const currentQuery = clean(current.searchParams.get("q"), 1000);
-      if (currentQuery) return currentQuery;
-    } catch {}
-    return clean(cardUrl.searchParams.get("q") || cardUrl.searchParams.get("cardTitle"), 1000);
-  }
-
   function buildPreviewUrl(raw) {
     const cardUrl = parsePhiCardUrl(raw);
     if (!cardUrl) return String(raw || "");
 
-    const params = new URLSearchParams({
-      title: clean(cardUrl.searchParams.get("cardTitle"), 220) || "Infinity Phi orange card",
-      body: clean(cardUrl.searchParams.get("cardBody"), 1400),
-      source: clean(cardUrl.searchParams.get("source"), 1800),
-      image: clean(cardUrl.searchParams.get("image"), 1800),
-      q: originalSearch(cardUrl),
-    });
+    const publicUrl = new URL(PUBLIC_PHI_URL);
+    publicUrl.search = cardUrl.search;
+    publicUrl.hash = cardUrl.hash;
+    return publicUrl.toString();
+  }
 
-    return `${PREVIEW_ENDPOINT}?${params.toString()}`;
+  function shareText(data, cardUrl) {
+    const supplied = clean(data?.text, 420);
+    if (supplied) return supplied;
+    return clean(cardUrl?.searchParams.get("cardBody"), 420);
   }
 
   if (typeof navigator.share === "function") {
     const nativeShare = navigator.share.bind(navigator);
     const patchedShare = async (data) => {
-      if (!data || !parsePhiCardUrl(data.url)) return nativeShare(data);
-      const url = buildPreviewUrl(data.url);
-      return nativeShare({ ...data, url });
+      const cardUrl = data?.url ? parsePhiCardUrl(data.url) : null;
+      if (!cardUrl) return nativeShare(data);
+
+      const url = buildPreviewUrl(cardUrl.toString());
+      const title = clean(data?.title || cardUrl.searchParams.get("cardTitle"), 220) || "Infinity Phi";
+      const text = shareText(data, cardUrl);
+      return nativeShare({ ...data, title, text, url });
     };
 
     try {
