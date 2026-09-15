@@ -41,7 +41,7 @@ function rawCandidates(source: ReturnType<typeof capabilityAccessPlan>[number]) 
   return [...new Set(candidates.filter((path) => path && !path.endsWith("/")))].slice(0, 10);
 }
 
-async function fetchText(url: string, timeoutMs = 3800) {
+async function fetchText(url: string, timeoutMs = 2200) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -60,7 +60,7 @@ async function loadAgentManual(runId: string) {
   const firstSegment = location.pathname.split("/").filter(Boolean)[0] || "";
   const root = location.hostname.endsWith("github.io") && firstSegment ? `/${firstSegment}/` : "/";
   const url = `${location.origin}${root}phi-code-agent-instructions.json`;
-  const text = await fetchText(url, 2600);
+  const text = await fetchText(url, 1800);
   if (!text) {
     recordPhiCodeMove({
       runId,
@@ -91,9 +91,10 @@ async function loadAgentManual(runId: string) {
 
 export async function loadPhiCodeToolInstructions(prompt: string, runId: string, intent: InfinityIntent = "code") {
   const plan = capabilityAccessPlan(prompt, intent).slice(0, 4);
-  const snapshots: PhiCodeToolSnapshot[] = [];
 
-  for (const source of plan) {
+  // Read candidate repository instructions concurrently. The old serial scan could
+  // spend many seconds waiting on missing files before GPT ever saw the request.
+  const snapshots = await Promise.all(plan.map(async (source) => {
     const started = Date.now();
     recordPhiCodeMove({
       runId,
@@ -105,17 +106,15 @@ export async function loadPhiCodeToolInstructions(prompt: string, runId: string,
       reason: `Capability index score ${source.score}; selected from the current Code Phi request.`,
     });
 
-    const files: PhiCodeToolSnapshot["files"] = [];
-    for (const path of rawCandidates(source)) {
+    const candidates = rawCandidates(source).slice(0, 6);
+    const results = await Promise.all(candidates.map(async (path) => {
       const directPath = path.replace(/^\/+/, "");
       const url = `${source.rawRoot}/${directPath}`;
       const text = await fetchText(url);
-      if (!text) continue;
-      files.push({ path: directPath, url, text });
-      if (files.length >= 3) break;
-    }
+      return text ? { path: directPath, url, text } : null;
+    }));
+    const files = results.filter((item): item is PhiCodeToolSnapshot["files"][number] => Boolean(item)).slice(0, 3);
 
-    snapshots.push({ name: source.name, repo: source.repo, use: source.use, branch: source.branch, files });
     recordPhiCodeMove({
       runId,
       phase: "read-skill",
@@ -129,7 +128,10 @@ export async function loadPhiCodeToolInstructions(prompt: string, runId: string,
       evidence: files.map((file) => file.url).join(" | "),
       durationMs: Date.now() - started,
     });
-  }
+
+    return { name: source.name, repo: source.repo, use: source.use, branch: source.branch, files };
+  }));
+
   return snapshots;
 }
 
@@ -212,22 +214,36 @@ export async function buildWithPhiCodeAgent(args: {
   });
 
   const started = Date.now();
-  const response = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({
-      input: instruction,
-      context: {
-        application: "Infinity Phi Code",
-        assistant: "gpt",
-        task: "code_phi_tool_orchestrator",
-        agent_manual: manual,
-        indexed_capabilities: snapshots.map((snapshot) => ({ name: snapshot.name, repo: snapshot.repo, use: snapshot.use, branch: snapshot.branch })),
-        watcher_memory: watcher,
-        verified_context: { page: typeof location !== "undefined" ? location.href : "", interface_mode: "code", run_id: runId },
-      },
-    }),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 18000);
+  let response: Response;
+  try {
+    response = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        input: instruction,
+        context: {
+          application: "Infinity Phi Code",
+          assistant: "gpt",
+          task: "code_phi_tool_orchestrator",
+          agent_manual: manual,
+          indexed_capabilities: snapshots.map((snapshot) => ({ name: snapshot.name, repo: snapshot.repo, use: snapshot.use, branch: snapshot.branch })),
+          watcher_memory: watcher,
+          verified_context: { page: typeof location !== "undefined" ? location.href : "", interface_mode: "code", run_id: runId },
+        },
+      }),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("Code Phi agent timed out instead of returning a build. Retry is available immediately.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.message || payload.error || `HTTP ${response.status}`);
   const output = String(payload.output_text || payload.output || "").trim();
