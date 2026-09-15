@@ -48,7 +48,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <Script src={`${base}/infinity-phi-multisource.js?v=20260915-3`} strategy="beforeInteractive" />
         <Script src={`${base}/infinity-phi-search-intelligence.js?v=20260915-intent1`} strategy="beforeInteractive" />
         <Script src={`${base}/infinity-phi-live-source-search-v3.js?v=20260915-live3`} strategy="beforeInteractive" />
-        <Script src={`${base}/infinity-phi-official-source-seeds.js?v=20260915-official1`} strategy="beforeInteractive" />
+        <Script src={`${base}/infinity-phi-official-source-seeds.js?v=20260915-official2`} strategy="beforeInteractive" />
         <PhiFetchGuard />
         <AppRuntime />
         <OpenSourceUsageRuntime />
