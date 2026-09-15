@@ -121,6 +121,21 @@
     return out;
   }
 
+  function preserveDepth(preferred, allPages) {
+    const out = [];
+    const seen = new Set();
+    const add = (page) => {
+      if (!page || out.length >= 14) return;
+      const key = `${clean(page?.fullurl, 1200)}|${clean(page?.title, 260)}`.toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      out.push(page);
+    };
+    preferred.forEach(add);
+    allPages.forEach(add);
+    return out;
+  }
+
   async function plannedFetch(input, init) {
     const raw = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input?.url || '';
     let url;
@@ -130,19 +145,19 @@
     const query = clean(url.searchParams.get('gsrsearch') || '', 600);
     if (!query) return previousFetch(input, init);
 
-    // Critical: do not put the AI planner in front of the source request. The
-    // live multi-source fetch starts immediately and the planner runs beside it.
-    // This keeps Infinity Phi from timing out simply because the planner or GPT
-    // took too long to answer.
+    // Source retrieval is authoritative. GPT planning may rank it, but it may
+    // never block it, erase it, or collapse a healthy result set to one card.
     const sourcePromise = previousFetch(input, init);
-    const intentPromise = plan(query);
+    const intentPromise = plan(query).catch(() => null);
 
     let response;
-    let intent;
     try {
-      [response, intent] = await Promise.all([sourcePromise, intentPromise]);
+      response = await sourcePromise;
     } catch {
-      return sourcePromise;
+      // One retry through the already-installed multisource layer. If the
+      // network itself is down this can still fail naturally, but planner
+      // latency/failure is never allowed to cause that failure.
+      return previousFetch(input, init);
     }
     if (!response?.ok) return response;
 
@@ -152,12 +167,22 @@
     const pages = Object.values(data?.query?.pages || {});
     if (!pages.length) return response;
 
-    const chosen = diversify(pages, intent || { canonicalSubject: query, searchQueries: [query], requiredConcepts: terms(query), exactTerms: [], excludedMeanings: [] });
-    if (!chosen.length) return response;
+    let intent = null;
+    try {
+      intent = await Promise.race([
+        intentPromise,
+        new Promise(resolve => setTimeout(() => resolve(null), 350))
+      ]);
+    } catch {}
+    if (!intent) return response;
+
+    const preferred = diversify(pages, intent);
+    if (!preferred.length) return response;
+    const chosen = preserveDepth(preferred, pages);
     const payload = { batchcomplete: '', query: { pages: Object.fromEntries(chosen.map((page, index) => [`omni_${index}`, page])) } };
     return new Response(JSON.stringify(payload), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8' } });
   }
 
   window.fetch = plannedFetch;
-  window.InfinityPhiOmniPlanner = { plan, score, diversify };
+  window.InfinityPhiOmniPlanner = { plan, score, diversify, preserveDepth };
 })();
