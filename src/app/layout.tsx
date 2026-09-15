@@ -47,17 +47,19 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className="min-h-screen antialiased" style={{ background: "var(--background)" }}>
         <Script src={`${base}/infinity-phi-multisource.js?v=20260915-3`} strategy="beforeInteractive" />
         <Script src={`${base}/infinity-phi-search-intelligence.js?v=20260915-intent1`} strategy="beforeInteractive" />
+        <Script src={`${base}/infinity-phi-live-source-search.js?v=20260915-live2`} strategy="beforeInteractive" />
         <PhiFetchGuard />
         <AppRuntime />
         <OpenSourceUsageRuntime />
         <SiteChrome>{children}</SiteChrome>
         <OpenSourceBuildCredits className="open-source-global-footer" showChatGPT={false} />
         <Script src="https://www-infinity4.github.io/Mint-For-Infinity/unified-wallet.js?v=20260831-game-rewards1" strategy="afterInteractive" />
+        <Script src={`${base}/infinity-phi-wallet-status.js?v=20260915-walletlive3`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-tool-registry.js?v=20260915-media1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-gpt.js?v=20260913-1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-overview-teacher.js?v=20260914-overview-teacher1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-card-tools.js?v=20260914-card-tools2`} strategy="afterInteractive" />
-        <Script src={`${base}/infinity-phi-media-v2.js?v=20260915-general-media1`} strategy="afterInteractive" />
+        <Script src={`${base}/infinity-phi-media-v2.js?v=20260915-live-source2`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-copy-capture.js?v=20260914-copy-capture1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-share-preview.js?v=20260914-x-card1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-runtime-repair.js?v=20260914-runtime-repair2`} strategy="afterInteractive" />
