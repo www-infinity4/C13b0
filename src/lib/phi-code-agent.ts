@@ -47,7 +47,7 @@ async function fetchText(url: string, timeoutMs = 3800) {
   try {
     const response = await fetch(url, { cache: "force-cache", signal: controller.signal });
     if (!response.ok) return "";
-    return (await response.text()).slice(0, 14000);
+    return (await response.text()).slice(0, 12000);
   } catch {
     return "";
   } finally {
@@ -55,8 +55,42 @@ async function fetchText(url: string, timeoutMs = 3800) {
   }
 }
 
+async function loadAgentManual(runId: string) {
+  if (typeof location === "undefined") return {};
+  const firstSegment = location.pathname.split("/").filter(Boolean)[0] || "";
+  const root = location.hostname.endsWith("github.io") && firstSegment ? `/${firstSegment}/` : "/";
+  const url = `${location.origin}${root}phi-code-agent-instructions.json`;
+  const text = await fetchText(url, 2600);
+  if (!text) {
+    recordPhiCodeMove({
+      runId,
+      phase: "read-skill",
+      status: "warning",
+      tool: "Code Phi agent manual",
+      action: "The versioned self-instruction file was unavailable; the built-in agent contract remains active.",
+      evidence: url,
+    });
+    return {};
+  }
+  try {
+    const manual = JSON.parse(text);
+    recordPhiCodeMove({
+      runId,
+      phase: "read-skill",
+      status: "success",
+      tool: "Code Phi agent manual",
+      action: `Read the versioned Code Phi operating instructions${manual?.version ? ` (${manual.version})` : ""}.`,
+      reason: "The agent rereads its execution/watcher rules on every build pass.",
+      evidence: url,
+    });
+    return manual;
+  } catch {
+    return { raw: text.slice(0, 6000) };
+  }
+}
+
 export async function loadPhiCodeToolInstructions(prompt: string, runId: string, intent: InfinityIntent = "code") {
-  const plan = capabilityAccessPlan(prompt, intent).slice(0, 5);
+  const plan = capabilityAccessPlan(prompt, intent).slice(0, 4);
   const snapshots: PhiCodeToolSnapshot[] = [];
 
   for (const source of plan) {
@@ -78,7 +112,7 @@ export async function loadPhiCodeToolInstructions(prompt: string, runId: string,
       const text = await fetchText(url);
       if (!text) continue;
       files.push({ path: directPath, url, text });
-      if (files.length >= 4) break;
+      if (files.length >= 3) break;
     }
 
     snapshots.push({ name: source.name, repo: source.repo, use: source.use, branch: source.branch, files });
@@ -108,7 +142,7 @@ function compactSnapshots(snapshots: PhiCodeToolSnapshot[]) {
     files: snapshot.files.map((file) => ({
       path: file.path,
       url: file.url,
-      text: file.text.slice(0, 6500),
+      text: file.text.slice(0, 3500),
     })),
   }));
 }
@@ -164,16 +198,17 @@ export async function buildWithPhiCodeAgent(args: {
 }) {
   const { prompt, revisions, currentHtml, runId, snapshots } = args;
   const watcher = phiCodeWatcherContext([prompt, ...revisions].join(" "));
+  const manual = await loadAgentManual(runId);
   const userInstruction = [prompt, ...revisions.map((revision, index) => `REVISION ${index + 1}: ${revision}`)].join("\n");
-  const instruction = `You are the Code Phi build agent. Build the requested working browser artifact, not a mock explanation.\n\nUSER BUILD REQUEST:\n${userInstruction}\n\nINDEXED CAPABILITY INSTRUCTIONS:\n${JSON.stringify(compactSnapshots(snapshots))}\n\nWATCHER MEMORY FROM PRIOR SUCCESSFUL BUILDS:\n${JSON.stringify(watcher)}\n\n${currentHtml ? `CURRENT ARTIFACT TO REVISE:\n${currentHtml.slice(0, 18000)}\n` : ""}\nAGENT CONTRACT:\n1. First choose the smallest useful set of indexed capabilities. Treat repository files above as real instructions/reference material.\n2. Never claim a fork, package, API, binary, server, or library executed unless the generated artifact actually loads/uses it or the supplied runtime confirms execution. Reading a repository is instruction use, not runtime execution.\n3. When a browser-compatible capability can be used from a public module/CDN/import, wire it into the artifact. Otherwise use its documented patterns to implement the requested behavior with browser-native code and identify the repository in the plan.\n4. Produce one self-contained HTML artifact whenever possible. It must run in an iframe with srcDoc.\n5. Preserve working behavior from the current artifact during revisions unless the user asks to remove it.\n6. The watcher needs concise observable reasons, not private chain-of-thought. Give one brief reason for each selected tool/action.\n7. Include verification checks that can be observed in the browser.\n8. Return STRICT JSON only with this shape: {"plan":[{"tool":"name","repo":"owner/repo","action":"observable action","reason":"brief reason"}],"html":"<!doctype html>...","summary":"brief build summary","verification":["check 1","check 2"]}.`;
+  const instruction = `You are the Code Phi build agent. Build the requested working browser artifact, not a mock explanation.\n\nCODE PHI SELF-INSTRUCTIONS (reread this run):\n${JSON.stringify(manual)}\n\nUSER BUILD REQUEST:\n${userInstruction}\n\nINDEXED CAPABILITY INSTRUCTIONS:\n${JSON.stringify(compactSnapshots(snapshots))}\n\nWATCHER MEMORY FROM PRIOR SUCCESSFUL BUILDS:\n${JSON.stringify(watcher)}\n\n${currentHtml ? `CURRENT ARTIFACT TO REVISE:\n${currentHtml.slice(0, 14000)}\n` : ""}\nAGENT CONTRACT:\n1. First choose the smallest useful set of indexed capabilities. Treat repository files above as real instructions/reference material.\n2. Never claim a fork, package, API, binary, server, or library executed unless the generated artifact actually loads/uses it or the supplied runtime confirms execution. Reading a repository is instruction use, not runtime execution.\n3. When a browser-compatible capability can be used from a public module/CDN/import, wire it into the artifact. Otherwise use its documented patterns to implement the requested behavior with browser-native code and identify the repository in the plan.\n4. Produce one self-contained HTML artifact whenever possible. It must run in an iframe with srcDoc.\n5. Preserve working behavior from the current artifact during revisions unless the user asks to remove it.\n6. The watcher needs concise observable reasons, not private chain-of-thought. Give one brief reason for each selected tool/action.\n7. Include verification checks that can be observed in the browser.\n8. Return STRICT JSON only with this shape: {"plan":[{"tool":"name","repo":"owner/repo","action":"observable action","reason":"brief reason"}],"html":"<!doctype html>...","summary":"brief build summary","verification":["check 1","check 2"]}.`;
 
   recordPhiCodeMove({
     runId,
     phase: "plan",
     status: "start",
     tool: "GPT",
-    action: "Sent the current request, indexed capability instructions, prior successful watcher playbooks, and existing artifact to the Code Phi agent.",
-    reason: "GPT is the orchestrator; the capability index supplies its tool choices and operating instructions.",
+    action: "Sent the current request, self-instruction manual, indexed capability instructions, prior successful watcher playbooks, and existing artifact to the Code Phi agent.",
+    reason: "GPT is the orchestrator; the capability index and watcher memory supply its operating context.",
   });
 
   const started = Date.now();
@@ -186,6 +221,7 @@ export async function buildWithPhiCodeAgent(args: {
         application: "Infinity Phi Code",
         assistant: "gpt",
         task: "code_phi_tool_orchestrator",
+        agent_manual: manual,
         indexed_capabilities: snapshots.map((snapshot) => ({ name: snapshot.name, repo: snapshot.repo, use: snapshot.use, branch: snapshot.branch })),
         watcher_memory: watcher,
         verified_context: { page: typeof location !== "undefined" ? location.href : "", interface_mode: "code", run_id: runId },
@@ -222,7 +258,7 @@ export async function buildWithPhiCodeAgent(args: {
     status: "success",
     tool: "Preview verifier",
     action: check,
-    reason: "Verification requested by the structured agent response.",
+    reason: "Verification requested by the structured agent response; final success still waits for the iframe load event.",
   }));
   return result;
 }
