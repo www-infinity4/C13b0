@@ -65,16 +65,53 @@
     } catch {}
   }
 
-  function evidenceCards() {
-    return [...document.querySelectorAll('.phi-orange-card')].slice(0, 12).map((card, index) => ({
-      index,
-      title: clean(card.querySelector('h3')?.textContent, 180),
-      body: clean(card.querySelector('.phi-orange-copy p')?.textContent || card.querySelector('p')?.textContent, 700),
-    })).filter((item) => item.title && item.body);
+  function sourceEvidence() {
+    const out = [];
+    const seen = new Set();
+    const push = (title, body, provider = '', url = '') => {
+      title = clean(title, 220);
+      body = clean(body, 900);
+      provider = clean(provider, 100);
+      url = clean(url, 1600);
+      const key = (url || `${provider}:${title}`).toLowerCase();
+      if (!title || !body || !key || seen.has(key)) return;
+      seen.add(key);
+      out.push({ title, body, provider, url });
+    };
+
+    document.querySelectorAll('.phi-orange-card[data-phi-media-source-backed="1"]').forEach((card) => {
+      push(
+        card.querySelector('h3')?.textContent,
+        card.querySelector('.phi-orange-copy p')?.textContent || card.querySelector('p')?.textContent,
+        card.dataset.phiMediaProvider || card.querySelector('.phi-media-v2-chip')?.textContent,
+        card.dataset.phiMediaUrl
+      );
+    });
+
+    document.querySelectorAll('.phi-green-card').forEach((card) => {
+      push(
+        card.querySelector('b')?.textContent,
+        card.querySelector('p')?.textContent,
+        card.querySelector('small')?.textContent,
+        card.getAttribute('href') || ''
+      );
+    });
+
+    if (!out.length) {
+      document.querySelectorAll('.phi-orange-card').forEach((card) => {
+        push(
+          card.querySelector('h3')?.textContent,
+          card.querySelector('.phi-orange-copy p')?.textContent || card.querySelector('p')?.textContent,
+          'Infinity Phi preliminary card',
+          ''
+        );
+      });
+    }
+    return out.slice(0, 18);
   }
 
   function signature(query, overview, cards) {
-    const raw = `${query}|${overview}|${cards.map((item) => `${item.title}:${item.body}`).join('|')}`;
+    const raw = `${query}|${overview}|${cards.map((item) => `${item.provider || ''}:${item.title}:${item.body}:${item.url || ''}`).join('|')}`;
     let hash = 2166136261;
     for (let i = 0; i < raw.length; i += 1) {
       hash ^= raw.charCodeAt(i);
@@ -100,7 +137,7 @@
   async function askTeacher(query, domain, overview, cards) {
     const known = learnedRoute(query);
     const routeHint = domain === 'general' && known?.domain ? known.domain : domain;
-    const input = `You are the teacher/evaluator behind Infinity Phi's AI Overview.\n\nCURRENT QUERY: ${query}\nLOCAL ROUTE: ${domain}\nLEARNED ROUTE IF ANY: ${routeHint}\nCURRENT OVERVIEW: ${overview}\nEVIDENCE CARDS: ${JSON.stringify(cards)}\n\nDo two jobs:\n1. Decide the correct domain for the CURRENT QUERY only: chemistry, coins, software, screen, news, sports, public-affairs, science, or general. History is NOT evidence of current intent. A phrase that happens to also be a TV/movie title must not become screen unless the query itself indicates screen media.\n2. Write a corrected AI Overview that directly answers the current query using only facts supported by the evidence cards/current overview. If the current overview is clearly from the wrong domain, discard that interpretation instead of trying to please it. For fringe science, treat it as a science concept unless the user explicitly asks for the TV series.\n\nReturn STRICT JSON only: {"domain":"science","confidence":0.98,"overview":"2-5 sentence answer","reason":"brief routing reason"}.`;
+    const input = `You are the teacher/evaluator behind Infinity Phi's AI Overview.\n\nCURRENT QUERY: ${query}\nLOCAL ROUTE: ${domain}\nLEARNED ROUTE IF ANY: ${routeHint}\nCURRENT OVERVIEW: ${overview}\nLIVE SOURCE RESULTS: ${JSON.stringify(cards)}\n\nDo two jobs:\n1. Decide the correct domain for the CURRENT QUERY only: chemistry, coins, software, screen, news, sports, public-affairs, science, or general. History is NOT evidence of current intent. A phrase that happens to also be a TV/movie title must not become screen unless the query itself indicates screen media.\n2. Write a corrected AI Overview that directly answers the CURRENT QUERY from the LIVE SOURCE RESULTS. Prefer the actual source-result titles, excerpts, providers, and URLs over preliminary semantic-card wording. Use only facts supported by the live source results/current overview. If the current overview is clearly from the wrong domain or stale query, discard it. For fringe science, treat it as a science concept unless the user explicitly asks for the TV series.\n\nReturn STRICT JSON only: {"domain":"science","confidence":0.98,"overview":"2-5 sentence answer","reason":"brief routing reason"}.`;
 
     const response = await fetch(ENDPOINT, {
       method: 'POST',
@@ -111,7 +148,7 @@
           application: 'Infinity Phi',
           assistant: 'gpt',
           task: 'overview_teacher_watcher',
-          verified_context: { page: location.href, user_query: query, history_policy: 'current-query-wins' }
+          verified_context: { page: location.href, user_query: query, history_policy: 'current-query-wins', evidence_policy: 'live-sources-win' }
         }
       })
     });
@@ -126,10 +163,10 @@
     const query = queryText();
     if (!deck || !query) return;
     const overview = clean(deck.textContent, 1800);
-    const cards = evidenceCards();
+    const cards = sourceEvidence();
     if (!overview || /Searching live sources/i.test(overview) || !cards.length) return;
     const sig = signature(query, overview, cards);
-    if (sig === lastSignature || deck.dataset.gptOverview === '1') return;
+    if (sig === lastSignature || deck.dataset.gptOverviewSignature === sig) return;
 
     const domain = localDomain(query);
     busy = true;
@@ -146,8 +183,11 @@
         deck.textContent = revised;
         deck.dataset.gptOverview = '1';
         deck.dataset.gptDomain = teacherDomain;
+        const settledSignature = signature(query, revised, cards);
+        deck.dataset.gptOverviewSignature = settledSignature;
+        lastSignature = settledSignature;
       }
-      const event = { query, localDomain: domain, teacherDomain, confidence, originalOverview: overview, revisedOverview: revised, at: Date.now() };
+      const event = { query, localDomain: domain, teacherDomain, confidence, sourceCount: cards.length, originalOverview: overview, revisedOverview: revised, at: Date.now() };
       saveEvent(event);
       window.dispatchEvent(new CustomEvent('infinityphi:teacher-correction', { detail: event }));
       document.documentElement.dataset.infinityPhiOverviewTeacher = 'ready';
@@ -169,4 +209,6 @@
   observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
   window.addEventListener('focus', schedule);
   window.addEventListener('popstate', schedule);
+  window.addEventListener('infinityphi:media-cards-ready', schedule);
+  window.addEventListener('infinityphi:live-sources-ready', schedule);
 })();
