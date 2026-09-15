@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import PhiIntentShell from "@/components/PhiIntentShell";
-import { installPhiOmniSourceBridge } from "@/lib/phi-omni-source-bridge";
 
 const OMNI_RESEARCH = "omniPhi:lastResearch:v1";
 const OMNI_REACTIONS = "omniPhi:cardReactions:v1";
@@ -104,7 +103,7 @@ function collectInfinityRecord() {
     if (!key || seen.has(key)) return false;
     seen.add(key);
     return true;
-  }).slice(0, 20);
+  }).slice(0, 24);
 
   return {
     query,
@@ -145,6 +144,8 @@ function recordReaction(card: HTMLElement, action: string) {
     action,
     weight: weightFor(action),
     body,
+    atomRoute: card.dataset.atomRoute || "",
+    atomNucleus: card.dataset.atomNucleus || query,
     at: new Date().toISOString(),
     sourceSystem: "Infinity Phi",
   });
@@ -158,7 +159,7 @@ function relabelProviders(root: ParentNode = document) {
     if (!raw) return;
     const small = anchor.querySelector("small");
     const provider = providerFromUrl(raw);
-    if (small && provider) small.textContent = provider;
+    if (small && provider && small.textContent === "Wikipedia") small.textContent = provider;
     const cleanUrl = sanitizedUrl(raw);
     if (cleanUrl && cleanUrl !== raw) anchor.setAttribute("href", cleanUrl);
   });
@@ -193,10 +194,7 @@ function installInteractionBridge() {
 }
 
 export default function PhiUnifiedPage() {
-  if (typeof window !== "undefined") installPhiOmniSourceBridge();
-
   useEffect(() => {
-    installPhiOmniSourceBridge();
     installInteractionBridge();
     const refresh = () => {
       relabelProviders();
