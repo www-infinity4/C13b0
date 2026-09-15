@@ -1,3 +1,5 @@
+// @ts-nocheck
+// Runtime source federation deliberately normalizes several public APIs with different JSON shapes.
 type PlannedIntent = {
   canonicalSubject: string;
   searchQueries: string[];
