@@ -63,7 +63,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <Script src={`${base}/infinity-phi-media-v2.js?v=20260915-live-source3`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-image-feed.js?v=20260915-image-feed1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-copy-capture.js?v=20260914-copy-capture1`} strategy="afterInteractive" />
-        <Script src={`${base}/infinity-phi-share-preview.js?v=20260914-x-card1`} strategy="afterInteractive" />
+        <Script src={`${base}/infinity-phi-share-preview.js?v=20260915-clean-share2`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-runtime-repair.js?v=20260914-runtime-repair2`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-narrow-search.js?v=20260914-narrow1`} strategy="afterInteractive" />
       </body>
