@@ -9,7 +9,7 @@
     for (let i = 0; i < text.length; i += 1) h = ((h << 5) - h + text.charCodeAt(i)) | 0;
     return Math.abs(h || 1);
   };
-  const timeout = async (promise, ms = 6200) => {
+  const timeout = async (promise, ms = 3200) => {
     let timer;
     try {
       return await Promise.race([
@@ -56,7 +56,7 @@
   async function openAlex(query) {
     const url = new URL('https://api.openalex.org/works');
     url.search = new URLSearchParams({ search: query, 'per-page': '10' }).toString();
-    const response = await timeout(nativeFetch(url, { cache: 'no-store' }), 6000);
+    const response = await timeout(nativeFetch(url, { cache: 'no-store' }), 2600);
     if (!response.ok) return [];
     const data = await response.json();
     return (data.results || []).flatMap((work) => {
@@ -72,7 +72,7 @@
   async function nasa(query) {
     const url = new URL('https://images-api.nasa.gov/search');
     url.search = new URLSearchParams({ q: query, media_type: 'image', page_size: '12' }).toString();
-    const response = await timeout(nativeFetch(url, { cache: 'no-store' }), 6000);
+    const response = await timeout(nativeFetch(url, { cache: 'no-store' }), 2600);
     if (!response.ok) return [];
     const data = await response.json();
     return (data.collection?.items || []).flatMap((item) => {
@@ -95,7 +95,7 @@
   async function readArticle(target) {
     if (!/^https?:\/\//i.test(target)) return '';
     try {
-      const response = await timeout(nativeFetch(`https://r.jina.ai/${target}`, { cache: 'no-store', headers: { Accept: 'text/plain' } }), 6800);
+      const response = await timeout(nativeFetch(`https://r.jina.ai/${target}`, { cache: 'no-store', headers: { Accept: 'text/plain' } }), 1400);
       if (!response.ok) return '';
       const text = await response.text();
       return clean(text
@@ -112,14 +112,14 @@
   async function gdelt(query) {
     const url = new URL('https://api.gdeltproject.org/api/v2/doc/doc');
     url.search = new URLSearchParams({ query, mode: 'artlist', maxrecords: '10', format: 'json', sort: 'HybridRel' }).toString();
-    const response = await timeout(nativeFetch(url, { cache: 'no-store' }), 6500);
+    const response = await timeout(nativeFetch(url, { cache: 'no-store' }), 1800);
     if (!response.ok) return [];
     const data = await response.json();
     return (await Promise.all((data.articles || []).slice(0, 8).map(async (article, index) => {
       const target = clean(article.url, 1200);
       const title = clean(article.title, 220);
       if (!target || !title) return null;
-      const articleText = index < 4 ? await readArticle(target) : '';
+      const articleText = index < 2 ? await readArticle(target) : '';
       return {
         title,
         url: target,
@@ -132,14 +132,18 @@
 
   async function internetArchive(query) {
     const url = new URL('https://archive.org/advancedsearch.php');
-    url.search = new URLSearchParams({
-      q: query,
-      'fl[]': ['identifier', 'title', 'description', 'creator', 'date'],
-      rows: '10',
-      page: '1',
-      output: 'json'
-    }).toString();
-    const response = await timeout(nativeFetch(url, { cache: 'no-store' }), 6000);
+    const params = new URLSearchParams();
+    params.set('q', query);
+    params.append('fl[]', 'identifier');
+    params.append('fl[]', 'title');
+    params.append('fl[]', 'description');
+    params.append('fl[]', 'creator');
+    params.append('fl[]', 'date');
+    params.set('rows', '10');
+    params.set('page', '1');
+    params.set('output', 'json');
+    url.search = params.toString();
+    const response = await timeout(nativeFetch(url, { cache: 'no-store' }), 2600);
     if (!response.ok) return [];
     const data = await response.json();
     return (data.response?.docs || []).flatMap((doc) => {
@@ -189,33 +193,41 @@
     if (!isSearch) return nativeFetch(input, init);
 
     const query = parsed.searchParams.get('gsrsearch') || '';
-    const wikiPromise = nativeFetch(input, init).then(async (response) => ({ response, data: response.ok ? await response.clone().json().catch(() => ({})) : {} }));
-    const extraPromise = Promise.allSettled([openAlex(query), nasa(query), gdelt(query), internetArchive(query)]);
-
+    let wikiResponse;
     try {
-      const [{ response, data }, extraResults] = await Promise.all([wikiPromise, extraPromise]);
-      if (!response.ok) return response;
-      const wikipediaPages = Object.values(data?.query?.pages || {});
-      const extras = [];
-      extraResults.forEach((result) => {
-        if (result.status !== 'fulfilled') return;
-        (result.value || []).forEach((source, index) => {
-          const page = pseudoPage(source, extras.length + index);
-          if (page) extras.push(page);
-        });
-      });
-      const pages = pickDiverse(wikipediaPages, extras);
-      if (!pages.length) return response;
-      data.query = data.query || {};
-      data.query.pages = Object.fromEntries(pages.map((page, index) => [`multi_${index}`, page]));
-      const headers = new Headers(response.headers);
-      headers.delete('content-encoding');
-      headers.delete('content-length');
-      headers.set('content-type', 'application/json; charset=utf-8');
-      return new Response(JSON.stringify(data), { status: response.status, statusText: response.statusText, headers });
+      wikiResponse = await nativeFetch(input, init);
     } catch {
       return nativeFetch(input, init);
     }
+    if (!wikiResponse.ok) return wikiResponse;
+
+    let data;
+    try { data = await wikiResponse.clone().json(); } catch { return wikiResponse; }
+    let extraResults = [];
+    try {
+      extraResults = await timeout(Promise.allSettled([openAlex(query), nasa(query), gdelt(query), internetArchive(query)]), 3500);
+    } catch {
+      extraResults = [];
+    }
+
+    const wikipediaPages = Object.values(data?.query?.pages || {});
+    const extras = [];
+    extraResults.forEach((result) => {
+      if (result.status !== 'fulfilled') return;
+      (result.value || []).forEach((source, index) => {
+        const page = pseudoPage(source, extras.length + index);
+        if (page) extras.push(page);
+      });
+    });
+    const pages = pickDiverse(wikipediaPages, extras);
+    if (!pages.length) return wikiResponse;
+    data.query = data.query || {};
+    data.query.pages = Object.fromEntries(pages.map((page, index) => [`multi_${index}`, page]));
+    const headers = new Headers(wikiResponse.headers);
+    headers.delete('content-encoding');
+    headers.delete('content-length');
+    headers.set('content-type', 'application/json; charset=utf-8');
+    return new Response(JSON.stringify(data), { status: wikiResponse.status, statusText: wikiResponse.statusText, headers });
   }
 
   window.fetch = augmentedWikipediaFetch;
