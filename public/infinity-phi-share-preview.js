@@ -1,10 +1,10 @@
 (() => {
   "use strict";
 
-  // Keep the public URL on Infinity Phi. The old helper replaced the real card
-  // URL with a workers.dev preview URL, which made X/Twitter expose the worker
-  // address instead of the site and disconnected the share from the card page.
-  const PUBLIC_PHI_URL = "https://www-infinity4.github.io/Infinity-Phi/";
+  // Keep the public URL on the live Infinity Phi page. The old helper replaced
+  // the real card URL with a workers.dev preview URL, which made X/Twitter show
+  // the Cloudflare address instead of Infinity Phi.
+  const PUBLIC_PHI_URL = "https://www-infinity4.github.io/C13b0/phi";
 
   function clean(value, max = 1400) {
     return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
@@ -14,7 +14,7 @@
     try {
       const url = new URL(String(raw || ""), location.href);
       const path = url.pathname.replace(/\/+$/, "");
-      const isPhi = path.endsWith("/C13b0/phi") || path.endsWith("/phi") || path.endsWith("/Infinity-Phi");
+      const isPhi = path.endsWith("/C13b0/phi") || path.endsWith("/phi");
       return isPhi && url.searchParams.has("cardTitle") ? url : null;
     } catch {
       return null;
