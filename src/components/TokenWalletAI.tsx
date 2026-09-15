@@ -71,6 +71,29 @@ export default function TokenWalletAI() {
     };
   }, []);
 
+  useEffect(() => {
+    // The global shell button normally lives at the upper-left. On the wallet it
+    // sat on top of the AI wallet heading, so keep it floating clear of content.
+    const button = document.querySelector<HTMLButtonElement>('button[aria-label="Open Infinity Phi menu"]');
+    if (!button) return;
+    const previous = {
+      left: button.style.left,
+      right: button.style.right,
+      top: button.style.top,
+      bottom: button.style.bottom,
+    };
+    button.style.left = "auto";
+    button.style.right = "1rem";
+    button.style.top = "auto";
+    button.style.bottom = "1rem";
+    return () => {
+      button.style.left = previous.left;
+      button.style.right = previous.right;
+      button.style.top = previous.top;
+      button.style.bottom = previous.bottom;
+    };
+  }, []);
+
   function workingQuery() {
     return request.trim() || selectedTokenId();
   }
