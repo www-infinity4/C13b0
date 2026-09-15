@@ -45,6 +45,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className="scroll-smooth">
       <body className="min-h-screen antialiased" style={{ background: "var(--background)" }}>
+        <Script src={`${base}/infinity-phi-multisource.js?v=20260915-1`} strategy="beforeInteractive" />
         <PhiFetchGuard />
         <AppRuntime />
         <OpenSourceUsageRuntime />
