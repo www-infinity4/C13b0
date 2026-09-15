@@ -53,7 +53,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <Script src="https://www-infinity4.github.io/Mint-For-Infinity/unified-wallet.js?v=20260831-game-rewards1" strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-gpt.js?v=20260913-1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-overview-teacher.js?v=20260914-overview-teacher1`} strategy="afterInteractive" />
-        <Script src={`${base}/infinity-phi-card-gpt.js?v=20260914-gpt-cards1`} strategy="afterInteractive" />
+        <Script src={`${base}/infinity-phi-card-gpt.js?v=20260914-atom-cards2`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-card-tools.js?v=20260914-card-tools2`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-copy-capture.js?v=20260914-copy-capture1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-share-preview.js?v=20260914-x-card1`} strategy="afterInteractive" />
