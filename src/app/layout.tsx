@@ -8,7 +8,6 @@ import "./phi-front-center.css";
 import "./open-source-credits.css";
 import SiteChrome from "@/components/SiteChrome";
 import AppRuntime from "@/components/AppRuntime";
-import PhiFetchGuard from "@/components/PhiFetchGuard";
 import OpenSourceBuildCredits from "@/components/OpenSourceBuildCredits";
 import OpenSourceUsageRuntime from "@/components/OpenSourceUsageRuntime";
 import { appBase } from "@/lib/base-path";
@@ -45,9 +44,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className="scroll-smooth">
       <body className="min-h-screen antialiased" style={{ background: "var(--background)" }}>
-        <Script src={`${base}/infinity-phi-search-core-v4.js?v=20260915-search4`} strategy="beforeInteractive" />
-        <Script src={`${base}/infinity-phi-official-source-seeds.js?v=20260915-official2`} strategy="beforeInteractive" />
-        <PhiFetchGuard />
+        <Script src={`${base}/infinity-phi-search-core-v5.js?v=20260915-search5`} strategy="beforeInteractive" />
         <AppRuntime />
         <OpenSourceUsageRuntime />
         <SiteChrome>{children}</SiteChrome>
