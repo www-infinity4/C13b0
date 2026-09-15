@@ -19,6 +19,8 @@
       }
     ],
     "paths": {
+      "@/lib/phi-search-filters": ["./src/lib/phi-search-filters-fixed.ts"],
+      "@/lib/phi-semantic-expansion": ["./src/lib/phi-semantic-expansion-fixed.ts"],
       "@/*": ["./src/*"]
     }
   },
