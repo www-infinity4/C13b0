@@ -45,9 +45,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className="scroll-smooth">
       <body className="min-h-screen antialiased" style={{ background: "var(--background)" }}>
-        <Script src={`${base}/infinity-phi-multisource.js?v=20260915-3`} strategy="beforeInteractive" />
-        <Script src={`${base}/infinity-phi-search-intelligence.js?v=20260915-intent1`} strategy="beforeInteractive" />
-        <Script src={`${base}/infinity-phi-live-source-search-v3.js?v=20260915-live3`} strategy="beforeInteractive" />
+        <Script src={`${base}/infinity-phi-search-core-v4.js?v=20260915-search4`} strategy="beforeInteractive" />
         <Script src={`${base}/infinity-phi-official-source-seeds.js?v=20260915-official2`} strategy="beforeInteractive" />
         <PhiFetchGuard />
         <AppRuntime />
@@ -65,7 +63,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <Script src={`${base}/infinity-phi-copy-capture.js?v=20260914-copy-capture1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-share-preview.js?v=20260915-clean-share2`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-runtime-repair.js?v=20260914-runtime-repair2`} strategy="afterInteractive" />
-        <Script src={`${base}/infinity-phi-narrow-search.js?v=20260914-narrow1`} strategy="afterInteractive" />
       </body>
     </html>
   );
