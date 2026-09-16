@@ -22,7 +22,8 @@ type RetrievedSource = PhiRetrievedSource & { imageUrl?: string };
 
 const NEWS_PHI_URL = "https://www-infinity4.github.io/News-Phi/";
 const OMNI_PHI_URL = "https://www-infinity4.github.io/Omni-Phi/";
-const FIRST_RESULT_ENRICHMENT_MS = 1800;
+const FIRST_RESULT_BASE_MS = 1800;
+const FIRST_RESULT_ENRICHMENT_MS = 1500;
 
 function sourceKey(source: RetrievedSource) {
   return String(source.url || `${source.provider}:${source.title}`).trim().toLowerCase();
@@ -87,7 +88,7 @@ async function gatherSharedSources(searxEndpoint: string, query: string): Promis
     searchOmniBrowserSources(query, 20) as Promise<PhiOmniSource[]>,
   ];
   if (searxEndpoint) {
-    jobs.push(within(searchSearxng(searxEndpoint, query, 18), 1500, []));
+    jobs.push(within(searchSearxng(searxEndpoint, query, 18), 1400, []));
   }
 
   const batches = await Promise.allSettled(jobs);
@@ -117,11 +118,11 @@ async function gatherSharedSources(searxEndpoint: string, query: string): Promis
  * SearXNG when Control Phi has configured it. Infinity's own source gate and
  * semantic card ranking remain in charge after retrieval.
  *
- * Omni enrichment has a deliberately short first-result budget. The page's
- * research pass also runs DuckDuckGo/Crossref after this request, so allowing
- * enrichment to consume several seconds here can make the outer search timeout
- * win before React commits the finished result. Fast Omni records are merged;
- * slower providers are allowed to miss this first pass instead of blocking it.
+ * Both halves of this intercepted request have short first-result budgets.
+ * PhiPage2 performs additional public-provider work after Wikipedia, so this
+ * bridge must never consume most of that outer 7.5 second search window. Fast
+ * base/Omni records are merged; slow providers miss only this first pass rather
+ * than preventing the result document from being committed at all.
  */
 export default function PhiSearchRouteGuard() {
   useLayoutEffect(() => {
@@ -161,13 +162,18 @@ export default function PhiSearchRouteGuard() {
         const query = parsed.searchParams.get("gsrsearch")?.trim() || "";
         if (!query) return upstreamFetch(input, init);
 
-        const [baseResult, sharedResult] = await Promise.allSettled([
+        const basePromise = within<Response | null>(
           upstreamFetch(input, init),
-          within(gatherSharedSources(searxEndpoint, query), FIRST_RESULT_ENRICHMENT_MS, []),
-        ]);
+          FIRST_RESULT_BASE_MS,
+          null,
+        );
+        const sharedPromise = within<RetrievedSource[]>(
+          gatherSharedSources(searxEndpoint, query),
+          FIRST_RESULT_ENRICHMENT_MS,
+          [],
+        );
+        const [baseResponse, sharedSources] = await Promise.all([basePromise, sharedPromise]);
 
-        const baseResponse = baseResult.status === "fulfilled" ? baseResult.value : null;
-        const sharedSources = sharedResult.status === "fulfilled" ? sharedResult.value : [];
         if (!sharedSources.length) {
           if (baseResponse) return baseResponse;
           return new Response(JSON.stringify({ query: { pages: {} } }), {
