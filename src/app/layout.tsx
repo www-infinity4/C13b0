@@ -44,7 +44,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className="scroll-smooth">
       <body className="min-h-screen antialiased" style={{ background: "var(--background)" }}>
-        <Script src={`${base}/infinity-phi-search-core-v7.js?v=20260915-search7`} strategy="beforeInteractive" />
+        <Script src={`${base}/infinity-phi-search-core-v8.js?v=20260915-search8-fastnews1`} strategy="beforeInteractive" />
         <AppRuntime />
         <OpenSourceUsageRuntime />
         <SiteChrome>{children}</SiteChrome>
