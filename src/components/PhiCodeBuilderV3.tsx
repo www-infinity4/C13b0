@@ -51,6 +51,8 @@ export default function PhiCodeBuilderV3() {
   const [revisions, setRevisions] = useState<string[]>([]);
   const [html, setHtml] = useState("");
   const [building, setBuilding] = useState(false);
+  const [editingRevision, setEditingRevision] = useState(false);
+  const [previewRevision, setPreviewRevision] = useState(0);
   const [status, setStatus] = useState("Preparing Code Phi…");
   const [snapshots, setSnapshots] = useState<PhiCodeToolSnapshot[]>([]);
   const [events, setEvents] = useState<PhiCodeWatchEvent[]>([]);
@@ -108,7 +110,11 @@ export default function PhiCodeBuilderV3() {
       setHtml(result.html);
       setSummary(result.summary);
       setPendingSuccessRun(runId);
-      setStatus("Artifact generated. Verifying the live iframe now…");
+      setPreviewRevision((value) => value + 1);
+      // Do not keep the revision controls locked while the iframe verifies.
+      // The iframe is a preview, not a gate that is allowed to freeze editing.
+      setBuilding(false);
+      setStatus("Artifact generated. Preview verification is running; the revision box is ready now.");
     } catch (error) {
       if (serial !== buildSerial.current) return;
       const message = error instanceof Error ? error.message : "Code Phi build failed";
@@ -147,7 +153,6 @@ export default function PhiCodeBuilderV3() {
     });
     learnPhiCodePlaybook(pendingSuccessRun, fullRequest);
     setPendingSuccessRun("");
-    setBuilding(false);
     setStatus("Verified. This run is now documented as a reusable Code Phi playbook.");
   }
 
@@ -158,11 +163,13 @@ export default function PhiCodeBuilderV3() {
     const nextRevisions = [...revisions, next];
     setRevisions(nextRevisions);
     setRevision("");
+    setEditingRevision(false);
     await runBuild(prompt, nextRevisions, html);
   }
 
   function retry() {
     if (building) return;
+    setEditingRevision(false);
     void runBuild(prompt, revisions, html);
   }
 
@@ -240,7 +247,14 @@ export default function PhiCodeBuilderV3() {
 
           <form className={styles.iterate} onSubmit={iterate}>
             <label htmlFor="phi-code-revision">Tell GPT what to change next</label>
-            <textarea id="phi-code-revision" value={revision} onChange={(event) => setRevision(event.target.value)} placeholder="Add a feature, change behavior, use another indexed tool…" />
+            <textarea
+              id="phi-code-revision"
+              value={revision}
+              onChange={(event) => setRevision(event.target.value)}
+              onFocus={() => setEditingRevision(true)}
+              onBlur={() => setEditingRevision(false)}
+              placeholder="Add a feature, change behavior, use another indexed tool…"
+            />
             <button disabled={building || !revision.trim()}>{building ? "Building with tools…" : "Run next AI iteration"}</button>
           </form>
 
@@ -254,13 +268,33 @@ export default function PhiCodeBuilderV3() {
         </aside>
 
         <section className={styles.preview}>
-          <div className={styles.previewTop}><b>Live artifact</b><span>{building ? "GPT/tool pass in progress" : "verified iframe preview"}</span></div>
-          <iframe
-            title="Code Phi generated preview"
-            sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"
-            srcDoc={html || fallbackArtifact(prompt)}
-            onLoad={verifyPreviewLoaded}
-          />
+          <div className={styles.previewTop}><b>Live artifact</b><span>{editingRevision ? "preview paused while editing" : building ? "GPT/tool pass in progress" : "verified iframe preview"}</span></div>
+          {editingRevision ? (
+            <div
+              role="status"
+              style={{
+                display: "grid",
+                placeItems: "center",
+                minHeight: "55dvh",
+                padding: 24,
+                borderRadius: "0 0 15px 15px",
+                background: "#071521",
+                color: "#b9cbd5",
+                textAlign: "center",
+                lineHeight: 1.5,
+              }}
+            >
+              Preview paused while you type so generated page scripts cannot interfere with the Code Phi editor. It resumes when you leave the box or run the next iteration.
+            </div>
+          ) : (
+            <iframe
+              key={`phi-code-preview-${previewRevision}`}
+              title="Code Phi generated preview"
+              sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"
+              srcDoc={html || fallbackArtifact(prompt)}
+              onLoad={verifyPreviewLoaded}
+            />
+          )}
         </section>
       </section>
     </main>
