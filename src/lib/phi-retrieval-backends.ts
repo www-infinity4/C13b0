@@ -82,14 +82,23 @@ export async function searchSearxng(endpoint: string, query: string, limit = 12)
   const base = endpoint.trim().replace(/\/$/, "");
   if (!base || !query.trim()) return [];
   const url = `${base}/search?${new URLSearchParams({ q: query.trim(), format: "json" }).toString()}`;
-  const response = await fetch(url, { cache: "no-store" });
-  if (!response.ok) throw new Error(`SearXNG search failed (${response.status})`);
-  const payload = await response.json();
-  return (Array.isArray(payload?.results) ? payload.results : []).slice(0, limit).flatMap((result: any) => {
-    const title = String(result?.title || "").trim();
-    const target = String(result?.url || "").trim();
-    const excerpt = String(result?.content || result?.snippet || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-    if (!title || !target || !excerpt) return [];
-    return [{ title, url: target, excerpt, provider: "SearXNG" }];
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3200);
+  try {
+    const response = await fetch(url, { cache: "no-store", signal: controller.signal });
+    if (!response.ok) throw new Error(`SearXNG search failed (${response.status})`);
+    const payload = await response.json();
+    return (Array.isArray(payload?.results) ? payload.results : []).slice(0, limit).flatMap((result: any) => {
+      const title = String(result?.title || "").trim();
+      const target = String(result?.url || "").trim();
+      const excerpt = String(result?.content || result?.snippet || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      if (!title || !target || !excerpt) return [];
+      return [{ title, url: target, excerpt, provider: "SearXNG" }];
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") return [];
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
