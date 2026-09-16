@@ -94,7 +94,9 @@
 }
 
 .modeButton:hover,
-.modeButton:focus-visible {
+.modeButton:focus-visible,
+.familyButton:hover,
+.familyButton:focus-visible {
   transform: translateY(-1px);
   filter: brightness(1.08);
   outline: 2px solid rgba(255,255,255,.86);
@@ -117,8 +119,42 @@
   background: linear-gradient(145deg, #438fe7, #2169bd);
 }
 
-.searchBar {
+.familySwitch {
   order: 2;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  width: min(430px, 70%);
+  margin: 0 auto;
+}
+
+.familyButton {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 12px;
+  border: 1px solid rgba(255,255,255,.5);
+  border-radius: 999px;
+  color: #fff;
+  font-size: clamp(.78rem, 2vw, .9rem);
+  font-weight: 900;
+  letter-spacing: .025em;
+  text-decoration: none;
+  box-shadow: 0 8px 20px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.24);
+  transition: transform .15s ease, filter .15s ease;
+}
+
+.newsMode {
+  background: linear-gradient(145deg, #df4d82, #8f225e);
+}
+
+.omniMode {
+  background: linear-gradient(145deg, #8d58ee, #4f2aa9);
+}
+
+.searchBar {
+  order: 3;
   width: 100%;
   min-height: 74px;
   display: flex;
@@ -229,6 +265,15 @@
     padding: 7px 6px;
     font-size: .82rem;
   }
+  .familySwitch {
+    width: 78%;
+    gap: 6px;
+  }
+  .familyButton {
+    min-height: 36px;
+    padding: 6px 8px;
+    font-size: .78rem;
+  }
   .searchBar {
     min-height: 68px;
     gap: 8px;
@@ -261,6 +306,14 @@
     min-height: 39px;
     padding: 6px 4px;
     font-size: .76rem;
+  }
+  .familySwitch {
+    width: 82%;
+    gap: 5px;
+  }
+  .familyButton {
+    min-height: 34px;
+    font-size: .74rem;
   }
   .searchBar {
     min-height: 64px;
