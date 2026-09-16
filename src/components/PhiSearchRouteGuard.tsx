@@ -20,6 +20,9 @@ type PhiSearchWindow = Window & {
 
 type RetrievedSource = PhiRetrievedSource & { imageUrl?: string };
 
+const NEWS_PHI_URL = "https://www-infinity4.github.io/News-Phi/";
+const OMNI_PHI_URL = "https://www-infinity4.github.io/Omni-Phi/";
+
 function sourceKey(source: RetrievedSource) {
   return String(source.url || `${source.provider}:${source.title}`).trim().toLowerCase();
 }
@@ -102,18 +105,16 @@ async function gatherSharedSources(searxEndpoint: string, query: string): Promis
 }
 
 /**
- * Search Phi is a static GitHub Pages app, so search execution must not depend
- * on a second Pages navigation after the shell is already loaded. Next.js
- * patches history.pushState/replaceState; for q/run search updates we bypass
- * that router patch with the browser's native History methods. PhiIntentShell
- * already remounts PhiPage2 after each search, and PhiPage2 reads the updated
- * query string, so the search runs immediately without a reload or 404 window.
+ * Search Phi is a static GitHub Pages app. Once a document is loaded, every
+ * search stays on that exact pathname and only changes q/run in the query
+ * string. That prevents a mounted root document from masquerading as /phi/
+ * (or vice versa), which can make the Next router eventually request a static
+ * route and show a delayed GitHub Pages 404.
  *
- * The same guard also feeds Infinity Phi from the public multi-source provider
+ * The same guard feeds Infinity Phi from the public multi-source provider
  * family used by Omni Phi (OpenAlex, NASA, GDELT and Internet Archive), plus
- * SearXNG when Control Phi has configured it. Those records are merged into the
- * Wikipedia-shaped stream PhiPage2 already understands. Infinity's own source
- * gate and semantic card ranking remain in charge after retrieval.
+ * SearXNG when Control Phi has configured it. Infinity's own source gate and
+ * semantic card ranking remain in charge after retrieval.
  */
 export default function PhiSearchRouteGuard() {
   useLayoutEffect(() => {
@@ -191,7 +192,6 @@ export default function PhiSearchRouteGuard() {
       try {
         const target = new URL(String(url), window.location.href);
         return target.origin === window.location.origin
-          && /\/phi\/?$/.test(target.pathname)
           && target.searchParams.has("q")
           && target.searchParams.get("run") === "1";
       } catch {
@@ -199,9 +199,16 @@ export default function PhiSearchRouteGuard() {
       }
     };
 
+    const pinnedSearchUrl = (url: string | URL) => {
+      const target = new URL(String(url), window.location.href);
+      target.pathname = window.location.pathname;
+      target.hash = "";
+      return target.toString();
+    };
+
     history.pushState = function guardedPushState(data: unknown, unused: string, url?: string | URL | null) {
       if (isInfinitySearch(data, url) && url) {
-        nativePushState.call(history, data, unused, url);
+        nativePushState.call(history, data, unused, pinnedSearchUrl(url));
         return;
       }
       return frameworkPushState(data, unused, url);
@@ -209,7 +216,7 @@ export default function PhiSearchRouteGuard() {
 
     history.replaceState = function guardedReplaceState(data: unknown, unused: string, url?: string | URL | null) {
       if (isInfinitySearch(data, url) && url) {
-        nativeReplaceState.call(history, data, unused, url);
+        nativeReplaceState.call(history, data, unused, pinnedSearchUrl(url));
         return;
       }
       return frameworkReplaceState(data, unused, url);
@@ -225,5 +232,23 @@ export default function PhiSearchRouteGuard() {
     };
   }, []);
 
-  return <PhiUnifiedPage />;
+  return (
+    <>
+      <nav className="fixed right-3 top-[max(.7rem,env(safe-area-inset-top))] z-[65] flex gap-2" aria-label="Phi family">
+        <a
+          href={NEWS_PHI_URL}
+          className="rounded-full border border-white/30 bg-[#a92f68]/95 px-3 py-2 text-xs font-black text-white shadow-lg backdrop-blur"
+        >
+          News Phi
+        </a>
+        <a
+          href={OMNI_PHI_URL}
+          className="rounded-full border border-white/30 bg-[#6840bd]/95 px-3 py-2 text-xs font-black text-white shadow-lg backdrop-blur"
+        >
+          Omni Phi
+        </a>
+      </nav>
+      <PhiUnifiedPage />
+    </>
+  );
 }
