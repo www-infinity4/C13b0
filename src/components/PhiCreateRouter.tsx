@@ -29,15 +29,26 @@ export default function PhiCreateRouter(){
     setRoute({kind,tools});
   },[]);
 
+  const status=(
+    <section style={{width:"min(920px,calc(100% - 28px))",margin:"14px auto",padding:"14px 16px",border:"1px solid rgba(169,116,255,.45)",borderRadius:16,background:"rgba(24,13,43,.94)",color:"white",fontFamily:"system-ui,sans-serif"}}>
+      <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:"8px 12px"}}>
+        <strong style={{color:"#c89cff",letterSpacing:".08em"}}>CREATE PHI</strong>
+        <span style={{color:"#d7cde6",fontSize:13}}>{route.kind==="loading"?"Selecting the right skills and tools…":route.kind==="sheet"?"Spreadsheet/data maker selected":"Creation maker selected"}</span>
+      </div>
+      {route.tools.length?<div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:10}}>{route.tools.map((tool)=><span key={tool} style={{padding:"5px 8px",borderRadius:999,border:"1px solid rgba(200,156,255,.35)",background:"rgba(103,59,142,.25)",fontSize:12}}>{tool}</span>)}</div>:null}
+    </section>
+  );
+
   if(route.kind==="loading")return (
-    <main style={{minHeight:"70vh",display:"grid",placeItems:"center",padding:"32px 18px",background:"#080515",color:"white"}}>
-      <section style={{width:"min(680px,100%)",padding:"26px",border:"1px solid rgba(169,116,255,.45)",borderRadius:22,background:"rgba(24,13,43,.88)"}}>
-        <small style={{fontWeight:900,letterSpacing:".12em",color:"#c89cff"}}>CREATE PHI</small>
-        <h1 style={{margin:"10px 0 8px",fontSize:"clamp(28px,7vw,46px)"}}>Selecting the right skills and tools…</h1>
-        <p style={{margin:0,color:"#d7cde6",lineHeight:1.6}}>Create Phi is routing this request through the shared Infinity capability index before opening the maker.</p>
-      </section>
+    <main style={{minHeight:"70vh",padding:"28px 0",background:"#080515"}}>
+      {status}
     </main>
   );
 
-  return route.kind==="sheet"?<PhiSpreadsheetCreatorV2/>:<PhiCreatorV2/>;
+  return (
+    <main style={{minHeight:"100dvh",background:"#080515"}}>
+      {status}
+      {route.kind==="sheet"?<PhiSpreadsheetCreatorV2/>:<PhiCreatorV2/>}
+    </main>
+  );
 }
