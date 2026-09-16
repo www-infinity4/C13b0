@@ -43,6 +43,7 @@ jobs:
         run: npm run build
         env:
           GITHUB_PAGES: true
+          NEXT_PUBLIC_PHI_SEARXNG_URL: ${{ vars.PHI_SEARXNG_URL }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
