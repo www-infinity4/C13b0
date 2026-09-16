@@ -156,6 +156,7 @@ export default function PhiIntentShell() {
   const [focused, setFocused] = useState(false);
   const [hasContext, setHasContext] = useState(false);
   const [contextReady, setContextReady] = useState(false);
+  const [searchRevision, setSearchRevision] = useState(0);
   const clickPathRef = useRef<ClickPath[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -205,7 +206,17 @@ export default function PhiIntentShell() {
   function goSearch(value: string) {
     const next = clean(value);
     if (!next) return;
-    window.location.assign(`${appPath("phi")}?q=${encodeURIComponent(next)}&run=1`);
+    const target = new URL(location.href);
+    target.pathname = appPath("phi");
+    target.search = "";
+    target.searchParams.set("q", next);
+    target.searchParams.set("run", "1");
+    target.hash = "";
+    window.history.pushState({ infinityPhiSearch: next }, "", target.toString());
+    setQuery(next);
+    setFocused(false);
+    setHasContext(true);
+    setSearchRevision((revision) => revision + 1);
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -327,7 +338,7 @@ export default function PhiIntentShell() {
         </section>
       )}
 
-      <PhiPage2 />
+      <PhiPage2 key={searchRevision} />
       <footer className={styles.chatFooter}>Built with ChatGPT</footer>
     </div>
   );
