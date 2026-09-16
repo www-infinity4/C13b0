@@ -22,6 +22,7 @@ type RetrievedSource = PhiRetrievedSource & { imageUrl?: string };
 
 const NEWS_PHI_URL = "https://www-infinity4.github.io/News-Phi/";
 const OMNI_PHI_URL = "https://www-infinity4.github.io/Omni-Phi/";
+const FIRST_RESULT_ENRICHMENT_MS = 1800;
 
 function sourceKey(source: RetrievedSource) {
   return String(source.url || `${source.provider}:${source.title}`).trim().toLowerCase();
@@ -86,7 +87,7 @@ async function gatherSharedSources(searxEndpoint: string, query: string): Promis
     searchOmniBrowserSources(query, 20) as Promise<PhiOmniSource[]>,
   ];
   if (searxEndpoint) {
-    jobs.push(within(searchSearxng(searxEndpoint, query, 18), 3200, []));
+    jobs.push(within(searchSearxng(searxEndpoint, query, 18), 1500, []));
   }
 
   const batches = await Promise.allSettled(jobs);
@@ -115,6 +116,12 @@ async function gatherSharedSources(searxEndpoint: string, query: string): Promis
  * family used by Omni Phi (OpenAlex, NASA, GDELT and Internet Archive), plus
  * SearXNG when Control Phi has configured it. Infinity's own source gate and
  * semantic card ranking remain in charge after retrieval.
+ *
+ * Omni enrichment has a deliberately short first-result budget. The page's
+ * research pass also runs DuckDuckGo/Crossref after this request, so allowing
+ * enrichment to consume several seconds here can make the outer search timeout
+ * win before React commits the finished result. Fast Omni records are merged;
+ * slower providers are allowed to miss this first pass instead of blocking it.
  */
 export default function PhiSearchRouteGuard() {
   useLayoutEffect(() => {
@@ -156,7 +163,7 @@ export default function PhiSearchRouteGuard() {
 
         const [baseResult, sharedResult] = await Promise.allSettled([
           upstreamFetch(input, init),
-          within(gatherSharedSources(searxEndpoint, query), 3900, []),
+          within(gatherSharedSources(searxEndpoint, query), FIRST_RESULT_ENRICHMENT_MS, []),
         ]);
 
         const baseResponse = baseResult.status === "fulfilled" ? baseResult.value : null;
