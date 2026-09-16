@@ -13,7 +13,7 @@ import OpenSourceUsageRuntime from "@/components/OpenSourceUsageRuntime";
 import { appBase } from "@/lib/base-path";
 
 const siteUrl = "https://www-infinity4.github.io/C13b0/";
-const phiPreview = `${siteUrl}infinity-phi-share.png?v=20260908-phi-share-1`;
+const phiPreview = `${siteUrl}infinity-phi-share.png?v=20260915-phi-share-2`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -44,7 +44,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className="scroll-smooth">
       <body className="min-h-screen antialiased" style={{ background: "var(--background)" }}>
-        <Script src={`${base}/infinity-phi-search-core-v6.js?v=20260915-search6`} strategy="beforeInteractive" />
+        <Script src={`${base}/infinity-phi-search-core-v7.js?v=20260915-search7`} strategy="beforeInteractive" />
         <AppRuntime />
         <OpenSourceUsageRuntime />
         <SiteChrome>{children}</SiteChrome>
@@ -54,12 +54,14 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <Script src={`${base}/infinity-phi-tool-registry.js?v=20260915-media1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-gpt.js?v=20260913-1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-overview-teacher.js?v=20260915-overview-live2`} strategy="afterInteractive" />
+        <Script src={`${base}/infinity-phi-card-gpt.js?v=20260915-card-gpt2`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-card-tools.js?v=20260914-card-tools2`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-media-v2.js?v=20260915-live-source3`} strategy="afterInteractive" />
-        <Script src={`${base}/infinity-phi-image-feed.js?v=20260915-image-feed1`} strategy="afterInteractive" />
+        <Script src={`${base}/infinity-phi-image-feed-v2.js?v=20260915-image-feed2`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-copy-capture.js?v=20260914-copy-capture1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-share-preview.js?v=20260915-clean-share2`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-runtime-repair.js?v=20260914-runtime-repair2`} strategy="afterInteractive" />
+        <Script src={`${base}/infinity-phi-exact-card-share.js?v=20260915-exact-card-share1`} strategy="afterInteractive" />
       </body>
     </html>
   );
