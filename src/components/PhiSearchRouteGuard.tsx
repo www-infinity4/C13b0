@@ -4,7 +4,7 @@ import { useLayoutEffect } from "react";
 import PhiUnifiedPage from "@/components/PhiUnifiedPage";
 import {
   configuredRetrievalBackends,
-  PHI_RETRIEVAL_ENDPOINTS,
+  runtimeRetrievalEndpoints,
   searchSearxng,
   type PhiRetrievedSource,
 } from "@/lib/phi-retrieval-backends";
@@ -52,10 +52,11 @@ function mergeSearxIntoWikipedia(payload: any, sources: PhiRetrievedSource[]) {
  * string. PhiPage2 already reads those params on mount and starts the search.
  *
  * This guard also connects the typed retrieval registry to the live search
- * stream. When NEXT_PUBLIC_PHI_SEARXNG_URL is configured, SearXNG runs beside
- * the existing v9/Wikipedia/DDG/Crossref providers and its results are merged
- * into the Wikipedia-shaped response PhiPage2 already consumes. If SearXNG is
- * absent or fails, the existing providers continue normally.
+ * stream. When SearXNG is configured either by the Pages build or the shared
+ * Control/News Phi browser config, SearXNG runs beside the existing
+ * v9/Wikipedia/DDG/Crossref providers and its results are merged into the
+ * Wikipedia-shaped response PhiPage2 already consumes. If SearXNG is absent
+ * or fails, the existing providers continue normally.
  */
 export default function PhiSearchRouteGuard() {
   useLayoutEffect(() => {
@@ -63,10 +64,11 @@ export default function PhiSearchRouteGuard() {
     const frameworkPushState = history.pushState.bind(history);
     const frameworkReplaceState = history.replaceState.bind(history);
     const trackedWindow = window as PhiSearchWindow;
+    const endpoints = runtimeRetrievalEndpoints();
 
-    trackedWindow.__phiConfiguredRetrievalBackends = configuredRetrievalBackends(PHI_RETRIEVAL_ENDPOINTS).map((backend) => backend.id);
+    trackedWindow.__phiConfiguredRetrievalBackends = configuredRetrievalBackends(endpoints).map((backend) => backend.id);
 
-    const searxEndpoint = PHI_RETRIEVAL_ENDPOINTS.searxng?.trim() || "";
+    const searxEndpoint = endpoints.searxng?.trim() || "";
     const upstreamFetch = window.fetch.bind(window);
     let installedFetch: typeof window.fetch | null = null;
 
