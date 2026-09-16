@@ -6,7 +6,9 @@ import PhiIntentShell from "@/components/PhiIntentShell";
 const OMNI_RESEARCH = "omniPhi:lastResearch:v1";
 const OMNI_REACTIONS = "omniPhi:cardReactions:v1";
 const SHARED_COLLECTION = "phiShared:collection:v1";
+const INTEREST_SIGNALS = "phiShared:interestSignals:v1";
 const NEWS_PHI_URL = "https://www-infinity4.github.io/News-Phi/";
+const activeNewsBuilds = new Map<string, { frame: HTMLIFrameElement; cleanup: () => void }>();
 
 function clean(value: unknown, max = 3200) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
@@ -45,7 +47,7 @@ function cardKey(title: string, url = "") {
 }
 
 function weightFor(action: string) {
-  return ({ share: 6, collect: 5, "build-story": 5, "build-similar": 5, read: 4, open: 3, inspect: 2 } as Record<string, number>)[action] || 2;
+  return ({ share: 6, collect: 5, "build-story": 5, "build-more-news": 5, read: 4, open: 3, inspect: 2 } as Record<string, number>)[action] || 2;
 }
 
 function currentQuery() {
@@ -78,6 +80,8 @@ function recordFromOrangeCard(card: HTMLElement) {
     collectedFrom: "Infinity Phi",
   };
 }
+
+type OrangeRecord = ReturnType<typeof recordFromOrangeCard>;
 
 function collectInfinityRecord() {
   const query = currentQuery();
@@ -138,13 +142,25 @@ function saveOmniRecord() {
   return record;
 }
 
-function saveSharedCard(card: ReturnType<typeof recordFromOrangeCard>) {
-  let shared: ReturnType<typeof recordFromOrangeCard>[] = [];
+function sharedCards(): OrangeRecord[] {
   try {
     const parsed = JSON.parse(localStorage.getItem(SHARED_COLLECTION) || "[]");
-    shared = Array.isArray(parsed) ? parsed : [];
-  } catch {}
-  const key = card.storyKey || card.url || card.id;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+function sharedKey(card: OrangeRecord) {
+  return card.storyKey || card.url || card.id;
+}
+
+function isCollected(card: OrangeRecord) {
+  const key = sharedKey(card);
+  return sharedCards().some((item) => (item.storyKey || item.url || item.id) === key);
+}
+
+function saveSharedCard(card: OrangeRecord) {
+  const shared = sharedCards();
+  const key = sharedKey(card);
   const existing = shared.findIndex((item) => (item.storyKey || item.url || item.id) === key);
   if (existing >= 0) shared[existing] = { ...shared[existing], ...card, collectedAt: new Date().toISOString() };
   else shared.unshift(card);
@@ -154,10 +170,41 @@ function saveSharedCard(card: ReturnType<typeof recordFromOrangeCard>) {
   return card;
 }
 
-function newsPhiUrl(card: ReturnType<typeof recordFromOrangeCard>, buildSimilar = false) {
+function saveInterestSignal(card: OrangeRecord, action: "collect" | "build-more-news") {
+  let signals: any[] = [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(INTEREST_SIGNALS) || "[]");
+    signals = Array.isArray(parsed) ? parsed : [];
+  } catch {}
+  const key = sharedKey(card);
+  const prior = signals.find((item) => item?.topicKey === key);
+  const next = {
+    ...(prior || {}),
+    id: prior?.id || `infinity-interest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+    kind: "search",
+    sourceAction: action,
+    topicKey: key,
+    title: card.title,
+    program: card.title,
+    query: clean(`${card.title} ${card.searchQuery} ${card.extract}`, 1200),
+    url: card.url,
+    image: card.image,
+    domain: card.domain,
+    hits: Math.max(1, Number(prior?.hits || 0) + 1),
+    collectedAt: card.collectedAt,
+    lastAt: Date.now(),
+    source: "Infinity Phi collect",
+  };
+  const filtered = signals.filter((item) => item?.topicKey !== key);
+  try { localStorage.setItem(INTEREST_SIGNALS, JSON.stringify([next, ...filtered].slice(0, 500))); } catch {}
+  window.dispatchEvent(new CustomEvent("newsphi:interest", { detail: next }));
+}
+
+function newsPhiUrl(card: OrangeRecord, buildSimilar = false) {
   const params = new URLSearchParams({
     collect: "1",
     from: "infinity-phi",
+    background: "1",
     sharedTitle: card.sourceTitle || card.title || "Collected Infinity Phi card",
     sharedBody: String(card.sourceExtract || card.extract || "").slice(0, 1800),
     sharedUrl: card.url || "",
@@ -166,26 +213,75 @@ function newsPhiUrl(card: ReturnType<typeof recordFromOrangeCard>, buildSimilar 
     sharedQuery: card.searchQuery || currentQuery(),
   });
   if (buildSimilar) params.set("buildSimilar", "1");
-  return `${NEWS_PHI_URL}?${params.toString()}#story=${encodeURIComponent(card.storyKey || cardKey(card.title, card.url))}`;
+  return `${NEWS_PHI_URL}?${params.toString()}#story=${encodeURIComponent(sharedKey(card))}`;
 }
 
-async function shareCard(card: ReturnType<typeof recordFromOrangeCard>) {
-  const url = newsPhiUrl(card, false);
-  const text = clean(card.extract, 420);
-  if (navigator.share) {
+function childIdsFor(key: string) {
+  return new Set(sharedCards().filter((item: any) => item?.parentStoryKey === key).map((item: any) => item.id || item.storyKey || item.url));
+}
+
+function setNewsButtonState(key: string, state: "idle" | "building" | "done") {
+  document.querySelectorAll<HTMLButtonElement>("[data-phi-build-news-key]").forEach((button) => {
+    if (button.dataset.phiBuildNewsKey !== key) return;
+    button.disabled = state === "building";
+    button.dataset.newsState = state;
+    button.textContent = state === "building" ? "Building news…" : state === "done" ? "✓ News added" : "Build more news";
+    if (state === "done") window.setTimeout(() => {
+      if (button.isConnected && button.dataset.newsState === "done") {
+        button.dataset.newsState = "idle";
+        button.textContent = "Build more news";
+      }
+    }, 2200);
+  });
+}
+
+function buildNewsInBackground(card: OrangeRecord) {
+  const key = sharedKey(card);
+  const running = activeNewsBuilds.get(key);
+  if (running) {
+    setNewsButtonState(key, "building");
+    return;
+  }
+
+  const before = childIdsFor(key);
+  const frame = document.createElement("iframe");
+  frame.title = `News Phi background builder for ${card.title}`;
+  frame.src = newsPhiUrl(card, true);
+  frame.tabIndex = -1;
+  frame.setAttribute("aria-hidden", "true");
+  Object.assign(frame.style, {
+    position: "fixed",
+    width: "1px",
+    height: "1px",
+    right: "-20px",
+    bottom: "-20px",
+    opacity: "0",
+    pointerEvents: "none",
+    border: "0",
+  });
+
+  let timeoutId = 0;
+  const finish = (success: boolean) => {
+    window.removeEventListener("storage", onStorage);
+    if (timeoutId) window.clearTimeout(timeoutId);
+    frame.remove();
+    activeNewsBuilds.delete(key);
+    setNewsButtonState(key, success ? "done" : "idle");
+  };
+  const onStorage = (event: StorageEvent) => {
+    if (event.key !== SHARED_COLLECTION || !event.newValue) return;
     try {
-      await navigator.share({ title: card.title, text, url });
-      return;
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-    }
-  }
-  try {
-    await navigator.clipboard.writeText(url);
-    window.dispatchEvent(new CustomEvent("infinity:toast", { detail: { message: "Card link copied." } }));
-  } catch {
-    window.open(url, "_blank", "noopener,noreferrer");
-  }
+      const cards = JSON.parse(event.newValue);
+      const added = Array.isArray(cards) && cards.some((item: any) => item?.parentStoryKey === key && !before.has(item.id || item.storyKey || item.url));
+      if (added) finish(true);
+    } catch {}
+  };
+
+  window.addEventListener("storage", onStorage);
+  timeoutId = window.setTimeout(() => finish(childIdsFor(key).size > before.size), 30000);
+  activeNewsBuilds.set(key, { frame, cleanup: () => finish(false) });
+  setNewsButtonState(key, "building");
+  document.body.appendChild(frame);
 }
 
 function recordReaction(card: HTMLElement, action: string) {
@@ -233,66 +329,77 @@ function ensureCardActionStyles() {
   const style = document.createElement("style");
   style.id = "phi-unified-card-action-style";
   style.textContent = `
-    .phi-unified-card-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.16)}
-    .phi-unified-card-actions button{min-height:40px;border:1px solid rgba(255,255,255,.26);border-radius:12px;background:rgba(26,19,11,.72);color:#fff5df;font:800 12px/1.2 system-ui,sans-serif;padding:9px 8px;cursor:pointer;box-shadow:none}
-    .phi-unified-card-actions button:hover,.phi-unified-card-actions button:focus-visible{background:rgba(62,41,17,.9);border-color:rgba(255,200,104,.76);outline:none}
-    .phi-unified-card-actions [data-phi-card-action="collect"]{border-color:rgba(92,220,154,.62)}
-    .phi-unified-card-actions [data-phi-card-action="share"]{border-color:rgba(103,178,255,.62)}
-    .phi-unified-card-actions [data-phi-card-action="build-story"]{border-color:rgba(255,185,70,.72)}
-    .phi-unified-card-actions [data-phi-card-action="build-similar"]{border-color:rgba(198,138,255,.72)}
-    @media(max-width:700px){.phi-unified-card-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.phi-unified-card-actions button{font-size:12px}}
+    .phi-unified-card-actions{display:contents}
+    .phi-news-action{display:inline-flex;align-items:center;justify-content:center;min-height:34px;border-radius:999px;padding:8px 12px;font:900 12px/1 system-ui,sans-serif;cursor:pointer;box-shadow:none;transition:transform .12s ease,background .12s ease,border-color .12s ease;color:#fff}
+    .phi-news-action:hover,.phi-news-action:focus-visible{transform:translateY(-1px);outline:none}
+    .phi-collect-card{border:1px solid rgba(167,243,208,.72);background:rgba(6,78,59,.48)}
+    .phi-collect-card[data-collected="1"]{border-color:#a7f3d0;background:#d1fae5;color:#064e3b}
+    .phi-build-news-card{border:1px solid rgba(233,213,255,.72);background:rgba(88,28,135,.48)}
+    .phi-build-news-card:disabled{cursor:progress;opacity:.78;transform:none}
   `;
   document.head.appendChild(style);
+}
+
+function markCollected(button: HTMLButtonElement, collected: boolean) {
+  button.dataset.collected = collected ? "1" : "0";
+  button.textContent = collected ? "✓ Collected" : "Collect";
+  button.setAttribute("aria-pressed", collected ? "true" : "false");
 }
 
 function ensureCardActions() {
   ensureCardActionStyles();
   document.querySelectorAll<HTMLElement>(".phi-orange-card").forEach((card) => {
-    if (card.querySelector("[data-phi-unified-actions]")) return;
-    const title = clean(card.querySelector("h3")?.textContent || card.querySelector("h2")?.textContent, 220);
-    const extract = clean(card.querySelector("p")?.textContent, 1800);
-    if (!title || !extract) return;
+    card.querySelectorAll<HTMLElement>(".phi-unified-card-actions").forEach((old) => old.remove());
+    if (card.querySelector("[data-phi-collect-card]")) return;
+    const record = recordFromOrangeCard(card);
+    if (!record.title || !record.extract) return;
 
-    const actions = document.createElement("div");
-    actions.className = "phi-unified-card-actions";
-    actions.dataset.phiUnifiedActions = "1";
-    const items = [
-      ["collect", "Collect"],
-      ["share", "Share"],
-      ["build-story", "Build Story"],
-      ["build-similar", "Build Similar Cards"],
-    ] as const;
+    const nativeActions = card.querySelector<HTMLElement>(".phi-share-card")?.parentElement;
+    const actions = nativeActions || document.createElement("div");
+    if (!nativeActions) {
+      actions.className = "phi-unified-card-actions";
+      const body = card.querySelector(".p-5") || card;
+      body.appendChild(actions);
+    }
 
-    items.forEach(([action, label]) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.dataset.phiCardAction = action;
-      button.textContent = label;
-      button.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const record = saveSharedCard(recordFromOrangeCard(card));
-        recordReaction(card, action);
-        if (action === "share") {
-          void shareCard(record);
-          return;
-        }
-        if (action === "collect") {
-          location.href = newsPhiUrl(record, false);
-          return;
-        }
-        if (action === "build-story") {
-          location.href = newsPhiUrl(record, false);
-          return;
-        }
-        location.href = newsPhiUrl(record, true);
-      });
-      actions.appendChild(button);
+    const collectButton = document.createElement("button");
+    collectButton.type = "button";
+    collectButton.className = "phi-news-action phi-collect-card";
+    collectButton.dataset.phiCollectCard = "1";
+    collectButton.dataset.phiCardAction = "collect";
+    markCollected(collectButton, isCollected(record));
+    collectButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const current = recordFromOrangeCard(card);
+      const wasCollected = isCollected(current);
+      saveSharedCard(current);
+      saveInterestSignal(current, "collect");
+      recordReaction(card, "collect");
+      markCollected(collectButton, true);
+      if (!wasCollected) buildNewsInBackground(current);
     });
 
-    const existingActions = card.querySelector(".phi-orange-actions");
-    if (existingActions) existingActions.insertAdjacentElement("afterend", actions);
-    else card.appendChild(actions);
+    const buildButton = document.createElement("button");
+    buildButton.type = "button";
+    buildButton.className = "phi-news-action phi-build-news-card";
+    buildButton.dataset.phiBuildNewsKey = sharedKey(record);
+    buildButton.dataset.phiCardAction = "build-more-news";
+    buildButton.dataset.newsState = "idle";
+    buildButton.textContent = "Build more news";
+    buildButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const current = recordFromOrangeCard(card);
+      saveSharedCard(current);
+      saveInterestSignal(current, "build-more-news");
+      recordReaction(card, "build-more-news");
+      markCollected(collectButton, true);
+      buildButton.dataset.phiBuildNewsKey = sharedKey(current);
+      buildNewsInBackground(current);
+    });
+
+    actions.append(collectButton, buildButton);
   });
 }
 
@@ -342,7 +449,11 @@ export default function PhiUnifiedPage() {
     const observer = new MutationObserver(refresh);
     observer.observe(document.body, { childList: true, subtree: true });
     refresh();
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      activeNewsBuilds.forEach((entry) => entry.cleanup());
+      activeNewsBuilds.clear();
+    };
   }, []);
 
   return <PhiIntentShell />;
