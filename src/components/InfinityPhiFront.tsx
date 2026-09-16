@@ -3,10 +3,12 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { Menu, Search } from "lucide-react";
 import { appPath } from "@/lib/base-path";
+import PhiSearchRouteGuard from "@/components/PhiSearchRouteGuard";
 import styles from "./InfinityPhiFront.module.css";
 
 export default function InfinityPhiFront() {
   const [query, setQuery] = useState("");
+  const [showResults, setShowResults] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -16,13 +18,18 @@ export default function InfinityPhiFront() {
       );
     };
 
+    if (showResults) {
+      setEmbeddedMenu(false);
+      return () => setEmbeddedMenu(false);
+    }
+
     setEmbeddedMenu(true);
     const timer = window.setTimeout(() => setEmbeddedMenu(true), 0);
     return () => {
       window.clearTimeout(timer);
       setEmbeddedMenu(false);
     };
-  }, []);
+  }, [showResults]);
 
   function resizeInput(target: HTMLTextAreaElement) {
     target.style.height = "0px";
@@ -36,8 +43,22 @@ export default function InfinityPhiFront() {
       inputRef.current?.focus();
       return;
     }
-    const params = new URLSearchParams({ q, run: "1" });
-    window.location.assign(`${appPath("phi")}?${params.toString()}`);
+
+    // The root document already contains the full Infinity application bundle.
+    // Move the address bar to the canonical /phi/ search URL with the browser's
+    // native History method, then render the result workspace in this document.
+    // This removes the GitHub Pages request that could previously end in a 404.
+    const target = new URL(window.location.href);
+    target.pathname = appPath("phi");
+    target.search = new URLSearchParams({ q, run: "1" }).toString();
+    target.hash = "";
+    window.History.prototype.replaceState.call(
+      window.history,
+      { infinityPhiSearch: q },
+      "",
+      target.toString(),
+    );
+    setShowResults(true);
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -50,6 +71,8 @@ export default function InfinityPhiFront() {
   function openMenu() {
     window.dispatchEvent(new Event("infinity-open-menu"));
   }
+
+  if (showResults) return <PhiSearchRouteGuard />;
 
   return (
     <main className={`${styles.page} infinity-phi-front`}>
