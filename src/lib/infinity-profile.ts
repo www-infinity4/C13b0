@@ -44,6 +44,7 @@ export type InfinityProfile={
 };
 
 export const PROFILE_KEY="infinity_identity_profile_v1";
+const PROFILE_LOAD_TIMEOUT_MS=1200;
 
 export const EMPTY_PROFILE:InfinityProfile={
   version:1,displayName:"",legalName:"",email:"",phone:"",address1:"",address2:"",city:"",region:"",postalCode:"",country:"",signature:"",contextNotes:"",publicName:"",publicAbout:"",publicEmail:"",publicPhone:"",publicWebsite:"",publicAddress:"",activeBusinessId:"",activeWebsite:"",businesses:[],updated:0,
@@ -52,7 +53,10 @@ export const EMPTY_PROFILE:InfinityProfile={
 export function blankBusiness(name=""):InfinityBusiness{return{id:`business-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,name,contactName:"",email:"",phone:"",address1:"",address2:"",city:"",region:"",postalCode:"",country:"",website:"",workspace:"",notes:""};}
 
 export async function loadInfinityProfile():Promise<InfinityProfile>{
-  const stored=await secureLoadDurable<InfinityProfile>(PROFILE_KEY,EMPTY_PROFILE).catch(()=>EMPTY_PROFILE);
+  const stored=await Promise.race<InfinityProfile>([
+    secureLoadDurable<InfinityProfile>(PROFILE_KEY,EMPTY_PROFILE).catch(()=>EMPTY_PROFILE),
+    new Promise<InfinityProfile>((resolve)=>setTimeout(()=>resolve(EMPTY_PROFILE),PROFILE_LOAD_TIMEOUT_MS)),
+  ]);
   return {...EMPTY_PROFILE,...stored,businesses:Array.isArray(stored?.businesses)?stored.businesses:[]};
 }
 
