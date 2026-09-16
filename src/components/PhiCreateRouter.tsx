@@ -54,7 +54,7 @@ export default function PhiCreateRouter(){
     <section style={{width:"min(920px,calc(100% - 28px))",margin:"14px auto",padding:"14px 16px",border:"1px solid rgba(169,116,255,.45)",borderRadius:16,background:"rgba(24,13,43,.94)",color:"white",fontFamily:"system-ui,sans-serif"}}>
       <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:"8px 12px"}}>
         <strong style={{color:"#c89cff",letterSpacing:".08em"}}>CREATE PHI</strong>
-        <span style={{color:"#d7cde6",fontSize:13}}>{route.kind==="loading"?`Indexing ${route.imported.length} imported skills…`:route.kind==="live"?`GPT live builder · all ${route.imported.length} imported skills available`:route.kind==="sheet"?`Spreadsheet/data maker · ${route.imported.length} imported skills indexed":"Creation maker · imported skill index ready"}</span>
+        <span style={{color:"#d7cde6",fontSize:13}}>{route.kind==="loading"?`Indexing ${route.imported.length} imported skills…`:route.kind==="live"?`GPT live builder · all ${route.imported.length} imported skills available`:route.kind==="sheet"?`Spreadsheet/data maker · ${route.imported.length} imported skills indexed`:`Creation maker · ${route.imported.length} imported skills indexed`}</span>
       </div>
       {route.tools.length?<div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:10}}>{route.tools.map((tool)=><span key={tool} style={{padding:"5px 8px",borderRadius:999,border:"1px solid rgba(200,156,255,.35)",background:"rgba(103,59,142,.25)",fontSize:12}}>{tool}</span>)}</div>:null}
       <details style={{marginTop:10}}>
