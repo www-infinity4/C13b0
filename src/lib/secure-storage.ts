@@ -18,6 +18,7 @@ const ENVELOPE_VERSION = 1;
 const memoryFallback = new Map<string, string>();
 const DURABLE_DB = "infinity-persistent-state";
 const DURABLE_STORE = "records";
+const DURABLE_OPEN_TIMEOUT_MS = 1200;
 
 type Envelope = {
   v: number;
@@ -110,17 +111,33 @@ function memoryKey(area: StorageArea, key: string): string {
 
 function openDurableStore(): Promise<IDBDatabase | null> {
   return new Promise((resolve) => {
-    if (typeof indexedDB === "undefined") return resolve(null);
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const finish = (database: IDBDatabase | null) => {
+      if (settled) {
+        if (database) {
+          try { database.close(); } catch {}
+        }
+        return;
+      }
+      settled = true;
+      if (timer) clearTimeout(timer);
+      resolve(database);
+    };
+
+    if (typeof indexedDB === "undefined") return finish(null);
     try {
       const request = indexedDB.open(DURABLE_DB, 1);
+      timer = setTimeout(() => finish(null), DURABLE_OPEN_TIMEOUT_MS);
       request.onupgradeneeded = () => {
         if (!request.result.objectStoreNames.contains(DURABLE_STORE))
           request.result.createObjectStore(DURABLE_STORE);
       };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => resolve(null);
+      request.onsuccess = () => finish(request.result);
+      request.onerror = () => finish(null);
+      request.onblocked = () => finish(null);
     } catch {
-      resolve(null);
+      finish(null);
     }
   });
 }
@@ -142,6 +159,10 @@ async function writeDurable(
         resolve(true);
       };
       transaction.onerror = () => {
+        database.close();
+        resolve(false);
+      };
+      transaction.onabort = () => {
         database.close();
         resolve(false);
       };
@@ -167,6 +188,10 @@ async function readDurable(key: string): Promise<string | null> {
         database.close();
         resolve(null);
       };
+      transaction.onabort = () => {
+        database.close();
+        resolve(null);
+      };
     } catch {
       database.close();
       resolve(null);
@@ -182,6 +207,7 @@ async function removeDurable(key: string): Promise<void> {
     transaction.objectStore(DURABLE_STORE).delete(key);
     transaction.oncomplete = () => database.close();
     transaction.onerror = () => database.close();
+    transaction.onabort = () => database.close();
   } catch {
     database.close();
   }
