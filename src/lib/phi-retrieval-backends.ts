@@ -37,11 +37,28 @@ export const PHI_RETRIEVAL_BACKEND_COUNT = PHI_RETRIEVAL_BACKENDS.length;
 
 export type PhiRetrievalEndpointMap = Partial<Record<string, string>>;
 
+/**
+ * Public runtime endpoint configuration for the static GitHub Pages build.
+ * NEXT_PUBLIC_* values are compiled into the browser bundle by Next.js.
+ * Empty values intentionally mean "not configured" so the existing browser
+ * providers remain the fallback instead of pretending a fork is live.
+ */
+export const PHI_RETRIEVAL_ENDPOINTS: PhiRetrievalEndpointMap = {
+  searxng: process.env.NEXT_PUBLIC_PHI_SEARXNG_URL?.trim() || "",
+};
+
 export function configuredRetrievalBackends(endpoints: PhiRetrievalEndpointMap) {
   return PHI_RETRIEVAL_BACKENDS.filter((backend) => !backend.endpointKey || Boolean(endpoints[backend.endpointKey]));
 }
 
-export async function searchSearxng(endpoint: string, query: string, limit = 12) {
+export type PhiRetrievedSource = {
+  title: string;
+  url: string;
+  excerpt: string;
+  provider: string;
+};
+
+export async function searchSearxng(endpoint: string, query: string, limit = 12): Promise<PhiRetrievedSource[]> {
   const base = endpoint.trim().replace(/\/$/, "");
   if (!base || !query.trim()) return [];
   const url = `${base}/search?${new URLSearchParams({ q: query.trim(), format: "json" }).toString()}`;
