@@ -1,1 +1,1 @@
-export { default } from "@/components/PhiCodeBuilderV3";
+export { default } from "@/components/PhiCodeBuilderStable";
