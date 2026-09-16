@@ -5,20 +5,16 @@ import PhiUnifiedPage from "@/components/PhiUnifiedPage";
 
 /**
  * Infinity Phi is exported as a static GitHub Pages app. Next.js patches the
- * History API so URL changes can become router navigations, but a Phi search is
- * only changing q/run on the document that is already open. Keep those updates
- * native so a search never waits on, or accidentally asks, the static router.
+ * History API so a same-page query update can accidentally become a client
+ * router navigation and stall or 404 on the static export. For an actual Phi
+ * search, reload the already-exported /phi/ document with q/run in the query
+ * string. PhiPage2 already reads those params on mount and starts the search.
  */
 export default function PhiSearchRouteGuard() {
   useLayoutEffect(() => {
     const history = window.history as History & { pushState: History["pushState"]; replaceState: History["replaceState"] };
-    const prototype = Object.getPrototypeOf(history) as History | null;
-    const nativePushState = prototype?.pushState;
-    const nativeReplaceState = prototype?.replaceState;
     const frameworkPushState = history.pushState.bind(history);
     const frameworkReplaceState = history.replaceState.bind(history);
-
-    if (typeof nativePushState !== "function") return;
 
     const isInfinitySearch = (data: unknown, url?: string | URL | null) => {
       if (data && typeof data === "object" && "infinityPhiSearch" in data) return true;
@@ -34,20 +30,22 @@ export default function PhiSearchRouteGuard() {
     };
 
     history.pushState = function guardedPushState(data: unknown, unused: string, url?: string | URL | null) {
-      if (isInfinitySearch(data, url)) {
-        return nativePushState.call(history, data, unused, url);
+      if (isInfinitySearch(data, url) && url) {
+        const target = new URL(String(url), window.location.href);
+        window.location.assign(target.toString());
+        return;
       }
       return frameworkPushState(data, unused, url);
     };
 
-    if (typeof nativeReplaceState === "function") {
-      history.replaceState = function guardedReplaceState(data: unknown, unused: string, url?: string | URL | null) {
-        if (isInfinitySearch(data, url)) {
-          return nativeReplaceState.call(history, data, unused, url);
-        }
-        return frameworkReplaceState(data, unused, url);
-      };
-    }
+    history.replaceState = function guardedReplaceState(data: unknown, unused: string, url?: string | URL | null) {
+      if (isInfinitySearch(data, url) && url) {
+        const target = new URL(String(url), window.location.href);
+        window.location.replace(target.toString());
+        return;
+      }
+      return frameworkReplaceState(data, unused, url);
+    };
 
     return () => {
       history.pushState = frameworkPushState;
