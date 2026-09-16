@@ -48,22 +48,23 @@ function mergeSearxIntoWikipedia(payload: any, sources: PhiRetrievedSource[]) {
 }
 
 /**
- * Infinity Phi is exported as a static GitHub Pages app. Next.js patches the
- * History API so a same-page query update can accidentally become a client
- * router navigation and stall or 404 on the static export. For an actual Phi
- * search, reload the already-exported /phi/ document with q/run in the query
- * string. PhiPage2 already reads those params on mount and starts the search.
+ * Infinity Phi is a static GitHub Pages app. Next.js patches the History API,
+ * so a same-document query update can be mistaken for an App Router navigation.
+ * The search shell already remounts PhiPage2 after it writes q/run to the URL,
+ * therefore a document reload is unnecessary and can create a Pages 404.
  *
- * Keep the stable search path intact: SearXNG is only added when a real SearXNG
- * endpoint is configured. The browser search itself is not delayed by optional
- * Omni provider enrichment; PhiPage2's established Wikipedia/DDG/Crossref path
- * can render immediately as it did before the regression.
+ * For Infinity searches only, call the browser's native History methods. This
+ * keeps the exported /phi/ document alive while PhiPage2 immediately starts the
+ * new search. Optional SearXNG enrichment remains additive and has its own
+ * timeout in phi-retrieval-backends so it cannot hold the base source pass open.
  */
 export default function PhiSearchRouteGuard() {
   useLayoutEffect(() => {
     const history = window.history as History & { pushState: History["pushState"]; replaceState: History["replaceState"] };
     const frameworkPushState = history.pushState.bind(history);
     const frameworkReplaceState = history.replaceState.bind(history);
+    const nativePushState = History.prototype.pushState;
+    const nativeReplaceState = History.prototype.replaceState;
     const trackedWindow = window as PhiSearchWindow;
     const endpoints = runtimeRetrievalEndpoints();
 
@@ -138,18 +139,16 @@ export default function PhiSearchRouteGuard() {
     };
 
     history.pushState = function guardedPushState(data: unknown, unused: string, url?: string | URL | null) {
-      if (isInfinitySearch(data, url) && url) {
-        const target = new URL(String(url), window.location.href);
-        window.location.assign(target.toString());
+      if (isInfinitySearch(data, url)) {
+        nativePushState.call(history, data, unused, url);
         return;
       }
       return frameworkPushState(data, unused, url);
     };
 
     history.replaceState = function guardedReplaceState(data: unknown, unused: string, url?: string | URL | null) {
-      if (isInfinitySearch(data, url) && url) {
-        const target = new URL(String(url), window.location.href);
-        window.location.replace(target.toString());
+      if (isInfinitySearch(data, url)) {
+        nativeReplaceState.call(history, data, unused, url);
         return;
       }
       return frameworkReplaceState(data, unused, url);
