@@ -1,1 +1,1 @@
-export { default } from "@/components/PhiUnifiedPage";
+export { default } from "@/components/PhiSearchRouteGuard";
