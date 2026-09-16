@@ -1,812 +1,579 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Check, ChevronDown, ExternalLink, Sparkles } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ExternalLink, Search, Share2, Sparkles } from "lucide-react";
 import { appPath } from "@/lib/base-path";
-import { secureLoad, secureLoadDurable, secureSave, secureSaveDurable } from "@/lib/secure-storage";
-import { connectOrCreateWallet } from "@/lib/wallet";
-import { contentTerms, detectCatalogEntity, gateResearchSources } from "@/lib/phi-search-filters";
-import { loadInfinityProfile, profileContextText } from "@/lib/infinity-profile";
-import {
-  buildDefinitionOverview,
-  buildSemanticExpansionCards,
-  buildSemanticStoryboard,
-  semanticallyRepeats,
-  spawnSemanticExpansionCards,
-  type SemanticCard,
-} from "@/lib/phi-semantic-expansion";
-import styles from "./PhiPage2.module.css";
+import { secureLoad, secureSave } from "@/lib/secure-storage";
 
 type HistoryItem = { query: string; resolved: string; kind: string; at: number };
-type Source = { title: string; url: string; excerpt: string; provider: string; imageUrl?: string };
-type Identity = { kind: string; name: string; symbol?: string; number?: number };
-type Paper = {
+type Source = {
   id: string;
+  title: string;
+  url: string;
+  domain: string;
+  excerpt: string;
+  provider: string;
+  imageUrl?: string;
+  score?: number;
+};
+type ResultRecord = {
   query: string;
   resolved: string;
-  identity: Identity;
   title: string;
   overview: string;
-  findings: string[];
   sources: Source[];
   created: number;
 };
-type StoryBeat = { id: string; title: string; body: string; source?: Source; imageUrl?: string };
-type ResearchNote = { id: string; title: string; body: string; source?: Source };
-type RefinementPass = { id: string; terms: string[]; sourceCount: number; at: number; origin?: "discovery" | "keyword" };
-type RefinementState = { baseConclusion: string; passes: RefinementPass[] };
-type DiscoveryTopic = SemanticCard;
-type EvidenceCard = { index: number; title: string; body: string; source?: Source; imageUrl?: string };
-type ShareableCard = { title: string; body: string; source?: string; imageUrl?: string };
+type ShareResult = { copied?: boolean; cancelled?: boolean; awarded?: number; progressToNextCoin?: number };
 
 const HISTORY = "infinity_phi_context_v1";
-const PAPERS = "infinity_phi_research_v1";
-const PAPER_PREFIX = "infinity_phi_paper_v2_";
-const LEDGER = "c13b0_infinity_token_ledger_v3";
-const REFINE_PREFIX = "infinity_phi_refinement_v1_";
-const SELECTION_PREFIX = "infinity_phi_selection_v2_";
-
-const clean = (value: unknown) => String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-const splitSentences = (value: string) => clean(value).split(/(?<=[.!?])\s+/).map(clean).filter((item) => item.length > 42);
-const delay = (ms: number) => new Promise<null>((resolve) => window.setTimeout(() => resolve(null), ms));
-const WORD_SKIP = new Set(["about", "after", "again", "against", "because", "before", "being", "between", "could", "every", "first", "from", "have", "into", "itself", "more", "other", "over", "same", "such", "than", "that", "their", "these", "they", "this", "through", "under", "what", "when", "where", "which", "while", "with", "would", "your", "also", "only", "some", "most", "many"]);
-
+const OMNI_RESEARCH = "omniPhi:lastResearch:v1";
+const FALLBACK_IMAGE = "https://www-infinity4.github.io/C13b0/og-image.png";
+const STOP = new Set(["about", "after", "again", "against", "because", "before", "being", "between", "could", "every", "first", "from", "have", "into", "itself", "more", "other", "over", "same", "such", "than", "that", "their", "these", "they", "this", "through", "under", "what", "when", "where", "which", "while", "with", "would", "your", "also", "only", "some", "most", "many", "search"]);
 const ELEMENTS: Record<string, { symbol: string; number: number }> = {
   hydrogen: { symbol: "H", number: 1 }, helium: { symbol: "He", number: 2 }, boron: { symbol: "B", number: 5 },
   carbon: { symbol: "C", number: 6 }, nitrogen: { symbol: "N", number: 7 }, oxygen: { symbol: "O", number: 8 },
   fluorine: { symbol: "F", number: 9 }, aluminum: { symbol: "Al", number: 13 }, potassium: { symbol: "K", number: 19 },
-  iron: { symbol: "Fe", number: 26 }, copper: { symbol: "Cu", number: 29 }, arsenic: { symbol: "As", number: 33 },
-  selenium: { symbol: "Se", number: 34 }, yttrium: { symbol: "Y", number: 39 }, niobium: { symbol: "Nb", number: 41 },
-  antimony: { symbol: "Sb", number: 51 }, iodine: { symbol: "I", number: 53 }, dysprosium: { symbol: "Dy", number: 66 },
-  ytterbium: { symbol: "Yb", number: 70 }, hafnium: { symbol: "Hf", number: 72 }, tantalum: { symbol: "Ta", number: 73 },
-  tungsten: { symbol: "W", number: 74 }, rhenium: { symbol: "Re", number: 75 }, platinum: { symbol: "Pt", number: 78 },
-  manganese: { symbol: "Mn", number: 25 }, technetium: { symbol: "Tc", number: 43 }, bohrium: { symbol: "Bh", number: 107 },
-  gold: { symbol: "Au", number: 79 }, mercury: { symbol: "Hg", number: 80 }, lead: { symbol: "Pb", number: 82 },
-  bismuth: { symbol: "Bi", number: 83 }, uranium: { symbol: "U", number: 92 },
+  manganese: { symbol: "Mn", number: 25 }, iron: { symbol: "Fe", number: 26 }, copper: { symbol: "Cu", number: 29 },
+  arsenic: { symbol: "As", number: 33 }, selenium: { symbol: "Se", number: 34 }, yttrium: { symbol: "Y", number: 39 },
+  niobium: { symbol: "Nb", number: 41 }, technetium: { symbol: "Tc", number: 43 }, antimony: { symbol: "Sb", number: 51 },
+  iodine: { symbol: "I", number: 53 }, dysprosium: { symbol: "Dy", number: 66 }, ytterbium: { symbol: "Yb", number: 70 },
+  hafnium: { symbol: "Hf", number: 72 }, tantalum: { symbol: "Ta", number: 73 }, tungsten: { symbol: "W", number: 74 },
+  rhenium: { symbol: "Re", number: 75 }, platinum: { symbol: "Pt", number: 78 }, gold: { symbol: "Au", number: 79 },
+  mercury: { symbol: "Hg", number: 80 }, lead: { symbol: "Pb", number: 82 }, bismuth: { symbol: "Bi", number: 83 },
+  uranium: { symbol: "U", number: 92 }, bohrium: { symbol: "Bh", number: 107 },
 };
 
-function wordSet(value: string) {
-  return new Set(contentTerms(value).filter((word) => word.length > 3 && !WORD_SKIP.has(word)));
-}
+const clean = (value: unknown, max = 3200) => String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+const domainOf = (value: string) => {
+  try { return new URL(value).hostname.replace(/^www\./, ""); } catch { return ""; }
+};
+const sentence = (value: string) => clean(value).split(/(?<=[.!?])\s+/).find((item) => item.length > 35) || clean(value, 420);
+const tokens = (value: string) => [...new Set((clean(value).toLowerCase().match(/[a-z0-9]+/g) || []).filter((word) => word.length > 2 && !STOP.has(word)))];
 
-function overlapScore(a: string, b: string) {
-  const left = wordSet(a);
-  const right = wordSet(b);
-  let score = 0;
-  left.forEach((word) => { if (right.has(word)) score += 1; });
-  return score;
-}
-
-function nearDuplicate(a: string, b: string) {
-  const left = wordSet(a);
-  const right = wordSet(b);
-  if (!left.size || !right.size) return clean(a).toLowerCase() === clean(b).toLowerCase();
-  let shared = 0;
-  left.forEach((word) => { if (right.has(word)) shared += 1; });
-  return shared / Math.min(left.size, right.size) >= 0.78;
-}
-
-function dedupeLines(lines: string[], limit = 30) {
-  const out: string[] = [];
-  for (const raw of lines.map(clean).filter(Boolean)) {
-    if (out.some((existing) => nearDuplicate(existing, raw))) continue;
-    out.push(raw);
-    if (out.length >= limit) break;
+async function withTimeout<T>(promise: Promise<T>, ms = 5200): Promise<T> {
+  let timer = 0;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => { timer = window.setTimeout(() => reject(new Error("timeout")), ms); }),
+    ]);
+  } finally {
+    if (timer) window.clearTimeout(timer);
   }
-  return out;
 }
 
-function dedupeSources(sources: Source[]) {
-  const seen = new Set<string>();
-  return sources.filter((source) => {
-    const key = source.url || `${source.provider}:${source.title}`;
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+function resolvedQuery(query: string) {
+  const exact = ELEMENTS[clean(query).toLowerCase()];
+  if (!exact) return query;
+  const name = clean(query).replace(/(^|\s)\S/g, (match) => match.toUpperCase());
+  return `${name} chemical element ${exact.symbol} atomic number ${exact.number}`;
 }
 
-function resolve(query: string, history: HistoryItem[]) {
-  const raw = clean(query);
-  const lower = raw.toLowerCase();
-  const exactElement = ELEMENTS[lower];
-  const catalogMatch = exactElement ? { name: lower, data: exactElement } : detectCatalogEntity(raw, ELEMENTS);
-  if (catalogMatch) {
-    const element = catalogMatch.data;
-    const elementName = catalogMatch.name.replace(/(^|\s)\S/g, (match) => match.toUpperCase());
-    return {
-      kind: "element",
-      resolved: `${elementName} chemical element ${element.symbol} atomic number ${element.number}`,
-      identity: { kind: "element", name: elementName, symbol: element.symbol, number: element.number } as Identity,
-    };
-  }
-  if (lower === "mercury") {
-    const context = history.slice(-24).map((item) => `${item.query} ${item.resolved}`).join(" ");
-    if (/chem|element|metal|atom|periodic|oxide|alloy/i.test(context)) {
-      return { kind: "element", resolved: "Mercury chemical element Hg atomic number 80", identity: { kind: "element", name: "Mercury", symbol: "Hg", number: 80 } as Identity };
-    }
-  }
-  return { kind: "general", resolved: raw, identity: { kind: "general", name: raw } as Identity };
+function normalizeSource(raw: Partial<Source> & { title?: string; excerpt?: string }, provider: string): Source | null {
+  const title = clean(raw.title, 240);
+  const excerpt = clean(raw.excerpt, 2800);
+  if (!title || !excerpt) return null;
+  const url = clean(raw.url, 1400);
+  const domain = clean(raw.domain, 180) || domainOf(url) || provider;
+  return {
+    id: clean(raw.id, 240) || `${provider.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Math.abs(hash(`${url}|${title}`))}`,
+    title,
+    url,
+    domain,
+    excerpt,
+    provider: clean(raw.provider, 100) || provider,
+    imageUrl: clean(raw.imageUrl, 1600) || undefined,
+  };
 }
 
-async function hardTimeout<T>(work: Promise<T>, ms: number): Promise<T | null> {
-  return Promise.race([work.catch(() => null), delay(ms)]) as Promise<T | null>;
+function hash(value: string) {
+  let result = 0;
+  for (let index = 0; index < value.length; index += 1) result = ((result << 5) - result + value.charCodeAt(index)) | 0;
+  return result;
 }
 
-async function wikipedia(query: string): Promise<Source[]> {
-  const url = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=14&prop=extracts|info|pageimages&exintro=1&explaintext=1&inprop=url&pithumbsize=900&format=json&origin=*`;
-  const data = await hardTimeout(fetch(url, { cache: "no-store" }).then((response) => {
-    if (!response.ok) throw new Error("Wikipedia request failed");
-    return response.json();
-  }), 5000);
-  if (!data) return [];
+async function fetchWikipedia(query: string): Promise<Source[]> {
+  const endpoint = new URL("https://en.wikipedia.org/w/api.php");
+  endpoint.search = new URLSearchParams({
+    action: "query", generator: "search", gsrsearch: query, gsrlimit: "12",
+    prop: "extracts|pageimages|info", exintro: "1", explaintext: "1", exlimit: "max",
+    piprop: "thumbnail", pithumbsize: "900", inprop: "url", format: "json", origin: "*",
+  }).toString();
+  const response = await withTimeout(fetch(endpoint, { cache: "no-store" }), 4800);
+  if (!response.ok) throw new Error(`Wikipedia ${response.status}`);
+  const data = await response.json();
   return Object.values((data as any)?.query?.pages || {}).flatMap((page: any) => {
-    const title = clean(page.title);
-    const excerpt = clean(page.extract);
-    if (!title || !excerpt) return [];
-    return [{ title, excerpt, url: page.fullurl || "", provider: "Wikipedia", imageUrl: page.thumbnail?.source }];
+    const source = normalizeSource({
+      id: `wikipedia-${page.pageid}`,
+      title: page.title,
+      url: page.fullurl || `https://en.wikipedia.org/?curid=${page.pageid}`,
+      domain: "wikipedia.org",
+      excerpt: page.extract,
+      imageUrl: page.thumbnail?.source,
+    }, "Wikipedia");
+    return source ? [source] : [];
   });
 }
 
-async function duckDuckGo(query: string): Promise<Source[]> {
-  const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=0`;
-  const data = await hardTimeout(fetch(url, { cache: "no-store" }).then((response) => {
-    if (!response.ok) throw new Error("DuckDuckGo request failed");
-    return response.json();
-  }), 3500);
-  if (!data) return [];
-  const out: Source[] = [];
-  const d: any = data;
-  if (d.AbstractText) out.push({ title: clean(d.Heading || query), url: d.AbstractURL || "", excerpt: clean(d.AbstractText), provider: "DuckDuckGo" });
-  (d.RelatedTopics || []).flatMap((item: any) => item.Topics || [item]).forEach((item: any) => {
-    if (item.Text) out.push({ title: clean(item.Text).split(" - ")[0], url: item.FirstURL || "", excerpt: clean(item.Text), provider: "DuckDuckGo" });
+function openAlexAbstract(inverted: unknown) {
+  if (!inverted || typeof inverted !== "object") return "";
+  const words: string[] = [];
+  Object.entries(inverted as Record<string, unknown>).forEach(([word, positions]) => {
+    (Array.isArray(positions) ? positions : []).forEach((position) => {
+      if (Number.isFinite(position) && Number(position) < 420) words[Number(position)] = word;
+    });
   });
-  return out;
+  return clean(words.filter(Boolean).join(" "), 2600);
 }
 
-async function crossref(query: string): Promise<Source[]> {
-  const url = `https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=12`;
-  const data = await hardTimeout(fetch(url, { cache: "no-store" }).then((response) => {
-    if (!response.ok) throw new Error("Crossref request failed");
-    return response.json();
-  }), 3500);
-  if (!data) return [];
+async function fetchOpenAlex(query: string): Promise<Source[]> {
+  const endpoint = new URL("https://api.openalex.org/works");
+  endpoint.search = new URLSearchParams({ search: query, "per-page": "12" }).toString();
+  const response = await withTimeout(fetch(endpoint, { cache: "no-store" }), 4800);
+  if (!response.ok) throw new Error(`OpenAlex ${response.status}`);
+  const data = await response.json();
+  return ((data as any)?.results || []).flatMap((work: any) => {
+    const title = clean(work.display_name || work.title, 240);
+    const abstract = openAlexAbstract(work.abstract_inverted_index);
+    const host = clean(work.primary_location?.source?.display_name || work.best_oa_location?.source?.display_name || work.type_crossref || "scholarly source", 180);
+    const year = work.publication_year ? ` Published ${work.publication_year}.` : "";
+    const source = normalizeSource({
+      id: clean(work.id, 240),
+      title,
+      url: work.primary_location?.landing_page_url || work.best_oa_location?.landing_page_url || work.doi || work.id || "",
+      excerpt: abstract || `${title}.${year} Scholarly work indexed by OpenAlex from ${host}.`,
+      domain: host,
+    }, "OpenAlex");
+    return source ? [source] : [];
+  });
+}
+
+async function fetchCrossref(query: string): Promise<Source[]> {
+  const endpoint = new URL("https://api.crossref.org/works");
+  endpoint.search = new URLSearchParams({ query, rows: "12" }).toString();
+  const response = await withTimeout(fetch(endpoint, { cache: "no-store" }), 4800);
+  if (!response.ok) throw new Error(`Crossref ${response.status}`);
+  const data = await response.json();
   return ((data as any)?.message?.items || []).flatMap((item: any) => {
-    const title = clean(item.title?.[0]);
-    if (!title) return [];
-    return [{
+    const title = clean(item.title?.[0], 240);
+    const source = normalizeSource({
       title,
       url: item.URL || (item.DOI ? `https://doi.org/${item.DOI}` : ""),
-      excerpt: clean(item.abstract) || `${title}. Scholarly work indexed by Crossref${item.publisher ? ` from ${item.publisher}` : ""}.`,
-      provider: "Crossref",
-    }];
+      excerpt: clean(item.abstract, 2800) || `${title}. Scholarly work indexed by Crossref${item.publisher ? ` from ${clean(item.publisher, 180)}` : ""}.`,
+      domain: clean(item.publisher, 180),
+    }, "Crossref");
+    return source ? [source] : [];
   });
 }
 
-async function research(query: string): Promise<Source[]> {
-  const primary = await wikipedia(query);
-  const extras = (await hardTimeout(Promise.all([duckDuckGo(query), crossref(query)]).then(([a, b]) => [...a, ...b]), 4000)) || [];
-  return dedupeSources([...primary, ...extras]).filter((source) => source.title && source.excerpt);
+async function fetchNasa(query: string): Promise<Source[]> {
+  const endpoint = new URL("https://images-api.nasa.gov/search");
+  endpoint.search = new URLSearchParams({ q: query, media_type: "image", page_size: "12" }).toString();
+  const response = await withTimeout(fetch(endpoint, { cache: "no-store" }), 4800);
+  if (!response.ok) throw new Error(`NASA ${response.status}`);
+  const data = await response.json();
+  return ((data as any)?.collection?.items || []).flatMap((item: any) => {
+    const meta = item.data?.[0] || {};
+    const nasaId = clean(meta.nasa_id, 180);
+    const source = normalizeSource({
+      id: nasaId,
+      title: meta.title,
+      url: nasaId ? `https://images.nasa.gov/details/${encodeURIComponent(nasaId)}` : clean(item.href, 1200),
+      domain: "nasa.gov",
+      excerpt: clean(meta.description || meta.description_508, 2800),
+      imageUrl: clean((item.links || []).find((link: any) => link.render === "image")?.href || item.links?.[0]?.href, 1600),
+    }, "NASA");
+    return source ? [source] : [];
+  });
 }
 
-function contextRelevant(source: Source, baseQuery: string, keyword: string) {
-  const text = `${source.title} ${source.excerpt}`.toLowerCase();
-  const baseWords = [...wordSet(baseQuery)];
-  const keywordWords = [...wordSet(keyword)];
-  const baseHits = baseWords.filter((word) => text.includes(word)).length;
-  const keywordHits = keywordWords.filter((word) => text.includes(word)).length;
-  const baseNeed = Math.min(2, Math.max(1, baseWords.length));
-  return baseHits >= baseNeed && (keywordWords.length === 0 || keywordHits >= 1);
+async function fetchInternetArchive(query: string): Promise<Source[]> {
+  const endpoint = new URL("https://archive.org/advancedsearch.php");
+  endpoint.search = new URLSearchParams({
+    q: query, "fl[]": "identifier,title,description,creator,date", rows: "12", page: "1", output: "json",
+  }).toString();
+  const response = await withTimeout(fetch(endpoint, { cache: "no-store" }), 4800);
+  if (!response.ok) throw new Error(`Internet Archive ${response.status}`);
+  const data = await response.json();
+  return ((data as any)?.response?.docs || []).flatMap((doc: any) => {
+    const identifier = clean(doc.identifier, 260);
+    const title = clean(Array.isArray(doc.title) ? doc.title[0] : doc.title, 240);
+    const description = clean(Array.isArray(doc.description) ? doc.description[0] : doc.description, 2600);
+    const creator = clean(Array.isArray(doc.creator) ? doc.creator.join(", ") : doc.creator, 260);
+    const date = clean(doc.date, 80);
+    const source = normalizeSource({
+      id: identifier,
+      title,
+      url: identifier ? `https://archive.org/details/${encodeURIComponent(identifier)}` : "",
+      domain: "archive.org",
+      excerpt: description || `${title}.${creator ? ` Created by ${creator}.` : ""}${date ? ` Date: ${date}.` : ""} Historical or archival record indexed by Internet Archive.`,
+      imageUrl: identifier ? `https://archive.org/services/img/${encodeURIComponent(identifier)}` : undefined,
+    }, "Internet Archive");
+    return source ? [source] : [];
+  });
 }
 
-async function researchKeyword(baseQuery: string, keyword: string) {
-  const found = (await hardTimeout(research(`${baseQuery} ${keyword}`), 7000)) || [];
-  const strict = found.filter((source) => contextRelevant(source, baseQuery, keyword));
-  return strict.length ? strict : found.filter((source) => overlapScore(`${source.title} ${source.excerpt}`, baseQuery) > 0);
-}
-
-function isCoinQuery(query: string) {
-  return /\b(quarter|dime|nickel|cent|penny|half dollar|dollar|coin|coinage|numismatic|mint)\b/i.test(query);
-}
-
-function subjectRelevantLine(text: string, query: string, identity: Identity) {
-  const lower = clean(text).toLowerCase();
-  if (identity.kind === "element") {
-    const name = clean(identity.name).toLowerCase();
-    return Boolean(name && new RegExp(`\\b${name.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\b`, "i").test(lower));
-  }
-  const anchors = [...wordSet(query)];
-  if (!anchors.length) return true;
-  const hits = anchors.filter((word) => lower.includes(word)).length;
-  return hits >= Math.min(2, anchors.length);
-}
-
-function intentionalTitle(query: string, identity: Identity) {
-  const subject = clean(query).replace(/[?.!]+$/, "");
-  if (isCoinQuery(query)) return `${subject}: Mintage, Strikes, Grades, and Collector Context`;
-  if (identity.kind === "element") return `${subject}: Atomic Structure, Chemistry, Evidence, and Open Questions`;
-  return `${subject}: What the Evidence Shows and Where the Story Leads`;
-}
-
-function makePaper(query: string, resolved: string, identity: Identity, sources: Source[], id?: string, created?: number): Paper {
-  const allRecords = sources.flatMap((source, sourceIndex) => splitSentences(source.excerpt).map((text) => ({ text, sourceIndex })));
-  const subjectRecords = allRecords.filter((item) => subjectRelevantLine(item.text, query, identity));
-  const records = subjectRecords.length >= 3 ? subjectRecords : allRecords;
-  const ranked = [...records].sort((a, b) => {
-    const aScore = overlapScore(a.text, query) + (a.sourceIndex === 0 ? 3 : 0);
-    const bScore = overlapScore(b.text, query) + (b.sourceIndex === 0 ? 3 : 0);
-    return bScore - aScore;
-  }).map((item) => item.text);
-  const unique = dedupeLines(ranked, 26);
-  const fallbackOverview = unique.slice(0, 2).join(" ") || `Infinity Phi opened the search for ${query}, but live source providers did not return enough usable material yet.`;
-  const overview = buildDefinitionOverview(query, sources, fallbackOverview) || fallbackOverview;
-  const overviewParts = dedupeLines(splitSentences(overview), 2);
-  const used = overviewParts;
-  return {
-    id: id || `phi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    query,
-    resolved,
-    identity,
-    title: intentionalTitle(query, identity),
-    overview: overviewParts.join(" "),
-    findings: unique.filter((line) => !used.some((usedLine) => nearDuplicate(usedLine, line)) && !semanticallyRepeats(line, used)).slice(0, 20),
-    sources: dedupeSources(sources),
-    created: created || Date.now(),
-  };
-}
-
-function bestSourceFor(text: string, sources: Source[]) {
-  return [...sources].sort((a, b) => overlapScore(text, `${b.title} ${b.excerpt}`) - overlapScore(text, `${a.title} ${a.excerpt}`))[0];
-}
-
-function evidenceTitle(paper: Paper, body: string, source: Source | undefined, index: number) {
-  const text = `${body} ${source?.title || ""}`.toLowerCase();
-  if (/proof/.test(text)) return "Proof production and collector issues";
-  if (/business strike|circulation strike/.test(text)) return "Business strikes and circulation production";
-  if (/mintage|minted|production/.test(text) && isCoinQuery(paper.query)) return "Mintage and Mint production";
-  if (/pcgs|grade|grading|ms\s?\d|pr\s?\d/.test(text)) return "Grades, certification, and market value";
-  if (/silver|composition|weight|diameter/.test(text) && isCoinQuery(paper.query)) return "Metal, weight, and specifications";
-  const sourceTitle = clean(source?.title);
-  if (sourceTitle && sourceTitle.length >= 8 && sourceTitle.length <= 72) return sourceTitle;
-  const clause = clean(body.split(/[;:—]/)[0]);
-  return clause.length >= 12 && clause.length <= 72 ? clause.replace(/[.]+$/, "") : `A closer look at ${paper.query} · ${index + 1}`;
-}
-
-function makeEvidenceCards(paper: Paper): EvidenceCard[] {
-  const visualSources = paper.sources.filter((source) => source.imageUrl);
-  const out: EvidenceCard[] = [];
-  const titles = new Set<string>();
-  paper.findings.forEach((body, index) => {
-    if (out.length >= 8) return;
-    const source = bestSourceFor(body, paper.sources);
-    const title = evidenceTitle(paper, body, source, index);
-    const key = title.toLowerCase();
-    if (titles.has(key)) return;
-    titles.add(key);
-    const fallback = visualSources[out.length];
-    out.push({ index: out.length, title, body, source, imageUrl: source?.imageUrl || fallback?.imageUrl });
+async function fetchDuckDuckGo(query: string): Promise<Source[]> {
+  const endpoint = new URL("https://api.duckduckgo.com/");
+  endpoint.search = new URLSearchParams({ q: query, format: "json", no_html: "1", skip_disambig: "0" }).toString();
+  const response = await withTimeout(fetch(endpoint, { cache: "no-store" }), 4200);
+  if (!response.ok) throw new Error(`DuckDuckGo ${response.status}`);
+  const data = await response.json() as any;
+  const out: Source[] = [];
+  const primary = normalizeSource({ title: data.Heading || query, url: data.AbstractURL || "", excerpt: data.AbstractText || "" }, "DuckDuckGo");
+  if (primary) out.push(primary);
+  (data.RelatedTopics || []).flatMap((item: any) => item.Topics || [item]).slice(0, 10).forEach((item: any) => {
+    const source = normalizeSource({
+      title: clean(item.Text).split(" - ")[0], url: item.FirstURL || "", excerpt: item.Text || "",
+    }, "DuckDuckGo");
+    if (source) out.push(source);
   });
   return out;
 }
 
-function makeStoryBeats(paper: Paper): StoryBeat[] {
-  const candidates = [
-    ...splitSentences(paper.overview),
-    ...paper.findings,
-    ...paper.sources.slice(0, 10).flatMap((source) => splitSentences(source.excerpt).slice(0, 2)),
-  ];
-  const lines = dedupeLines(candidates, 16);
-  const headings = ["The opening frame", "What the evidence says", "How the pieces connect", "Where the story branches", "Why the distinctions matter", "What changes the value or outcome", "What still needs separating", "What to investigate next"];
-  const unusedImages = paper.sources.filter((source) => source.imageUrl).map((source) => ({ url: source.imageUrl!, source }));
-  const usedImages = new Set<string>();
-  const beats: StoryBeat[] = [];
-  for (let index = 0; index < lines.length; index += 2) {
-    const body = lines.slice(index, index + 2).join(" ");
-    const source = bestSourceFor(body, paper.sources);
-    let imageUrl: string | undefined;
-    if (source?.imageUrl && !usedImages.has(source.imageUrl)) imageUrl = source.imageUrl;
-    if (!imageUrl) imageUrl = unusedImages.find((item) => !usedImages.has(item.url))?.url;
-    if (imageUrl) usedImages.add(imageUrl);
-    beats.push({ id: `beat-${index / 2}`, title: headings[index / 2] || `Story section ${index / 2 + 1}`, body, source, imageUrl });
+function relevance(source: Source, query: string) {
+  const words = tokens(query);
+  if (!words.length) return 1;
+  const title = source.title.toLowerCase();
+  const body = source.excerpt.toLowerCase();
+  let score = 0;
+  words.forEach((word) => {
+    if (title.includes(word)) score += 4;
+    if (body.slice(0, 1500).includes(word)) score += 1;
+  });
+  if (source.imageUrl) score += 0.4;
+  if (source.provider === "Wikipedia") score += 0.25;
+  return score / words.length;
+}
+
+function selectSources(sources: Source[], query: string) {
+  const seen = new Set<string>();
+  const domainCount = new Map<string, number>();
+  const providerCount = new Map<string, number>();
+  const ranked = sources
+    .filter((source) => {
+      const key = (source.url || `${source.provider}:${source.title}`).toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map((source) => ({ ...source, score: relevance(source, query) }))
+    .sort((a, b) => (b.score || 0) - (a.score || 0));
+
+  const chosen: Source[] = [];
+  ranked.forEach((source) => {
+    if (chosen.length >= 15) return;
+    const domain = (source.domain || source.provider).toLowerCase();
+    const provider = source.provider.toLowerCase();
+    const domains = domainCount.get(domain) || 0;
+    const providers = providerCount.get(provider) || 0;
+    if (domain.includes("wikipedia.org") && providers >= 1) return;
+    if (domains >= 2 || providers >= 4) return;
+    if ((source.score || 0) <= 0 && chosen.length >= 7) return;
+    chosen.push(source);
+    domainCount.set(domain, domains + 1);
+    providerCount.set(provider, providers + 1);
+  });
+
+  if (chosen.length < 10) {
+    ranked.forEach((source) => {
+      if (chosen.length >= 12) return;
+      if (!chosen.some((item) => (item.url || `${item.provider}:${item.title}`) === (source.url || `${source.provider}:${source.title}`))) chosen.push(source);
+    });
   }
-  return beats;
+  return chosen;
 }
 
-function notesForFocus(paper: Paper, focusText: string, seedBody?: string): ResearchNote[] {
-  const ranked = paper.sources
-    .flatMap((source) => splitSentences(source.excerpt).map((body) => ({ body, source, score: overlapScore(body, focusText) })))
-    .sort((a, b) => b.score - a.score);
-  const bodies = dedupeLines([seedBody || "", ...ranked.map((item) => item.body), ...paper.findings], 10);
-  return bodies.map((body, index) => {
-    const source = bestSourceFor(body, paper.sources);
-    const title = index === 0 && seedBody ? clean(focusText).split(/[,;]+/)[0] : clean(source?.title) || `Research note ${index + 1}`;
-    return { id: `note-${index}-${body.length}`, title, body, source };
+async function searchAllSources(query: string) {
+  const resolved = resolvedQuery(query);
+  const searches = [...new Set([query, resolved])].slice(0, 2);
+  const tasks: Promise<Source[]>[] = [];
+  searches.forEach((search) => {
+    tasks.push(fetchWikipedia(search));
+    tasks.push(fetchOpenAlex(search));
+    tasks.push(fetchCrossref(search));
+    tasks.push(fetchNasa(search));
+    tasks.push(fetchInternetArchive(search));
   });
+  tasks.push(fetchDuckDuckGo(query));
+  const settled = await Promise.allSettled(tasks);
+  const merged = settled.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+  return { resolved, sources: selectSources(merged, resolved) };
 }
 
-function parseKeywordDirections(raw: string) {
-  const direct = raw.split(/[;,\n]+/).map(clean).filter(Boolean);
-  if (direct.length > 1) return [...new Set(direct)].slice(0, 12);
-  const text = clean(raw);
-  if (!text) return [];
-  const phrases = ["business strike", "proof strike", "silver content", "mint mark", "pcgs grades", "grade values", "auction records", "population report", "die variety", "die varieties"];
-  const lower = text.toLowerCase();
-  const selected: string[] = [];
-  let remainder = ` ${lower} `;
-  phrases.forEach((phrase) => {
-    if (remainder.includes(` ${phrase} `)) {
-      selected.push(phrase);
-      remainder = remainder.replace(` ${phrase} `, " ");
-    }
+function buildOverview(query: string, sources: Source[]) {
+  const lines: string[] = [];
+  sources.forEach((source) => {
+    const first = sentence(source.excerpt);
+    if (!first) return;
+    const normalized = first.toLowerCase();
+    if (lines.some((line) => line.toLowerCase() === normalized)) return;
+    lines.push(first);
   });
-  selected.push(...(remainder.match(/[a-z0-9][a-z0-9-]{2,}/g) || []));
-  return [...new Set(selected.map(clean).filter(Boolean))].slice(0, 12);
+  return lines.slice(0, 3).join(" ") || `Infinity Phi opened ${query}, but the public source providers did not return usable evidence on this pass.`;
 }
 
-function awardSharedCardCredit(reference: string) {
-  const attemptId = `phi-card-share-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  const read = (key: string, fallback: any) => {
-    try { return JSON.parse(localStorage.getItem(key) || "null") || fallback; } catch { return fallback; }
+function buildRecord(query: string, resolved: string, sources: Source[]): ResultRecord {
+  return {
+    query,
+    resolved,
+    title: query,
+    overview: buildOverview(query, sources),
+    sources,
+    created: Date.now(),
   };
-  const session = read("starquest_session", null);
-  const users = read("starquest_users", {});
-  const signedIn = session?.key && users[session.key];
-  const wallet: any = signedIn || read("starquest_guest_profile_v1", {
-    key: "__guest__", username: "Guest", tokens: 0, shareCount: 0, pendingShareCredits: 0,
-    shareEvents: [], ledger: [], watchHistory: [], watchPositions: {}, unlockedContent: {},
-  });
-  wallet.tokens = Math.max(0, Number(wallet.tokens) || 0);
-  wallet.shareCount = Math.max(0, Number(wallet.shareCount) || 0) + 1;
-  wallet.pendingShareCredits = Math.max(0, Number(wallet.pendingShareCredits) || 0) + 1;
-  wallet.shareEvents = Array.isArray(wallet.shareEvents) ? wallet.shareEvents : [];
-  wallet.ledger = Array.isArray(wallet.ledger) ? wallet.ledger : [];
-  wallet.shareEvents.push({ id: attemptId, attemptId, contentId: reference, method: "web_share_api", confirmed: true, verified: true, createdAt: Date.now() });
-  let awarded = 0;
-  while (wallet.pendingShareCredits >= 10) {
-    wallet.pendingShareCredits -= 10;
-    wallet.tokens += 1;
-    awarded += 1;
-  }
-  wallet.ledger.push({
-    id: `tx-${attemptId}`, type: awarded ? "share_reward" : "share_credit", amount: awarded,
-    balance: wallet.tokens, pendingShareCredits: wallet.pendingShareCredits,
-    reason: awarded ? "Share reward: 10 completed shares" : `Confirmed share receipt ${wallet.pendingShareCredits}/10`,
-    referenceId: attemptId, createdAt: Date.now(),
-  });
-  wallet.shareEvents = wallet.shareEvents.slice(-250);
-  wallet.ledger = wallet.ledger.slice(-500);
-  if (signedIn) {
-    users[session.key] = wallet;
-    localStorage.setItem("starquest_users", JSON.stringify(users));
-  } else {
-    localStorage.setItem("starquest_guest_profile_v1", JSON.stringify(wallet));
-  }
-  window.dispatchEvent(new CustomEvent("starquest:share-progress", { detail: {
-    progressToNextCoin: wallet.pendingShareCredits, awarded, balance: wallet.tokens,
-  }}));
-  return { progressToNextCoin: wallet.pendingShareCredits, awarded, balance: wallet.tokens };
 }
 
-async function persistPaper(paper: Paper, history: HistoryItem[]) {
-  secureSave(`${PAPER_PREFIX}${paper.id}`, paper, "session");
-  secureSave(`${PAPER_PREFIX}${paper.id}`, paper);
+function saveSharedResearch(record: ResultRecord) {
   try {
-    const compact = { ...paper, findings: paper.findings.slice(0, 18), sources: paper.sources.slice(0, 40).map((source) => ({ ...source, excerpt: source.excerpt.slice(0, 2000) })) };
-    const existing = await secureLoadDurable<Paper[]>(PAPERS, []);
-    await secureSaveDurable(`${PAPER_PREFIX}${paper.id}`, compact);
-    await secureSaveDurable(PAPERS, [...existing.filter((item) => item.id !== paper.id), compact].slice(-12));
-    await secureSaveDurable(HISTORY, history);
+    localStorage.setItem(OMNI_RESEARCH, JSON.stringify({
+      version: "infinity-omni-render-v1",
+      query: record.query,
+      mode: "search",
+      createdAt: new Date(record.created).toISOString(),
+      overview: record.overview,
+      source: { id: "source", label: record.query, position: { x: 0, y: 0, z: 0 }, affinity: 1 },
+      nodes: [],
+      sources: record.sources.map((source) => ({
+        id: source.id,
+        title: source.title,
+        url: source.url,
+        domain: source.domain,
+        provider: source.provider,
+        extract: source.excerpt,
+        image: source.imageUrl || "",
+        storyKey: source.url || source.id,
+      })),
+      sourceSystem: "Infinity Phi · Omni renderer",
+      profileSnapshot: {},
+    }));
   } catch {}
+}
+
+function awardShare(reference: string) {
   try {
-    const existing = await secureLoadDurable<Record<string, any>[]>(LEDGER, []);
-    const wallet = connectOrCreateWallet("Infinity Phi");
-    const token = {
-      id: paper.id, researchId: paper.id, stage: "research", kind: "research", color: "yellow", status: "finished",
-      value: 1, units: 1, title: paper.title, query: paper.query, resolved: paper.resolved,
-      sourceCount: paper.sources.length, walletId: wallet.walletId, createdAt: new Date(paper.created).toISOString(),
+    const attemptId = `phi-share-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const read = (key: string, fallback: any) => {
+      try { return JSON.parse(localStorage.getItem(key) || "null") || fallback; } catch { return fallback; }
     };
-    await secureSaveDurable(LEDGER, [token, ...existing.filter((item) => item.id !== paper.id)].slice(0, 200));
-    window.dispatchEvent(new Event("infinity-history-updated"));
-  } catch {}
+    const session = read("starquest_session", null);
+    const users = read("starquest_users", {});
+    const signedIn = session?.key && users[session.key];
+    const wallet: any = signedIn || read("starquest_guest_profile_v1", { tokens: 0, shareCount: 0, pendingShareCredits: 0, shareEvents: [], ledger: [] });
+    wallet.tokens = Math.max(0, Number(wallet.tokens) || 0);
+    wallet.shareCount = Math.max(0, Number(wallet.shareCount) || 0) + 1;
+    wallet.pendingShareCredits = Math.max(0, Number(wallet.pendingShareCredits) || 0) + 1;
+    wallet.shareEvents = Array.isArray(wallet.shareEvents) ? wallet.shareEvents : [];
+    wallet.ledger = Array.isArray(wallet.ledger) ? wallet.ledger : [];
+    wallet.shareEvents.push({ id: attemptId, reference, method: "web_share_api", confirmed: true, createdAt: Date.now() });
+    let awarded = 0;
+    while (wallet.pendingShareCredits >= 10) { wallet.pendingShareCredits -= 10; wallet.tokens += 1; awarded += 1; }
+    wallet.ledger.push({ id: `tx-${attemptId}`, type: awarded ? "share_reward" : "share_credit", amount: awarded, balance: wallet.tokens, pendingShareCredits: wallet.pendingShareCredits, referenceId: attemptId, createdAt: Date.now() });
+    wallet.shareEvents = wallet.shareEvents.slice(-250);
+    wallet.ledger = wallet.ledger.slice(-500);
+    if (signedIn) { users[session.key] = wallet; localStorage.setItem("starquest_users", JSON.stringify(users)); }
+    else localStorage.setItem("starquest_guest_profile_v1", JSON.stringify(wallet));
+    window.dispatchEvent(new CustomEvent("starquest:share-progress", { detail: { progressToNextCoin: wallet.pendingShareCredits, awarded, balance: wallet.tokens } }));
+    return { progressToNextCoin: wallet.pendingShareCredits, awarded };
+  } catch {
+    return {};
+  }
+}
+
+async function shareSource(source: Source, query: string): Promise<ShareResult> {
+  const storyKey = source.url || source.id;
+  const params = new URLSearchParams({
+    sharedTitle: source.title,
+    sharedBody: source.excerpt.slice(0, 1200),
+    sharedUrl: source.url,
+    sharedImage: source.imageUrl || "",
+    sharedDomain: source.domain || source.provider,
+    sharedQuery: query,
+  });
+  const shareUrl = `https://www-infinity4.github.io/News-Phi/?${params.toString()}#story=${encodeURIComponent(storyKey)}`;
+  if (!navigator.share) {
+    try { await navigator.clipboard.writeText(shareUrl); return { copied: true }; } catch { return {}; }
+  }
+  try {
+    await navigator.share({ title: source.title, text: source.excerpt.slice(0, 320), url: shareUrl });
+    return awardShare(shareUrl);
+  } catch (error: any) {
+    return error?.name === "AbortError" ? { cancelled: true } : {};
+  }
+}
+
+function readQuery() {
+  if (typeof window === "undefined") return "";
+  return clean(new URLSearchParams(window.location.search).get("q") || "", 1000);
 }
 
 export default function PhiPage2() {
   const [query, setQuery] = useState("");
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [paper, setPaper] = useState<Paper | null>(null);
+  const [input, setInput] = useState("");
+  const [record, setRecord] = useState<ResultRecord | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
-  const [showAllSources, setShowAllSources] = useState(false);
-  const [showFullStory, setShowFullStory] = useState(false);
-  const [expandedEvidence, setExpandedEvidence] = useState<number | null>(null);
-  const [researchNotes, setResearchNotes] = useState<ResearchNote[]>([]);
-  const [expandedNote, setExpandedNote] = useState<string | null>(null);
-  const [keywordInput, setKeywordInput] = useState("");
-  const [refineBusy, setRefineBusy] = useState(false);
-  const [refineStatus, setRefineStatus] = useState("");
-  const [refinementPasses, setRefinementPasses] = useState<RefinementPass[]>([]);
-  const [baseConclusion, setBaseConclusion] = useState("");
-  const [activeDiscovery, setActiveDiscovery] = useState<string | null>(null);
-  const [spawnedTopics, setSpawnedTopics] = useState<SemanticCard[]>([]);
-  const [sharedCard, setSharedCard] = useState<ShareableCard | null>(null);
+  const [shareStatus, setShareStatus] = useState<Record<string, string>>({});
+  const requestRef = useRef(0);
+  const history = useMemo(() => secureLoad<HistoryItem[]>(HISTORY, []), [record?.created]);
 
-  const baseTopics = useMemo(() => paper ? buildSemanticExpansionCards(paper.query, paper.overview, paper.sources, paper.findings, "", [], 10) : [], [paper]);
-  const topics = useMemo(() => {
-    const seen = new Set<string>();
-    return [...baseTopics, ...spawnedTopics].filter((topic) => {
-      if (seen.has(topic.key)) return false;
-      seen.add(topic.key);
-      return true;
-    }).slice(0, 18);
-  }, [baseTopics, spawnedTopics]);
-  const chosenTopics = useMemo(() => topics.filter((topic) => refinementPasses.some((pass) => pass.terms.some((term) => term.toLowerCase() === topic.keyword.toLowerCase()))), [topics, refinementPasses]);
-  const storyboard = useMemo(() => paper ? buildSemanticStoryboard(paper.query, paper.overview, chosenTopics, researchNotes) : [], [paper, chosenTopics, researchNotes]);
-  const evidenceCards = useMemo(() => paper ? makeEvidenceCards(paper).filter((card) => !semanticallyRepeats(card.body, [paper.overview, ...topics.map((topic) => topic.body)])) : [], [paper, topics]);
-  const storyBeats = useMemo(() => {
-    if (!paper || !researchNotes.length) return [];
-    const shapedPaper: Paper = {
-      ...paper,
-      overview: researchNotes.map((note) => note.body).slice(0, 3).join(" "),
-      findings: researchNotes.map((note) => note.body),
-    };
-    return makeStoryBeats(shapedPaper);
-  }, [paper, researchNotes]);
-  const heroSource = paper?.sources.find((source) => source.imageUrl) || paper?.sources[0];
-  const heroImage = heroSource?.imageUrl;
-  const visualPool = useMemo(() => {
-    const seen = new Set<string>();
-    return (paper?.sources || []).flatMap((source) => source.imageUrl && !seen.has(source.imageUrl) ? (seen.add(source.imageUrl), [{ url: source.imageUrl, source }]) : []);
-  }, [paper]);
-
-  useEffect(() => {
-    if (!paper) return;
-    const state = {
-      branches: [],
-      branchIds: chosenTopics.map((topic) => topic.key),
-      branchBodies: chosenTopics.map((topic) => topic.body),
-      terms: refinementPasses.flatMap((pass) => pass.terms),
-      imageUrls: visualPool.slice(0, Math.min(12, topics.length)).map((item) => item.url),
-      notes: storyboard,
-      deepNotes: storyboard.map((item) => item.body),
-      updatedAt: new Date().toISOString(),
-    };
-    secureSave(`${SELECTION_PREFIX}${paper.id}`, state);
-    const timer = window.setTimeout(() => { void secureSaveDurable(`${SELECTION_PREFIX}${paper.id}`, state).catch(() => undefined); }, 350);
-    return () => window.clearTimeout(timer);
-  }, [paper, chosenTopics, refinementPasses, storyboard, visualPool, topics.length]);
-
-  async function saveRefinementState(paperId: string, state: RefinementState) {
-    secureSave(`${REFINE_PREFIX}${paperId}`, state);
-    try { await secureSaveDurable(`${REFINE_PREFIX}${paperId}`, state); } catch {}
-  }
-
-  async function runSearch(raw: string, currentHistory: HistoryItem[] = []) {
-    const q = clean(raw);
+  async function run(nextQuery: string, writeUrl = false) {
+    const q = clean(nextQuery, 1000);
     if (!q) return;
-    const resolved = resolve(q, currentHistory);
-    const id = `phi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const shell = makePaper(q, resolved.resolved, resolved.identity, [], id);
-    shell.title = `${q}: building the evidence and story…`;
-    shell.overview = `Searching live sources for ${q}…`;
-    setPaper(shell);
+    const requestId = ++requestRef.current;
+    setQuery(q);
+    setInput(q);
     setBusy(true);
     setNotice("");
-    setShowAllSources(false);
-    setShowFullStory(false);
-    setResearchNotes([]);
-    setExpandedEvidence(null);
-    setExpandedNote(null);
-    setRefinementPasses([]);
-    setKeywordInput("");
-    setRefineStatus("");
-    setBaseConclusion("");
-    setActiveDiscovery(null);
-    setSpawnedTopics([]);
-    secureSave(`${PAPER_PREFIX}${id}`, shell, "session");
-    const nextHistory = [...currentHistory, { query: q, resolved: resolved.resolved, kind: resolved.kind, at: Date.now() }].slice(-80);
-    setHistory(nextHistory);
+    setRecord({ query: q, resolved: resolvedQuery(q), title: q, overview: `Searching the public source field for ${q}…`, sources: [], created: Date.now() });
+
+    if (writeUrl) {
+      const target = new URL(window.location.href);
+      target.pathname = appPath("phi");
+      target.search = "";
+      target.searchParams.set("q", q);
+      target.searchParams.set("run", "1");
+      target.hash = "";
+      History.prototype.pushState.call(window.history, { infinityPhiSearch: q }, "", target.toString());
+    }
+
     try {
-      const rawSources = (await hardTimeout(research(resolved.resolved), 7500)) || [];
-      const profile = await loadInfinityProfile().catch(() => null);
-      const savedContext = profile ? profileContextText(profile) : "";
-      const context = [currentHistory.slice(-12).map((item) => `${item.query} ${item.resolved}`).join(" "), savedContext].filter(Boolean).join(" ");
-      const gated = gateResearchSources(rawSources, q, resolved.identity, context);
-      const sources = gated.sources;
-      const next = makePaper(q, resolved.resolved, resolved.identity, sources, id);
-      setPaper(next);
+      const result = await searchAllSources(q);
+      if (requestId !== requestRef.current) return;
+      const next = buildRecord(q, result.resolved, result.sources);
+      setRecord(next);
       setBusy(false);
-      setBaseConclusion(next.overview);
-      await saveRefinementState(next.id, { baseConclusion: next.overview, passes: [] });
-      if (!sources.length) setNotice("Live source providers timed out. The subject is still open, and the orange discovery cards can start a focused pass.");
-      window.setTimeout(() => void persistPaper(next, nextHistory), 500);
-    } catch {
-      setBusy(false);
-      setBaseConclusion(shell.overview);
-      setNotice("The live source pass stopped safely. You can retry or use one of the discovery directions to make a focused pass.");
-      window.setTimeout(() => void persistPaper(shell, nextHistory), 500);
-    }
-  }
-
-  async function applyRefinementTerms(rawTerms: string[], origin: "discovery" | "keyword", seed?: DiscoveryTopic) {
-    if (!paper || refineBusy) return;
-    const prior = new Set(refinementPasses.flatMap((pass) => pass.terms).map((term) => term.toLowerCase()));
-    const terms = rawTerms.map(clean).filter(Boolean);
-    const freshTerms = terms.filter((term) => !prior.has(term.toLowerCase()));
-    if (!freshTerms.length) {
-      if (seed) {
-        setActiveDiscovery(seed.key);
-        setResearchNotes(notesForFocus(paper, seed.keyword, seed.body));
-        setRefineStatus(`${seed.title} is already included in this research package.`);
-      } else setRefineStatus("Those directions are already attached to this subject.");
-      return;
-    }
-    setRefineBusy(true);
-    if (seed) {
-      setActiveDiscovery(seed.key);
-      setResearchNotes([{ id: `seed-${seed.key}`, title: seed.title, body: seed.body }]);
-    }
-    setRefineStatus(`Keeping “${paper.query}” locked while researching ${freshTerms.join(" · ")}…`);
-    const gathered: Source[] = [];
-    for (let start = 0; start < freshTerms.length; start += 4) {
-      const batch = freshTerms.slice(start, start + 4);
-      const settled = await Promise.allSettled(batch.map((term) => researchKeyword(paper.query, term)));
-      settled.forEach((result) => { if (result.status === "fulfilled") gathered.push(...result.value); });
-    }
-    const merged = dedupeSources([...paper.sources, ...gathered]);
-    const next = makePaper(paper.query, paper.resolved, paper.identity, merged, paper.id, paper.created);
-    const pass: RefinementPass = { id: `pass-${Date.now()}`, terms: freshTerms, sourceCount: gathered.length, at: Date.now(), origin };
-    const passes = [...refinementPasses, pass];
-    setPaper(next);
-    setRefinementPasses(passes);
-    setResearchNotes(notesForFocus(next, freshTerms.join(" "), seed?.body));
-    if (seed) {
-      const spawned = spawnSemanticExpansionCards(next.query, next.overview, seed, next.sources, next.findings, topics);
-      setSpawnedTopics((current) => {
-        const seen = new Set<string>();
-        return [...current, ...spawned].filter((topic) => {
-          if (seen.has(topic.key) || topics.some((existing) => existing.key === topic.key)) return false;
-          seen.add(topic.key);
-          return true;
-        }).slice(-8);
-      });
-    }
-    setRefineBusy(false);
-    setKeywordInput("");
-    setRefineStatus(gathered.length
-      ? `${gathered.length} context-matched source records were added. The article now knows this direction without losing the original subject.`
-      : "That direction is now recorded in the article plan. No new source record matched strongly enough yet, so it stays marked for deeper research.");
-    const state = { baseConclusion: baseConclusion || paper.overview, passes };
-    await saveRefinementState(paper.id, state);
-    window.setTimeout(() => void persistPaper(next, history), 200);
-  }
-
-  async function runRefinement(event: FormEvent) {
-    event.preventDefault();
-    const terms = parseKeywordDirections(keywordInput);
-    if (!terms.length) {
-      setRefineStatus("Add one or more directions. Separate phrases with commas when you want them searched independently.");
-      return;
-    }
-    await applyRefinementTerms(terms, "keyword");
-  }
-
-
-  async function shareOrangeCard(card: ShareableCard) {
-    const q = `${card.title} related news`;
-    const params = new URLSearchParams({
-      q, run: "1", cardTitle: card.title, cardBody: card.body.slice(0, 1400),
-      source: card.source || "", image: card.imageUrl || "",
-    });
-    const shareUrl = `${location.origin}${appPath("phi")}?${params.toString()}`;
-    if (!navigator.share) {
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-        setNotice("Card link copied. Open Android Share to earn 1/10 StarCoin.");
-      } catch {
-        setNotice("Sharing is unavailable in this browser.");
-      }
-      return;
-    }
-    try {
-      await navigator.share({ title: card.title, text: card.body.slice(0, 420), url: shareUrl });
-      const reward = awardSharedCardCredit(shareUrl);
-      setNotice(reward.awarded ? "Shared · 1 StarCoin completed!" : `Shared · StarCoin progress ${reward.progressToNextCoin}/10`);
+      if (!next.sources.length) setNotice("The renderer stayed active, but no provider returned usable public evidence on this pass. Search again or change the wording; the page will not time out or 404.");
+      const nextHistory = [...secureLoad<HistoryItem[]>(HISTORY, []), { query: q, resolved: result.resolved, kind: result.resolved === q ? "general" : "element", at: Date.now() }].slice(-80);
+      secureSave(HISTORY, nextHistory);
+      saveSharedResearch(next);
+      window.dispatchEvent(new Event("infinity-history-updated"));
     } catch (error) {
-      if (!(error instanceof DOMException) || error.name !== "AbortError") setNotice("Share did not complete.");
+      if (requestId !== requestRef.current) return;
+      setBusy(false);
+      setNotice("The public providers did not finish, but the result renderer stayed live. Retry this search without leaving the page.");
     }
-  }
-
-  function readEvidence(card: EvidenceCard) {
-    if (!paper) return;
-    const opening = expandedEvidence !== card.index;
-    setExpandedEvidence(opening ? card.index : null);
-    if (opening) setResearchNotes(notesForFocus(paper, `${card.title} ${card.body}`, card.body));
-  }
-
-  function toggleFullStory() {
-    if (!paper) return;
-    const opening = !showFullStory;
-    setShowFullStory(opening);
-    if (opening) setResearchNotes(notesForFocus(paper, `${paper.query} complete story`, paper.overview));
   }
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const cardTitle = params.get("cardTitle") || "";
-    const cardBody = params.get("cardBody") || "";
-    const cardSource = params.get("source") || "";
-    const cardImage = params.get("image") || "";
-    const initial = params.get("q") || cardTitle || "";
-    const id = params.get("id") || "";
-    if (cardTitle) setSharedCard({ title: cardTitle, body: cardBody, source: cardSource, imageUrl: cardImage });
-    const localHistory = secureLoad<HistoryItem[]>(HISTORY, []);
-    if (localHistory.length) setHistory(localHistory);
-    if (initial) {
-      setQuery(initial);
-      if (params.get("run") === "1") void runSearch(initial, localHistory);
-    }
-    if (id && !initial) {
-      void (async () => {
-        try {
-          const exact =
-            (await secureLoadDurable<Paper | null>(`${PAPER_PREFIX}${id}`, null)) ||
-            secureLoad<Paper | null>(`${PAPER_PREFIX}${id}`, null, "session") ||
-            secureLoad<Paper | null>(`${PAPER_PREFIX}${id}`, null) ||
-            (await secureLoadDurable<Paper[]>(PAPERS, [])).find((item) => item.id === id);
-          if (!exact) return;
-          setPaper(exact);
-          setQuery(exact.query);
-          const localRefine = secureLoad<RefinementState | null>(`${REFINE_PREFIX}${exact.id}`, null);
-          let refine = localRefine;
-          if (!refine) {
-            try { refine = await secureLoadDurable<RefinementState | null>(`${REFINE_PREFIX}${exact.id}`, null); } catch {}
-          }
-          setBaseConclusion(refine?.baseConclusion || exact.overview);
-          setRefinementPasses(refine?.passes || []);
-        } catch {}
-      })();
-    }
+    const initial = readQuery();
+    if (!initial) return;
+    void run(initial, false);
+    return () => { requestRef.current += 1; };
   }, []);
 
-  async function submit(event: FormEvent) {
+  function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await runSearch(query, history);
+    void run(input, true);
   }
 
+  const sources = record?.sources || [];
+  const orange = sources.slice(0, 10);
+  const purple = sources.slice(0, 8);
+  const green = sources.slice(0, 15);
+  const hero = sources.find((source) => source.imageUrl) || sources[0];
+
+  if (!query && !record) return null;
+
   return (
-    <main className="phi-mode">
-      <div className="phi-shell">
-        <header className="phi-topline"><span>Built with ChatGPT</span></header>
-        <section className={paper ? "phi-search-section compact" : "phi-search-section"}>
-          {!paper && <>
-            <div className="phi-orb">φ</div>
-            <h1>Infinity φ</h1>
-            <p>Structured futures from endless results.</p>
-          </>}
-          <form onSubmit={submit} className="phi-search-box">
-            <input value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Research topic" placeholder="Search" />
-            <button disabled={busy} aria-label="Search all sources">{busy ? <span className="phi-spinner" /> : <span className="phi-omni" aria-hidden="true">⊙</span>}</button>
-          </form>
-          {busy && <div className="phi-thinking"><Sparkles size={16} /> Researching live sources without blocking the page…</div>}
-          {notice && <p className="phi-notice">{notice}</p>}
-        </section>
+    <main className="mx-auto w-full max-w-6xl px-3 pb-24 pt-20 sm:px-5" aria-live="polite">
+      <section className="mb-5 rounded-[28px] border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur sm:p-5">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <a href={appPath("phi")} className="rounded-full bg-violet-700 px-3 py-2 text-xs font-black text-white">Search φ</a>
+          <a href={`${appPath("phi/code")}?q=${encodeURIComponent(query)}`} className="rounded-full border border-violet-300 bg-white px-3 py-2 text-xs font-black text-violet-800">Code φ</a>
+          <a href={`${appPath("phi/create")}?q=${encodeURIComponent(query)}`} className="rounded-full border border-violet-300 bg-white px-3 py-2 text-xs font-black text-violet-800">Create φ</a>
+          <span className="ml-auto text-xs font-bold text-slate-500">Infinity Phi · Omni result engine</span>
+        </div>
+        <form onSubmit={submit} className="flex items-center gap-2 rounded-2xl border-2 border-violet-300 bg-slate-50 p-2">
+          <Search size={20} className="shrink-0 text-violet-700" />
+          <input value={input} onChange={(event) => setInput(event.target.value)} className="min-w-0 flex-1 bg-transparent px-1 py-2 text-base font-semibold text-slate-950 outline-none" aria-label="Search Infinity Phi" />
+          <button type="submit" disabled={busy} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-700 text-lg font-black text-white disabled:opacity-60" aria-label="Search">
+            {busy ? <Sparkles size={18} className="animate-pulse" /> : "φ"}
+          </button>
+        </form>
+        {busy && <div className="mt-3 flex items-center gap-2 text-sm font-bold text-violet-700"><Sparkles size={16} className="animate-pulse" /> Searching providers in parallel; one slow source cannot stop the page.</div>}
+        {notice && <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">{notice}</p>}
+      </section>
 
-        {paper && <article className="phi-results phi-living-result">
-          <nav className="phi-tabs"><span className="active">AI overview</span></nav>
-          <div className="phi-result-grid">
-            <section className="phi-answer">
-              <section className="phi-editorial-hero" aria-label="AI overview">
-                <div className="phi-editorial-copy">
-                  <div className="phi-identity"><Check size={14} /> {paper.identity.kind === "element" ? `${paper.identity.name} · ${paper.identity.symbol} · atomic number ${paper.identity.number}` : paper.identity.name}</div>
-                  <p className="phi-editorial-deck">{paper.overview}</p>
-                </div>
-              </section>
+      {record && (
+        <article className="space-y-7">
+          <section className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-xl">
+            {hero?.imageUrl ? <img src={hero.imageUrl} alt={hero.title} className="h-56 w-full object-cover sm:h-72" onError={(event) => { event.currentTarget.src = FALLBACK_IMAGE; }} /> : null}
+            <div className="p-5 sm:p-7">
+              <div className="mb-2 text-xs font-black uppercase tracking-[.18em] text-violet-700">AI overview</div>
+              <h1 className="text-2xl font-black leading-tight text-slate-950 sm:text-4xl">{record.title}</h1>
+              <p className="phi-editorial-deck mt-4 text-base leading-7 text-slate-700 sm:text-lg">{record.overview}</p>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
+                <span>{sources.length} live source records</span><span>•</span><span>{record.resolved}</span>
+              </div>
+            </div>
+          </section>
 
-              {sharedCard && <section className="phi-shared-orange-card" aria-label="Shared orange card">
-                {sharedCard.imageUrl ? <img src={sharedCard.imageUrl} alt="" /> : <div className="phi-orange-image-fallback">φ</div>}
-                <div><small>Shared orange card</small><h2>{sharedCard.title}</h2><p>{sharedCard.body}</p>{sharedCard.source && <a href={sharedCard.source} target="_blank" rel="noreferrer">Open evidence source</a>}</div>
-              </section>}
-
-              <section className="phi-refine-panel" aria-labelledby="phi-refine-heading">
-                <div className="phi-refine-head">
-                  <small>Refine search · optional</small>
-                  <h2 id="phi-refine-heading">Add a more specific direction</h2>
-                  
-                </div>
-                {refinementPasses.length > 0 && <div className="phi-refinement-passes">
-                  {refinementPasses.map((pass, index) => <div className="phi-refinement-pass" key={pass.id}><b>Pass {index + 2}</b><span>{pass.terms.join(" · ")}</span><small>{pass.sourceCount} new matches</small></div>)}
-                </div>}
-                <form className="phi-keyword-form" onSubmit={runRefinement}>
-                  <label className="phi-keyword-label" htmlFor="phi-keyword-search"><small>Secondary search</small><b>Keep the same subject and make it more specific</b></label>
-                  <div className="phi-keyword-row">
-                    <textarea id="phi-keyword-search" value={keywordInput} onChange={(event) => setKeywordInput(event.target.value)} placeholder={isCoinQuery(paper.query) ? "proof, business strike, PCGS grades, auction records" : "Add specific terms or phrases, separated by commas"} />
-                    <button type="submit" disabled={refineBusy}>{refineBusy ? "Researching…" : "Add research"}</button>
-                  </div>
-                  
-                  {refineStatus && <div className="phi-refine-status">{refineStatus}</div>}
-                </form>
-              </section>
-
-
-              <section className="phi-living-section" aria-labelledby="phi-discovery-heading">
-                <div className="phi-living-heading">
-                  <div><h2 id="phi-discovery-heading">Explore further</h2></div>
-                  
-                </div>
-                <div className="phi-orange-grid">
-                  {!topics.length && !busy && <div className="phi-purple-empty">No deeper cards returned from this source pass. <button type="button" onClick={() => void runSearch(paper.query, history)}>Retry subject research</button></div>}
-                  {topics.map((topic, index) => {
-                    const selected = refinementPasses.some((pass) => pass.terms.some((term) => term.toLowerCase() === topic.keyword.toLowerCase()));
-                    const image = visualPool[index]?.url;
-                    const active = activeDiscovery === topic.key;
-                    return <article className={`phi-orange-card${selected || active ? " selected" : ""}`} key={topic.key}>
-                      <button type="button" className="phi-orange-main" onClick={() => void applyRefinementTerms([topic.keyword], "discovery", topic)} aria-pressed={selected}>
-                        {image ? <img src={image} alt="" loading="lazy" /> : <div className="phi-orange-image-fallback">φ</div>}
-                        <div className="phi-orange-copy">
-                          <small>{selected ? "Included in your magazine" : topic.intent === "next" ? "Related expansion" : `${topic.intent.toUpperCase()} · ${String(index + 1).padStart(2, "0")}`}</small>
-                          <h3>{topic.title}</h3>
-                          <p>{topic.body}</p>
-                        </div>
-                      </button>
-                      <div className="phi-orange-actions">
-                        <button type="button" disabled={refineBusy} onClick={() => void applyRefinementTerms([topic.keyword], "discovery", topic)}>{selected ? "Included · explore deeper" : "Research & add"}</button>
-                        <button type="button" className="phi-share-card" onClick={() => void shareOrangeCard({ title: topic.title, body: topic.body, source: bestSourceFor(topic.body, paper.sources)?.url, imageUrl: image })}>Share card · +1/10 ⭐</button>
-                        <a href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}&q=${encodeURIComponent(paper.query)}&resolved=${encodeURIComponent(paper.resolved)}&phone=1`}><span className="phi-card-orb">φ</span> Workbench</a>
+          <section>
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div><div className="text-xs font-black uppercase tracking-[.18em] text-orange-700">Best paths</div><h2 className="text-2xl font-black text-slate-950">Orange cards</h2></div>
+              <span className="text-xs font-bold text-slate-500">Real source evidence shaped into result cards</span>
+            </div>
+            {orange.length ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {orange.map((source, index) => (
+                  <article key={source.id || index} className="phi-orange-card overflow-hidden rounded-[26px] border-2 border-orange-400 bg-gradient-to-br from-orange-500 to-red-700 text-white shadow-lg" data-atom-nucleus={query}>
+                    {source.imageUrl ? <img src={source.imageUrl} alt={source.title} className="h-44 w-full object-cover" loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} /> : <div className="grid h-24 place-items-center text-4xl font-black">φ</div>}
+                    <div className="p-5">
+                      <small className="font-black uppercase tracking-[.12em] text-yellow-200">{source.provider} · result {index + 1}</small>
+                      <h3 className="mt-2 text-xl font-black leading-tight text-yellow-100">{source.title}</h3>
+                      <p className="mt-3 leading-6 text-orange-50">{source.excerpt.slice(0, 520)}{source.excerpt.length > 520 ? "…" : ""}</p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {source.url && <a href={source.url} target="_blank" rel="noopener" className="inline-flex items-center gap-1 rounded-full bg-black/25 px-3 py-2 text-xs font-black">Read source <ExternalLink size={13} /></a>}
+                        <a href={`${appPath("phi/build")}?${new URLSearchParams({ q: query, focus: source.title }).toString()}`} className="rounded-full bg-yellow-300 px-3 py-2 text-xs font-black text-red-950">Build this story</a>
+                        <button type="button" className="phi-share-card inline-flex items-center gap-1 rounded-full border border-white/40 bg-white/10 px-3 py-2 text-xs font-black" onClick={async () => {
+                          const result = await shareSource(source, query);
+                          setShareStatus((current) => ({ ...current, [source.id]: result.awarded ? "Shared · 1 StarCoin!" : result.progressToNextCoin != null ? `Shared · ${result.progressToNextCoin}/10 ⭐` : result.copied ? "Link copied" : result.cancelled ? "Share cancelled" : "Share card · +1/10 ⭐" }));
+                        }}><Share2 size={13} /> {shareStatus[source.id] || "Share card · +1/10 ⭐"}</button>
                       </div>
-                    </article>;
-                  })}
-                </div>
-              </section>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : <div className="rounded-2xl border border-dashed border-orange-300 bg-orange-50 p-5 font-semibold text-orange-900">The result shell is live. Provider cards will appear here as soon as usable evidence arrives.</div>}
+          </section>
 
-              {evidenceCards.length > 0 && <section className="phi-living-section" aria-labelledby="phi-evidence-heading">
-                <div className="phi-living-heading"><div><h2 id="phi-evidence-heading">Related realms to carry forward</h2></div></div>
-                <div className="phi-orange-grid">
-                  {evidenceCards.map((card) => {
-                    const expanded = expandedEvidence === card.index;
-                    return <article className={`phi-orange-card${expanded ? " selected" : ""}`} key={`${card.title}-${card.index}`}>
-                      <button type="button" className="phi-orange-main" onClick={() => readEvidence(card)} aria-pressed={expanded}>
-                        {card.imageUrl ? <img src={card.imageUrl} alt={card.source?.title || card.title} loading="lazy" /> : <div className="phi-orange-image-fallback">φ</div>}
-                        <div className="phi-orange-copy"><small>{expanded ? "Reading this direction" : `Research direction ${String(card.index + 1).padStart(2, "0")}`}</small><h3>{card.title}</h3><p>{card.body}</p></div>
-                      </button>
-                      <div className="phi-orange-actions"><button type="button" onClick={() => readEvidence(card)}>{expanded ? "Show less" : "Preview direction"}</button><button type="button" className="phi-share-card" onClick={() => void shareOrangeCard({ title: card.title, body: card.body, source: card.source?.url, imageUrl: card.imageUrl })}>Share card · +1/10 ⭐</button><a href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}&q=${encodeURIComponent(paper.query)}&resolved=${encodeURIComponent(paper.resolved)}&phone=1`}><span className="phi-card-orb">φ</span> Open for magazine</a></div>
-                    </article>;
-                  })}
-                </div>
-              </section>}
+          <section className="rounded-[30px] bg-violet-950 p-5 text-white shadow-xl sm:p-7">
+            <div className="mb-4"><div className="text-xs font-black uppercase tracking-[.18em] text-fuchsia-300">Research directions</div><h2 className="text-2xl font-black">Purple cards</h2></div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {purple.length ? purple.map((source, index) => (
+                <article key={`purple-${source.id}-${index}`} className="rounded-2xl border border-fuchsia-300/30 bg-white/10 p-4">
+                  <small className="font-black uppercase tracking-[.12em] text-fuchsia-300">Research note {String(index + 1).padStart(2, "0")}</small>
+                  <h3 className="mt-2 text-lg font-black">{source.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-violet-100">{sentence(source.excerpt)}</p>
+                  <a href={`${appPath("phi/build")}?${new URLSearchParams({ q: query, focus: source.title, note: sentence(source.excerpt) }).toString()}`} className="mt-3 inline-block rounded-full bg-fuchsia-300 px-3 py-2 text-xs font-black text-violet-950">Expand into website</a>
+                </article>
+              )) : <p className="text-violet-200">Research notes will populate from the same successful source set.</p>}
+            </div>
+          </section>
 
-              <section className="phi-living-section phi-purple-section" aria-labelledby="phi-notes-heading">
-                <div className="phi-living-heading"><div><h2 id="phi-notes-heading">Storyboard draft</h2></div></div>
-                <div className="phi-purple-grid">
-                  {storyboard.length === 0 ? <div className="phi-purple-empty">The storyboard will appear after you choose an orange direction.</div> : storyboard.map((note, index) => <article className="phi-purple-card" key={note.id}>
-                    <div className="phi-purple-main"><small>Draft section {String(index + 1).padStart(2, "0")}</small><h3>{note.title}</h3><p>{note.body}</p></div>
-                  </article>)}
-                </div>
-                {storyboard.length > 0 && <a className="phi-purple-build" href={`${appPath("phi/magazine")}?id=${encodeURIComponent(paper.id)}`}><span className="phi-card-orb">φ</span> Create publication from this storyboard</a>}
-              </section>
+          <section className="rounded-[30px] bg-emerald-950 p-5 text-white shadow-xl sm:p-7">
+            <div className="mb-4"><div className="text-xs font-black uppercase tracking-[.18em] text-emerald-300">Evidence</div><h2 className="text-2xl font-black">Green sources</h2></div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {green.length ? green.map((source, index) => (
+                <a key={`green-${source.id}-${index}`} href={source.url || "#"} target={source.url ? "_blank" : undefined} rel={source.url ? "noopener" : undefined} className="phi-green-card rounded-2xl border border-emerald-300/30 bg-white/10 p-4 transition hover:bg-white/15" onClick={(event) => { if (!source.url) event.preventDefault(); }}>
+                  <small className="font-black uppercase tracking-[.12em] text-emerald-300">{source.provider} · {source.domain}</small>
+                  <b className="mt-2 block text-base font-black">{source.title}</b>
+                  <p className="mt-2 text-sm leading-6 text-emerald-50">{source.excerpt.slice(0, 260)}{source.excerpt.length > 260 ? "…" : ""}</p>
+                  {source.url && <span className="mt-3 inline-flex items-center gap-1 text-xs font-black text-emerald-200">Open source <ExternalLink size={12} /></span>}
+                </a>
+              )) : <p className="text-emerald-200">No source links were returned on this pass.</p>}
+            </div>
+          </section>
 
-              <section className="phi-living-section phi-green-section" aria-labelledby="phi-sources-heading">
-                <div className="phi-living-heading"><div><h2 id="phi-sources-heading">Sources</h2></div><p>{busy ? "Live source pass in progress…" : `${paper.sources.length} source records currently support this research package.`}</p></div>
-                <div className="phi-green-grid">
-                  {(showAllSources ? paper.sources : paper.sources.slice(0, 6)).map((source, index) => <a key={`${source.url}-${index}`} href={source.url || "#"} target={source.url ? "_blank" : undefined} rel={source.url ? "noreferrer" : undefined} className="phi-green-card">
-                    {source.imageUrl ? <img src={source.imageUrl} alt="" /> : <span className="phi-green-source-number">{index + 1}</span>}
-                    <div><small>{source.provider}</small><b>{source.title}</b><p>{source.excerpt}</p></div><ExternalLink size={16} />
-                  </a>)}
-                </div>
-                {paper.sources.length > 6 && <button type="button" className="phi-green-more" onClick={() => setShowAllSources((value) => !value)}>{showAllSources ? "Show fewer sources" : `View all ${paper.sources.length} sources`} <ChevronDown size={16} /></button>}
-              </section>
-
-              <section className={styles.finish}>
-                <a className={styles.fullSite} href={`${appPath("phi/magazine")}?id=${encodeURIComponent(paper.id)}`}><span>φ</span><div><b>Create the publication</b><small>The AI overview stays concise; your chosen orange expansions and purple storyboard control the deeper magazine.</small></div></a>
-                <a className={styles.workbench} href={`${appPath("phi/build")}?id=${encodeURIComponent(paper.id)}&q=${encodeURIComponent(paper.query)}&resolved=${encodeURIComponent(paper.resolved)}&phone=1`}><b>Open advanced workbench</b><small>Use this only when you want manual image selection, several branches at once, or deeper production control.</small></a>
-              </section>
-
-              <form onSubmit={submit} className="phi-followup"><Sparkles size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Start a different subject" /><button>Search</button></form>
+          {history.length > 0 && (
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">
+              <b className="text-slate-900">Infinity history is still connected.</b> Recent searches remain available to the main Infinity Phi shell and search suggestions.
             </section>
-          </div>
-        </article>}
-
-        <footer className="phi-credits">Infinity Phi · discovery-first contextual research · GitHub Pages</footer>
-      </div>
+          )}
+        </article>
+      )}
     </main>
   );
 }
