@@ -3,7 +3,6 @@
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
 import { Menu, Search } from "lucide-react";
 import { appPath } from "@/lib/base-path";
-import PhiSearchRouteGuard from "@/components/PhiSearchRouteGuard";
 import styles from "./InfinityPhiFront.module.css";
 
 const NEWS_PHI_URL = "https://www-infinity4.github.io/News-Phi/";
@@ -11,7 +10,6 @@ const OMNI_PHI_URL = "https://www-infinity4.github.io/Omni-Phi/";
 
 export default function InfinityPhiFront() {
   const [query, setQuery] = useState("");
-  const [showResults, setShowResults] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -21,18 +19,13 @@ export default function InfinityPhiFront() {
       );
     };
 
-    if (showResults) {
-      setEmbeddedMenu(false);
-      return () => setEmbeddedMenu(false);
-    }
-
     setEmbeddedMenu(true);
     const timer = window.setTimeout(() => setEmbeddedMenu(true), 0);
     return () => {
       window.clearTimeout(timer);
       setEmbeddedMenu(false);
     };
-  }, [showResults]);
+  }, []);
 
   function resizeInput(target: HTMLTextAreaElement) {
     target.style.height = "0px";
@@ -47,20 +40,10 @@ export default function InfinityPhiFront() {
       return;
     }
 
-    // Keep the browser on the document that is already loaded. GitHub Pages is
-    // static, so changing the pathname while the root route is mounted creates
-    // a route/content mismatch that Next can later turn into a 404. Only the
-    // query string changes; the results workspace renders inside this document.
-    const target = new URL(window.location.href);
-    target.search = new URLSearchParams({ q, run: "1" }).toString();
-    target.hash = "";
-    window.History.prototype.replaceState.call(
-      window.history,
-      { infinityPhiSearch: q },
-      "",
-      target.toString(),
-    );
-    setShowResults(true);
+    // Return to the last known working Search Phi flow: load the already
+    // exported /phi/ document and let PhiPage2 start from q/run on mount.
+    const params = new URLSearchParams({ q, run: "1" });
+    window.location.assign(`${appPath("phi")}?${params.toString()}`);
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -73,8 +56,6 @@ export default function InfinityPhiFront() {
   function openMenu() {
     window.dispatchEvent(new Event("infinity-open-menu"));
   }
-
-  if (showResults) return <PhiSearchRouteGuard />;
 
   return (
     <main className={`${styles.page} infinity-phi-front`}>
