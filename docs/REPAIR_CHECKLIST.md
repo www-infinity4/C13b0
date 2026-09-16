@@ -23,25 +23,32 @@ Status values:
 
 ## Infinity Phi — competing index / frozen render
 
-**Symptom:** Infinity Phi could appear to have two index/front pages competing for the same entry point. One path could freeze or appear to do nothing before the actual result workspace rendered.
+**Symptom:** Infinity Phi could appear to have two index/front pages competing for the same entry point. The screen recording showed the normal white Infinity Phi shell, then a dark/blue half-loaded state where only site chrome survived, and the temporary `Open Infinity Phi results` handoff appearing before the other shell took over.
 
-**Root cause:** The repository root used a separate front/redirect path while `/phi/` used `PhiSearchRouteGuard` and `PhiUnifiedPage`. That created a second entry lifecycle and a redirect handoff instead of one canonical search/results runtime.
+**Root cause:** The repository root used a separate front/redirect lifecycle while `/phi/` used `PhiSearchRouteGuard` and `PhiUnifiedPage`. A second obsolete front implementation (`InfinityPhiFront`) also remained in source. These competing entry implementations made it possible to reintroduce hard navigation and duplicate front-page behavior.
 
 **Repair:**
 - `src/app/page.tsx` now exports `PhiSearchRouteGuard`, exactly like `src/app/phi/page.tsx`.
-- Removed `src/components/InfinityPhiRootRedirect.tsx` so there is no separate redirect-index lifecycle.
-- The root and `/phi/` now share the same search/results shell and renderer.
+- Removed `src/components/InfinityPhiRootRedirect.tsx`; there is no separate redirect-index lifecycle.
+- Removed obsolete `src/components/InfinityPhiFront.tsx` and `InfinityPhiFront.module.css` entirely.
+- Root `/C13b0/` and `/C13b0/phi/` now share the same search/results shell and renderer.
+- Search/results remain owned by `PhiSearchRouteGuard` → `PhiUnifiedPage` → `PhiIntentShell` / `PhiPage2`.
 
 **Commits:**
 - `0a135d23cf9829a096f5bb537979797f301b7a32` — Unify Infinity Phi root with canonical results shell
 - `7f1c4c67d6a05999ae556597a4e7b8871bfb9b1d` — Remove duplicate Infinity Phi redirect index
+- `abbd07ea22adde75bcef2d735a6c88915a15c6e2` — Remove obsolete competing Infinity front page
+- `37990a33e00a2ca54437aef5014b294fec678e37` — Remove obsolete competing Infinity front styles
 
 **Verification checklist:**
+- [x] User-visible failure reproduced/confirmed from recording
 - [x] Root cause isolated
-- [x] Duplicate runtime path removed
 - [x] Root and `/phi/` use the same component
-- [ ] GitHub Pages deployment completed successfully
+- [x] Redirect handoff removed
+- [x] Obsolete second front implementation deleted from source
+- [ ] Latest GitHub Pages deployment completed successfully
 - [ ] Live `/C13b0/` loads without a frozen secondary index
+- [ ] Live `/C13b0/phi/` loads the same canonical shell
 - [ ] Search submission renders results without 404/timeout
 - [ ] Code Phi and Create Phi navigation still work
 
