@@ -34,18 +34,38 @@ export const PHI_RETRIEVAL_BACKENDS: PhiRetrievalBackend[] = [
 ];
 
 export const PHI_RETRIEVAL_BACKEND_COUNT = PHI_RETRIEVAL_BACKENDS.length;
+export const PHI_SHARED_SEARCH_CONFIG_KEY = "controlPhi:searchConfig:v1";
 
 export type PhiRetrievalEndpointMap = Partial<Record<string, string>>;
 
 /**
- * Public runtime endpoint configuration for the static GitHub Pages build.
+ * Public build-time endpoint configuration for the static GitHub Pages build.
  * NEXT_PUBLIC_* values are compiled into the browser bundle by Next.js.
- * Empty values intentionally mean "not configured" so the existing browser
- * providers remain the fallback instead of pretending a fork is live.
  */
 export const PHI_RETRIEVAL_ENDPOINTS: PhiRetrievalEndpointMap = {
   searxng: process.env.NEXT_PUBLIC_PHI_SEARXNG_URL?.trim() || "",
 };
+
+/**
+ * Resolve the endpoint map used by Search Phi in the browser. Control Phi and
+ * News Phi already share controlPhi:searchConfig:v1 on www-infinity4.github.io,
+ * so Infinity Phi consumes the same SearXNG endpoint when it is present there.
+ * A build-time endpoint remains the fallback for clean/new browsers.
+ */
+export function runtimeRetrievalEndpoints(): PhiRetrievalEndpointMap {
+  const endpoints: PhiRetrievalEndpointMap = { ...PHI_RETRIEVAL_ENDPOINTS };
+  if (typeof window === "undefined") return endpoints;
+  try {
+    const raw = window.localStorage.getItem(PHI_SHARED_SEARCH_CONFIG_KEY);
+    if (!raw) return endpoints;
+    const config = JSON.parse(raw);
+    const sharedSearxng = String(config?.endpoints?.searxng || config?.searxng || "").trim();
+    if (sharedSearxng) endpoints.searxng = sharedSearxng;
+  } catch {
+    // Keep the build-time endpoint and browser fallbacks if shared config is invalid.
+  }
+  return endpoints;
+}
 
 export function configuredRetrievalBackends(endpoints: PhiRetrievalEndpointMap) {
   return PHI_RETRIEVAL_BACKENDS.filter((backend) => !backend.endpointKey || Boolean(endpoints[backend.endpointKey]));
