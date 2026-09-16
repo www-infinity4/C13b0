@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Download, ExternalLink, RefreshCw, Save, Sparkles } from "lucide-react";
 import { appPath } from "@/lib/base-path";
+import { capabilitiesFor } from "@/lib/coder-capabilities";
 import { buildWithPhiCodeAgent, loadPhiCodeToolInstructions, type PhiCodeToolSnapshot } from "@/lib/phi-code-agent";
 
 const PROJECT_KEY = "infinity_code_projects_v3";
@@ -38,6 +39,7 @@ export default function PhiCodeBuilderStable() {
   const [revisions, setRevisions] = useState<string[]>([]);
   const [html, setHtml] = useState("");
   const [snapshots, setSnapshots] = useState<PhiCodeToolSnapshot[]>([]);
+  const [plannedTools, setPlannedTools] = useState<string[]>([]);
   const [building, setBuilding] = useState(false);
   const [status, setStatus] = useState("Code Phi is ready. Describe what you want to build.");
   const [summary, setSummary] = useState("");
@@ -49,7 +51,9 @@ export default function PhiCodeBuilderStable() {
     const initial = clean(new URLSearchParams(location.search).get("q") || "", 1800);
     if (!initial) return;
     setPrompt(initial);
-    const timer = window.setTimeout(() => void runBuild(initial, [], ""), 0);
+    setPlannedTools(capabilitiesFor(initial, "code").slice(0, 6).map((cap) => cap.name));
+    setStatus("Request loaded. Code Phi is selecting indexed skills and starting the build.");
+    const timer = window.setTimeout(() => void runBuild(initial, [], ""), 40);
     return () => window.clearTimeout(timer);
     // The initial URL request runs once. Later builds are explicit submissions.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -60,21 +64,32 @@ export default function PhiCodeBuilderStable() {
     if (!request) return;
     const serial = ++buildSerial.current;
     const runId = `code-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    const fullRequest = [request, ...nextRevisions].join("\n");
+    const localPlan = capabilitiesFor(fullRequest, "code").slice(0, 6).map((cap) => cap.name);
+    setPlannedTools(localPlan);
     setBuilding(true);
     setSaved("");
     setSummary("");
-    setStatus("Reading the best indexed tools for this request…");
+    setStatus(localPlan.length ? `Selected ${localPlan.slice(0, 3).join(", ")}. Reading optional indexed instructions…` : "Reading optional indexed tool instructions…");
 
+    let toolSnapshots: PhiCodeToolSnapshot[] = [];
     try {
-      const toolSnapshots = await withDeadline(
-        loadPhiCodeToolInstructions([request, ...nextRevisions].join("\n"), runId, "code"),
-        3000,
-        "Indexed tool reading exceeded 3 seconds.",
+      toolSnapshots = await withDeadline(
+        loadPhiCodeToolInstructions(fullRequest, runId, "code"),
+        1800,
+        "Indexed tool reading exceeded 1.8 seconds.",
       );
       if (serial !== buildSerial.current) return;
       setSnapshots(toolSnapshots);
-      setStatus("Building the runnable artifact with GPT…");
+    } catch (error) {
+      if (serial !== buildSerial.current) return;
+      setSnapshots([]);
+      const message = error instanceof Error ? error.message : "Indexed tool source reading was unavailable.";
+      setSummary(`${message} Code Phi is continuing with the local capability plan.`);
+    }
 
+    setStatus("Building the runnable artifact with GPT and the selected capability plan…");
+    try {
       const result = await withDeadline(
         buildWithPhiCodeAgent({
           prompt: request,
@@ -83,8 +98,8 @@ export default function PhiCodeBuilderStable() {
           runId,
           snapshots: toolSnapshots,
         }),
-        10000,
-        "The Code Phi worker exceeded 10 seconds.",
+        9000,
+        "The Code Phi worker exceeded 9 seconds.",
       );
       if (serial !== buildSerial.current) return;
       setHtml(result.html);
@@ -97,7 +112,7 @@ export default function PhiCodeBuilderStable() {
       setHtml(existingHtml || fallbackArtifact(request, message));
       setSummary(message);
       setPreviewRevision((value) => value + 1);
-      setStatus("The remote pass stopped safely. The editor is still usable—edit the request or retry.");
+      setStatus("The remote build pass stopped safely. The editor is still usable—edit the request or retry.");
     } finally {
       if (serial === buildSerial.current) setBuilding(false);
     }
@@ -130,7 +145,7 @@ export default function PhiCodeBuilderStable() {
 
   function save() {
     if (!html) return;
-    const project = { prompt, revisions, html, updatedAt: Date.now(), tools: snapshots.map((item) => item.repo) };
+    const project = { prompt, revisions, html, updatedAt: Date.now(), tools: snapshots.map((item) => item.repo), plannedTools };
     try {
       const prior = JSON.parse(localStorage.getItem(PROJECT_KEY) || "[]");
       const list = Array.isArray(prior) ? prior : [];
@@ -173,7 +188,7 @@ export default function PhiCodeBuilderStable() {
 
       <section style={{ width: "min(1180px, 96vw)", margin: "0 auto", padding: "20px 0 40px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,360px),1fr))", gap: 16 }}>
         <section style={panelStyle}>
-          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}><Sparkles size={22} /><div><b>AI build agent</b><div style={{ color: "#91adbd", fontSize: 12 }}>GPT + indexed tools, without locking the page</div></div></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}><Sparkles size={22} /><div><b>AI build agent</b><div style={{ color: "#91adbd", fontSize: 12 }}>GPT + indexed skills/tools, without locking the page</div></div></div>
 
           <form onSubmit={submit} style={{ display: "grid", gap: 10 }}>
             <label htmlFor="phi-code-prompt" style={{ fontWeight: 850 }}>What should Code Phi build?</label>
@@ -185,9 +200,16 @@ export default function PhiCodeBuilderStable() {
           {summary ? <p style={{ color: "#9fb9c8", lineHeight: 1.5 }}>{summary}</p> : null}
 
           <div style={{ marginTop: 16 }}>
-            <small style={{ color: "#6fe39e", fontWeight: 900 }}>INDEXED TOOLS READ</small>
+            <small style={{ color: "#c89cff", fontWeight: 900 }}>CAPABILITY PLAN</small>
+            <div style={{ marginTop: 7, display: "flex", flexWrap: "wrap", gap: 7 }}>
+              {plannedTools.length ? plannedTools.map((item) => <span key={item} style={{ padding: "6px 9px", borderRadius: 999, background: "#17152c", border: "1px solid #5f4b84", fontSize: 12 }}>{item}</span>) : <span style={{ color: "#7897a7", fontSize: 13 }}>Describe a build to select skills.</span>}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 16 }}>
+            <small style={{ color: "#6fe39e", fontWeight: 900 }}>INDEXED TOOL FILES READ</small>
             <div style={{ marginTop: 7, display: "grid", gap: 7 }}>
-              {snapshots.length ? snapshots.map((item) => <div key={`${item.repo}:${item.name}`} style={{ padding: 9, borderRadius: 10, background: "#071925" }}><b>{item.name}</b><div style={{ color: "#86a5b5", fontSize: 12 }}>{item.repo}</div></div>) : <div style={{ color: "#7897a7", fontSize: 13 }}>No remote tool read is blocking the editor.</div>}
+              {snapshots.length ? snapshots.map((item) => <div key={`${item.repo}:${item.name}`} style={{ padding: 9, borderRadius: 10, background: "#071925" }}><b>{item.name}</b><div style={{ color: "#86a5b5", fontSize: 12 }}>{item.repo}</div></div>) : <div style={{ color: "#7897a7", fontSize: 13 }}>Optional repository reads will not block the build.</div>}
             </div>
           </div>
 
