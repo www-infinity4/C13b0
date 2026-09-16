@@ -8,28 +8,16 @@ import {
   searchSearxng,
   type PhiRetrievedSource,
 } from "@/lib/phi-retrieval-backends";
-import {
-  searchOmniBrowserSources,
-  type PhiOmniSource,
-} from "@/lib/phi-omni-browser-search";
 
 type PhiSearchWindow = Window & {
-  __phiRetrievalFetchWrapped?: boolean;
+  __phiSearxFetchWrapped?: boolean;
   __phiConfiguredRetrievalBackends?: string[];
 };
 
-type RetrievedSource = PhiRetrievedSource & { imageUrl?: string };
-
 const NEWS_PHI_URL = "https://www-infinity4.github.io/News-Phi/";
 const OMNI_PHI_URL = "https://www-infinity4.github.io/Omni-Phi/";
-const FIRST_RESULT_BASE_MS = 1800;
-const FIRST_RESULT_ENRICHMENT_MS = 1500;
 
-function sourceKey(source: RetrievedSource) {
-  return String(source.url || `${source.provider}:${source.title}`).trim().toLowerCase();
-}
-
-function mergeRetrievedIntoWikipedia(payload: any, sources: RetrievedSource[]) {
+function mergeSearxIntoWikipedia(payload: any, sources: PhiRetrievedSource[]) {
   if (!sources.length) return payload;
   const next = payload && typeof payload === "object" ? payload : {};
   next.query = next.query && typeof next.query === "object" ? next.query : {};
@@ -37,31 +25,21 @@ function mergeRetrievedIntoWikipedia(payload: any, sources: RetrievedSource[]) {
 
   const existingUrls = new Set(
     Object.values(next.query.pages as Record<string, any>)
-      .map((page: any) => String(page?.fullurl || page?.canonicalurl || "").replace(/#phi-provider=.*$/, ""))
+      .map((page: any) => String(page?.fullurl || page?.canonicalurl || ""))
       .filter(Boolean),
   );
 
   sources.forEach((source, index) => {
-    if (!source.url || existingUrls.has(source.url)) return;
-    let taggedUrl = source.url;
-    try {
-      const target = new URL(source.url);
-      if (source.provider && source.provider !== "Wikipedia") {
-        target.hash = `phi-provider=${encodeURIComponent(source.provider)}`;
-      }
-      taggedUrl = target.toString();
-    } catch {}
-
-    next.query.pages[`omni_${index}`] = {
+    if (existingUrls.has(source.url)) return;
+    next.query.pages[`searx_${index}`] = {
       pageid: -(index + 1),
       ns: 0,
       title: source.title,
       extract: source.excerpt,
-      fullurl: taggedUrl,
+      fullurl: source.url,
       canonicalurl: source.url,
       index: 1000 + index,
       phiProvider: source.provider,
-      ...(source.imageUrl ? { thumbnail: { source: source.imageUrl } } : {}),
     };
     existingUrls.add(source.url);
   });
@@ -69,71 +47,23 @@ function mergeRetrievedIntoWikipedia(payload: any, sources: RetrievedSource[]) {
   return next;
 }
 
-async function within<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
-  let timer = 0;
-  try {
-    return await Promise.race([
-      work.catch(() => fallback),
-      new Promise<T>((resolve) => {
-        timer = window.setTimeout(() => resolve(fallback), ms);
-      }),
-    ]);
-  } finally {
-    if (timer) window.clearTimeout(timer);
-  }
-}
-
-async function gatherSharedSources(searxEndpoint: string, query: string): Promise<RetrievedSource[]> {
-  const jobs: Promise<RetrievedSource[]>[] = [
-    searchOmniBrowserSources(query, 20) as Promise<PhiOmniSource[]>,
-  ];
-  if (searxEndpoint) {
-    jobs.push(within(searchSearxng(searxEndpoint, query, 18), 1400, []));
-  }
-
-  const batches = await Promise.allSettled(jobs);
-  const merged: RetrievedSource[] = [];
-  const seen = new Set<string>();
-  batches.forEach((batch) => {
-    if (batch.status !== "fulfilled") return;
-    batch.value.forEach((source) => {
-      const key = sourceKey(source);
-      if (!key || seen.has(key)) return;
-      seen.add(key);
-      merged.push(source);
-    });
-  });
-  return merged.slice(0, 28);
-}
-
 /**
- * Search Phi is a static GitHub Pages app. Once a document is loaded, every
- * search stays on that exact pathname and only changes q/run in the query
- * string. That prevents a mounted root document from masquerading as /phi/
- * (or vice versa), which can make the Next router eventually request a static
- * route and show a delayed GitHub Pages 404.
+ * Infinity Phi is exported as a static GitHub Pages app. Next.js patches the
+ * History API so a same-page query update can accidentally become a client
+ * router navigation and stall or 404 on the static export. For an actual Phi
+ * search, reload the already-exported /phi/ document with q/run in the query
+ * string. PhiPage2 already reads those params on mount and starts the search.
  *
- * The same guard feeds Infinity Phi from the public multi-source provider
- * family used by Omni Phi (OpenAlex, NASA, GDELT and Internet Archive), plus
- * SearXNG when Control Phi has configured it. Infinity's own source gate and
- * semantic card ranking remain in charge after retrieval.
- *
- * Both halves of this intercepted request have short first-result budgets.
- * PhiPage2 performs additional public-provider work after Wikipedia, so this
- * bridge must never consume most of that outer 7.5 second search window. Fast
- * base/Omni records are merged; slow providers miss only this first pass rather
- * than preventing the result document from being committed at all.
+ * Keep the stable search path intact: SearXNG is only added when a real SearXNG
+ * endpoint is configured. The browser search itself is not delayed by optional
+ * Omni provider enrichment; PhiPage2's established Wikipedia/DDG/Crossref path
+ * can render immediately as it did before the regression.
  */
 export default function PhiSearchRouteGuard() {
   useLayoutEffect(() => {
-    const history = window.history as History & {
-      pushState: History["pushState"];
-      replaceState: History["replaceState"];
-    };
+    const history = window.history as History & { pushState: History["pushState"]; replaceState: History["replaceState"] };
     const frameworkPushState = history.pushState.bind(history);
     const frameworkReplaceState = history.replaceState.bind(history);
-    const nativePushState = window.History.prototype.pushState;
-    const nativeReplaceState = window.History.prototype.replaceState;
     const trackedWindow = window as PhiSearchWindow;
     const endpoints = runtimeRetrievalEndpoints();
 
@@ -143,8 +73,8 @@ export default function PhiSearchRouteGuard() {
     const upstreamFetch = window.fetch.bind(window);
     let installedFetch: typeof window.fetch | null = null;
 
-    if (!trackedWindow.__phiRetrievalFetchWrapped) {
-      trackedWindow.__phiRetrievalFetchWrapped = true;
+    if (searxEndpoint && !trackedWindow.__phiSearxFetchWrapped) {
+      trackedWindow.__phiSearxFetchWrapped = true;
       installedFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
         const rawUrl = typeof input === "string" || input instanceof URL ? String(input) : input.url;
         let parsed: URL;
@@ -162,19 +92,14 @@ export default function PhiSearchRouteGuard() {
         const query = parsed.searchParams.get("gsrsearch")?.trim() || "";
         if (!query) return upstreamFetch(input, init);
 
-        const basePromise = within<Response | null>(
+        const [baseResult, searxResult] = await Promise.allSettled([
           upstreamFetch(input, init),
-          FIRST_RESULT_BASE_MS,
-          null,
-        );
-        const sharedPromise = within<RetrievedSource[]>(
-          gatherSharedSources(searxEndpoint, query),
-          FIRST_RESULT_ENRICHMENT_MS,
-          [],
-        );
-        const [baseResponse, sharedSources] = await Promise.all([basePromise, sharedPromise]);
+          searchSearxng(searxEndpoint, query, 18),
+        ]);
 
-        if (!sharedSources.length) {
+        const baseResponse = baseResult.status === "fulfilled" ? baseResult.value : null;
+        const searxSources = searxResult.status === "fulfilled" ? searxResult.value : [];
+        if (!searxSources.length) {
           if (baseResponse) return baseResponse;
           return new Response(JSON.stringify({ query: { pages: {} } }), {
             status: 200,
@@ -191,7 +116,7 @@ export default function PhiSearchRouteGuard() {
           }
         }
 
-        const merged = mergeRetrievedIntoWikipedia(payload, sharedSources);
+        const merged = mergeSearxIntoWikipedia(payload, searxSources);
         const headers = new Headers(baseResponse?.headers || undefined);
         headers.set("content-type", "application/json; charset=utf-8");
         return new Response(JSON.stringify(merged), { status: 200, headers });
@@ -204,24 +129,18 @@ export default function PhiSearchRouteGuard() {
       if (!url) return false;
       try {
         const target = new URL(String(url), window.location.href);
-        return target.origin === window.location.origin
-          && target.searchParams.has("q")
-          && target.searchParams.get("run") === "1";
+        const current = window.location.pathname.replace(/\/$/, "");
+        const next = target.pathname.replace(/\/$/, "");
+        return current === next && target.searchParams.has("q") && target.searchParams.get("run") === "1";
       } catch {
         return false;
       }
     };
 
-    const pinnedSearchUrl = (url: string | URL) => {
-      const target = new URL(String(url), window.location.href);
-      target.pathname = window.location.pathname;
-      target.hash = "";
-      return target.toString();
-    };
-
     history.pushState = function guardedPushState(data: unknown, unused: string, url?: string | URL | null) {
       if (isInfinitySearch(data, url) && url) {
-        nativePushState.call(history, data, unused, pinnedSearchUrl(url));
+        const target = new URL(String(url), window.location.href);
+        window.location.assign(target.toString());
         return;
       }
       return frameworkPushState(data, unused, url);
@@ -229,7 +148,8 @@ export default function PhiSearchRouteGuard() {
 
     history.replaceState = function guardedReplaceState(data: unknown, unused: string, url?: string | URL | null) {
       if (isInfinitySearch(data, url) && url) {
-        nativeReplaceState.call(history, data, unused, pinnedSearchUrl(url));
+        const target = new URL(String(url), window.location.href);
+        window.location.replace(target.toString());
         return;
       }
       return frameworkReplaceState(data, unused, url);
@@ -240,7 +160,7 @@ export default function PhiSearchRouteGuard() {
       history.replaceState = frameworkReplaceState;
       if (installedFetch && window.fetch === installedFetch) {
         window.fetch = upstreamFetch;
-        trackedWindow.__phiRetrievalFetchWrapped = false;
+        trackedWindow.__phiSearxFetchWrapped = false;
       }
     };
   }, []);
