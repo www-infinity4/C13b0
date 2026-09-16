@@ -6,6 +6,9 @@ import { appPath } from "@/lib/base-path";
 import PhiSearchRouteGuard from "@/components/PhiSearchRouteGuard";
 import styles from "./InfinityPhiFront.module.css";
 
+const NEWS_PHI_URL = "https://www-infinity4.github.io/News-Phi/";
+const OMNI_PHI_URL = "https://www-infinity4.github.io/Omni-Phi/";
+
 export default function InfinityPhiFront() {
   const [query, setQuery] = useState("");
   const [showResults, setShowResults] = useState(false);
@@ -44,12 +47,11 @@ export default function InfinityPhiFront() {
       return;
     }
 
-    // The root document already contains the full Infinity application bundle.
-    // Move the address bar to the canonical /phi/ search URL with the browser's
-    // native History method, then render the result workspace in this document.
-    // This removes the GitHub Pages request that could previously end in a 404.
+    // Keep the browser on the document that is already loaded. GitHub Pages is
+    // static, so changing the pathname while the root route is mounted creates
+    // a route/content mismatch that Next can later turn into a 404. Only the
+    // query string changes; the results workspace renders inside this document.
     const target = new URL(window.location.href);
-    target.pathname = appPath("phi");
     target.search = new URLSearchParams({ q, run: "1" }).toString();
     target.hash = "";
     window.History.prototype.replaceState.call(
@@ -107,6 +109,11 @@ export default function InfinityPhiFront() {
             >
               Create <span>φ</span>
             </a>
+          </nav>
+
+          <nav className={styles.familySwitch} aria-label="Phi family">
+            <a href={NEWS_PHI_URL} className={`${styles.familyButton} ${styles.newsMode}`}>News Phi</a>
+            <a href={OMNI_PHI_URL} className={`${styles.familyButton} ${styles.omniMode}`}>Omni Phi</a>
           </nav>
 
           <form className={styles.searchBar} onSubmit={submit}>
