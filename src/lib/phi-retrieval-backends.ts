@@ -7,7 +7,7 @@ export const PHI_RETRIEVAL_BACKENDS: PhiRetrievalBackend[] = [
 export const PHI_RETRIEVAL_BACKEND_COUNT=PHI_RETRIEVAL_BACKENDS.length;
 export const PHI_SHARED_SEARCH_CONFIG_KEY="controlPhi:searchConfig:v1";
 export type PhiRetrievalEndpointMap=Partial<Record<string,string>>;
-export const PHI_RETRIEVAL_ENDPOINTS:PhiRetrievalEndpointMap={searxng:process.env.NEXT_PUBLIC_PHI_SEARXNG_URL?.trim()||""};
+export const PHI_RETRIEVAL_ENDPOINTS:PhiRetrievalEndpointMap={searxng:process.env.NEXT_PUBLIC_PHI_SEARXNG_URL?.trim()||"https://orange-brook-a2ac.marvaseater.workers.dev"};
 export function runtimeRetrievalEndpoints():PhiRetrievalEndpointMap{const endpoints={...PHI_RETRIEVAL_ENDPOINTS};if(typeof window==="undefined")return endpoints;try{const raw=localStorage.getItem(PHI_SHARED_SEARCH_CONFIG_KEY);if(!raw)return endpoints;const config=JSON.parse(raw),shared=String(config?.endpoints?.searxng||config?.searxng||"").trim();if(shared)endpoints.searxng=shared}catch{}return endpoints}
 export function configuredRetrievalBackends(endpoints:PhiRetrievalEndpointMap){return PHI_RETRIEVAL_BACKENDS.filter(b=>!b.endpointKey||Boolean(endpoints[b.endpointKey]))}
 export type PhiRetrievedSource={title:string;url:string;excerpt:string;provider:string};
