@@ -52,6 +52,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <Script src="https://www-infinity4.github.io/Mint-For-Infinity/unified-wallet.js?v=20260831-game-rewards1" strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-wallet-status.js?v=20260916-walletmenu4`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-tool-registry.js?v=20260915-media1`} strategy="afterInteractive" />
+        <Script src={`${base}/infinity-phi-pronoun-refinement.js?v=20260916-pronoun1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-gpt.js?v=20260913-1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-overview-teacher.js?v=20260915-overview-live2`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-card-gpt.js?v=20260915-card-gpt2`} strategy="afterInteractive" />
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <Script src={`${base}/infinity-phi-media-v2.js?v=20260915-live-source3`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-image-feed-v2.js?v=20260915-image-feed2`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-result-tools.js?v=20260916-image-web1`} strategy="afterInteractive" />
+        <Script src={`${base}/infinity-phi-purple-schematic-v1.js?v=20260916-schematic1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-autobuild-link.js?v=20260916-autobuild1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-copy-capture.js?v=20260914-copy-capture1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-runtime-repair.js?v=20260914-runtime-repair2`} strategy="afterInteractive" />
