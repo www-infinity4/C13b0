@@ -167,8 +167,8 @@
       if (!capture) return previous(data);
 
       const info = cardData(capture);
-      const url = cardUrl(info);
-      const basePayload = { ...data, title: info.title, text: info.body, url };
+      const landingUrl = typeof data.url === 'string' && data.url ? data.url : cardUrl(info);
+      const basePayload = { ...data, title: info.title, text: info.body, url: landingUrl };
 
       try {
         const blob = await renderCard(capture);
@@ -179,9 +179,16 @@
               return await previous({ ...basePayload, files: [file] });
             } catch (error) {
               if (error?.name === 'AbortError') throw error;
-              // Some Android targets report that files are shareable, then reject
-              // a combined file + URL payload. Fall through to the link payload so
-              // the original share promise can still resolve and award Star Coin.
+              // Android/X can reject the structured file + URL payload even when
+              // canShare() says files are supported. Retry as an image attachment
+              // with the landing URL embedded in the post text before giving up on
+              // the rendered orange-card image.
+              try {
+                const attachmentText = clean(`${info.body}\n\n${landingUrl}`, 1800);
+                return await previous({ title: info.title, text: attachmentText, files: [file] });
+              } catch (fileError) {
+                if (fileError?.name === 'AbortError') throw fileError;
+              }
             }
           }
         }
