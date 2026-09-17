@@ -61,7 +61,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <Script src={`${base}/infinity-phi-copy-capture.js?v=20260914-copy-capture1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-share-preview.js?v=20260915-clean-share2`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-runtime-repair.js?v=20260914-runtime-repair2`} strategy="afterInteractive" />
-        <Script src={`${base}/infinity-phi-exact-card-share.js?v=20260915-exact-card-share1`} strategy="afterInteractive" />
+        <Script src={`${base}/infinity-phi-exact-card-share.js?v=20260916-share-reward-preview1`} strategy="afterInteractive" />
       </body>
     </html>
   );
