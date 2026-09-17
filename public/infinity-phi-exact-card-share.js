@@ -12,13 +12,16 @@
     return {
       title: clean(card?.dataset?.gptTitle || card?.querySelector('h3')?.textContent || 'Infinity Phi card', 180),
       body: clean(card?.dataset?.gptBody || card?.querySelector('.phi-orange-copy p')?.textContent || card?.querySelector('p')?.textContent || '', 700),
-      label: clean(card?.querySelector('.phi-orange-copy small')?.textContent || 'Infinity Phi', 100),
+      label: clean(card?.querySelector('.phi-orange-copy small')?.textContent || card?.querySelector('small')?.textContent || 'Infinity Phi', 100),
       image: card?.querySelector('.phi-orange-main img')?.src || card?.querySelector('img')?.src || '',
     };
   }
 
   function cardUrl(data) {
     const url = new URL(location.href);
+    url.pathname = url.pathname.replace(/\/phi(?:\/.*)?$/, '/phi/');
+    url.search = '';
+    url.hash = '';
     url.searchParams.set('cardTitle', data.title);
     url.searchParams.set('cardBody', data.body);
     if (data.image) url.searchParams.set('image', data.image);
@@ -146,19 +149,15 @@
     return await new Promise((resolve) => canvas.toBlob(resolve, 'image/png', 0.95));
   }
 
-  document.addEventListener('pointerdown', (event) => {
+  function rememberCard(event) {
     const button = event.target?.closest?.('.phi-share-card');
     const card = button?.closest?.('.phi-orange-card');
     if (!card) return;
     pending = { card, at: Date.now() };
-  }, true);
+  }
 
-  document.addEventListener('click', (event) => {
-    const button = event.target?.closest?.('.phi-share-card');
-    const card = button?.closest?.('.phi-orange-card');
-    if (!card) return;
-    pending = { card, at: Date.now() };
-  }, true);
+  document.addEventListener('pointerdown', rememberCard, true);
+  document.addEventListener('click', rememberCard, true);
 
   if (typeof navigator.share === 'function' && !navigator.share.__infinityPhiExactCard) {
     const previous = navigator.share.bind(navigator);
@@ -169,15 +168,28 @@
 
       const info = cardData(capture);
       const url = cardUrl(info);
+      const basePayload = { ...data, title: info.title, text: info.body, url };
+
       try {
         const blob = await renderCard(capture);
         if (blob && typeof File === 'function') {
           const file = new File([blob], 'infinity-phi-card.png', { type: 'image/png' });
-          const payload = { ...data, title: info.title, text: info.body, url, files: [file] };
-          if (typeof navigator.canShare !== 'function' || navigator.canShare({ files: [file] })) return previous(payload);
+          if (typeof navigator.canShare !== 'function' || navigator.canShare({ files: [file] })) {
+            try {
+              return await previous({ ...basePayload, files: [file] });
+            } catch (error) {
+              if (error?.name === 'AbortError') throw error;
+              // Some Android targets report that files are shareable, then reject
+              // a combined file + URL payload. Fall through to the link payload so
+              // the original share promise can still resolve and award Star Coin.
+            }
+          }
         }
-      } catch {}
-      return previous({ ...data, title: info.title, text: info.body, url });
+      } catch (error) {
+        if (error?.name === 'AbortError') throw error;
+      }
+
+      return previous(basePayload);
     };
     wrapped.__infinityPhiExactCard = true;
     try { Object.defineProperty(navigator, 'share', { configurable: true, writable: true, value: wrapped }); }
