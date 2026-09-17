@@ -4,6 +4,19 @@ import { useEffect } from "react";
 import PhiSearchRouteGuard from "@/components/PhiSearchRouteGuard";
 import { appPath } from "@/lib/base-path";
 
+type SelectedImage={image?:string;original?:string;title?:string;description?:string;sourceUrl?:string;provider?:string};
+const IMAGE_KEY="infinity_phi_image_selections_v3";
+const OVERVIEW_KEY="infinity_phi_selected_image_overview_v1";
+
+function readSelected():SelectedImage[]{
+  try{
+    const direct=JSON.parse(localStorage.getItem(IMAGE_KEY)||"[]");
+    if(Array.isArray(direct)&&direct.length)return direct;
+    const packet=JSON.parse(localStorage.getItem(OVERVIEW_KEY)||"null");
+    return Array.isArray(packet?.images)?packet.images:[];
+  }catch{return[]}
+}
+
 export default function InfinityImageRouteGuard() {
   useEffect(() => {
     const guard = (event: MouseEvent) => {
@@ -12,14 +25,11 @@ export default function InfinityImageRouteGuard() {
       if (!button) return;
       const label = (button.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
       if (!label.startsWith("images")) return;
-
       const resultsArea = button.closest("main");
       if (!resultsArea) return;
-
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-
       const params = new URLSearchParams(window.location.search);
       const q = params.get("q")?.trim() || "";
       const targetPath = appPath("phi/images");
@@ -27,7 +37,39 @@ export default function InfinityImageRouteGuard() {
     };
 
     document.addEventListener("click", guard, true);
-    return () => document.removeEventListener("click", guard, true);
+
+    const params=new URLSearchParams(window.location.search);
+    const fromImages=params.get("images")==="selected";
+    let observer:MutationObserver|undefined;
+    if(fromImages){
+      const picks=readSelected().filter(x=>x.image||x.original);
+      if(picks.length){
+        document.documentElement.dataset.infinitySelectedImages="true";
+        const bind=()=>{
+          const main=document.querySelector("main");
+          if(!main)return;
+          const overview=Array.from(main.querySelectorAll("section")).find(s=>(s.textContent||"").toLowerCase().includes("ai overview"));
+          const hero=overview?.querySelector("img") as HTMLImageElement|null;
+          if(hero){hero.src=picks[0].image||picks[0].original||hero.src;hero.alt=picks[0].title||hero.alt;}
+          const cards=Array.from(main.querySelectorAll("article.phi-orange-card"));
+          cards.forEach((card,i)=>{
+            const pick=picks[i%picks.length];
+            let img=card.querySelector("img") as HTMLImageElement|null;
+            if(!img){img=document.createElement("img");img.className="h-44 w-full object-cover";card.insertBefore(img,card.firstChild);}
+            img.src=pick.image||pick.original||"";
+            img.alt=pick.title||"Selected Infinity Phi image";
+            img.onerror=()=>{if(pick.original&&img&&img.src!==pick.original)img.src=pick.original};
+          });
+          const title=overview?.querySelector("h1") as HTMLElement|null;
+          if(title){title.style.color="#0f172a";title.style.fontWeight="900";}
+        };
+        bind();
+        observer=new MutationObserver(bind);
+        observer.observe(document.body,{childList:true,subtree:true});
+      }
+    }
+
+    return () => {document.removeEventListener("click", guard, true);observer?.disconnect();};
   }, []);
 
   return <PhiSearchRouteGuard />;
