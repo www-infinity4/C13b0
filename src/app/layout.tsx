@@ -44,6 +44,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className="scroll-smooth">
       <body className="min-h-screen antialiased" style={{ background: "var(--background)" }}>
+        <Script src={`${base}/infinity-phi-front-route-repair.js?v=20260916-front-route1`} strategy="beforeInteractive" />
         <Script src={`${base}/infinity-phi-search-core-v9.js?v=20260915-search9-fallback1`} strategy="beforeInteractive" />
         <AppRuntime />
         <OpenSourceUsageRuntime />
@@ -66,6 +67,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <Script src={`${base}/infinity-phi-image-mode-mount-fix.js?v=20260916-image-mount1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-news-semantic-seed.js?v=20260916-semantic-seed1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-purple-schematic-v1.js?v=20260916-schematic1`} strategy="afterInteractive" />
+        <Script src={`${base}/infinity-phi-website-builder-mount.js?v=20260916-builder-mount1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-autobuild-link.js?v=20260916-autobuild1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-copy-capture.js?v=20260914-copy-capture1`} strategy="afterInteractive" />
         <Script src={`${base}/infinity-phi-runtime-repair.js?v=20260914-runtime-repair2`} strategy="afterInteractive" />
