@@ -16,6 +16,7 @@ type PhiSearchWindow = Window & {
 
 const NEWS_PHI_URL = "https://www-infinity4.github.io/News-Phi/";
 const OMNI_PHI_URL = "https://www-infinity4.github.io/Omni-Phi/";
+const WEB_PHI_URL = "https://www-infinity4.github.io/Web-Phi/";
 
 function mergeSearxIntoWikipedia(payload: any, sources: PhiRetrievedSource[]) {
   if (!sources.length) return payload;
@@ -178,6 +179,12 @@ export default function PhiSearchRouteGuard() {
           className="rounded-full border border-white/30 bg-[#6840bd]/95 px-3 py-2 text-xs font-black text-white shadow-lg backdrop-blur"
         >
           Omni Phi
+        </a>
+        <a
+          href={WEB_PHI_URL}
+          className="rounded-full border border-white/30 bg-[#087f5b]/95 px-3 py-2 text-xs font-black text-white shadow-lg backdrop-blur"
+        >
+          Web Phi
         </a>
       </nav>
       <PhiUnifiedPage />
