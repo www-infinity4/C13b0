@@ -1,4 +1,4 @@
-name: Deploy Next.js to GitHub Pages
+name: Deploy Infinity Phi Next.js Site
 
 on:
   push:
@@ -7,22 +7,21 @@ on:
 
 permissions:
   contents: read
-  actions: read
   pages: write
   id-token: write
 
-concurrency:
-  group: "pages-nextjs"
-  cancel-in-progress: true
-
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: "infinity-phi-pages"
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout main application
         uses: actions/checkout@v4
         with:
           ref: main
@@ -31,24 +30,39 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: 'npm'
+          cache: npm
 
-      - name: Setup Pages
+      - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build with Next.js
+      - name: Build Infinity Phi
         run: npm run build
         env:
           GITHUB_PAGES: true
           NEXT_PUBLIC_PHI_SEARXNG_URL: ${{ vars.PHI_SEARXNG_URL }}
 
-      - name: Upload artifact
+      - name: Verify actual website artifact
+        shell: bash
+        run: |
+          test -d out || { echo "Missing Next.js out directory"; exit 1; }
+          test -f out/index.html || { echo "Missing Infinity Phi index.html"; exit 1; }
+          test -f out/phi/index.html || { echo "Missing Infinity Phi main page"; exit 1; }
+          test -f out/phi/images/index.html || { echo "Missing Infinity Phi images page"; exit 1; }
+          if grep -q '<h1.*README\|# C13b0' out/index.html 2>/dev/null; then
+            echo "Refusing to publish README as the website"
+            exit 1
+          fi
+
+      - name: Disable Jekyll processing
+        run: touch out/.nojekyll
+
+      - name: Upload only built Infinity Phi site
         uses: actions/upload-pages-artifact@v3
         with:
-          name: github-pages-nextjs
+          name: infinity-phi-site
           path: ./out
 
   deploy:
@@ -58,33 +72,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - name: Wait for legacy Pages run to finish
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          SHA: ${{ github.sha }}
-        shell: bash
-        run: |
-          echo "Waiting so the generated Jekyll Pages job cannot overwrite the Next.js site afterward."
-          for i in $(seq 1 60); do
-            state=$(gh api "repos/$REPO/actions/runs?head_sha=$SHA&per_page=20" --jq '.workflow_runs[] | select(.name == "pages build and deployment") | .status' 2>/dev/null | head -n 1 || true)
-            if [ -z "$state" ]; then
-              if [ "$i" -ge 4 ]; then
-                echo "No legacy Pages run detected; continuing."
-                exit 0
-              fi
-            elif [ "$state" = "completed" ]; then
-              echo "Legacy Pages run completed; Next.js will deploy last."
-              exit 0
-            else
-              echo "Legacy Pages state: $state"
-            fi
-            sleep 5
-          done
-          echo "Timed out waiting for legacy Pages; deploying Next.js anyway."
-
-      - name: Deploy to GitHub Pages
+      - name: Deploy built Infinity Phi site
         id: deployment
         uses: actions/deploy-pages@v4
         with:
-          artifact_name: github-pages-nextjs
+          artifact_name: infinity-phi-site
