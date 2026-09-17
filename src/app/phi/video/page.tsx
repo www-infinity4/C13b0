@@ -1,0 +1,1 @@
+import ArchiveMediaFeed from "@/components/ArchiveMediaFeed";export default function Page(){return <ArchiveMediaFeed kind="video"/>}
