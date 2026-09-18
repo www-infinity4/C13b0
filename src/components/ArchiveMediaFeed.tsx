@@ -5,6 +5,7 @@ import { appPath } from "@/lib/base-path";
 type Item={id:string;title:string;description:string;source:string;image:string;files:{name:string;url:string}[]};
 const clean=(v:any)=>String(Array.isArray(v)?v[0]:v||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
 const SHARED="phiShared:collection:v1";
+const SESSION="infinityPhi:mediaCollectedSession:v1";
 const OVERVIEW="infinityPhi:mediaOverview:v1";
 const NEWS="https://www-infinity4.github.io/News-Phi/";
 
@@ -45,11 +46,11 @@ export default function ArchiveMediaFeed({kind}:{kind:"audio"|"video"}){
       setItems(built);
     }finally{setBusy(false)}
   }
-  useEffect(()=>{const t=new URLSearchParams(location.search).get("q")||"";setQ(t);try{const raw=JSON.parse(localStorage.getItem(SHARED)||"[]");setCollectedCount(Array.isArray(raw)?raw.length:0)}catch{}if(t)void run(t)},[]);
+  useEffect(()=>{const t=new URLSearchParams(location.search).get("q")||"";setQ(t);setCollected({});setCollectedCount(0);try{localStorage.setItem(SESSION,JSON.stringify({query:t,kind,ids:[]}))}catch{}if(t)void run(t)},[]);
   function backToOverview(){try{localStorage.setItem(OVERVIEW,JSON.stringify({query:q,returnFrom:kind,at:Date.now()}))}catch{}location.assign(`${appPath("phi")}?q=${encodeURIComponent(q)}&run=1&collected=1`)}
 
   function record(x:Item){return{id:`archive-${kind}-${x.id}`,storyKey:x.source,title:x.title,sourceTitle:x.title,extract:x.description,url:x.source,domain:"archive.org",provider:"Internet Archive",image:x.image,imageVerified:true,sourceBacked:true,sourceLocked:true,searchQuery:q,collectedAt:new Date().toISOString(),collectedFrom:"Infinity Phi",mediaKind:kind,files:x.files}}
-  function collect(x:Item){const card=record(x);let list:any[]=[];try{const raw=JSON.parse(localStorage.getItem(SHARED)||"[]");list=Array.isArray(raw)?raw:[]}catch{}const i=list.findIndex(v=>(v?.storyKey||v?.url||v?.id)===card.storyKey);if(i>=0)list[i]={...list[i],...card};else list.unshift(card);try{localStorage.setItem(SHARED,JSON.stringify(list.slice(0,300)))}catch{}window.dispatchEvent(new CustomEvent("controlphi:shared",{detail:{source:"infinity-phi",storyKey:card.storyKey}}));setCollectedCount(list.length);setCollected(v=>({...v,[x.id]:true}))}
+  function collect(x:Item){const card=record(x);let list:any[]=[];try{const raw=JSON.parse(localStorage.getItem(SHARED)||"[]");list=Array.isArray(raw)?raw:[]}catch{}const i=list.findIndex(v=>(v?.storyKey||v?.url||v?.id)===card.storyKey);if(i>=0)list[i]={...list[i],...card};else list.unshift(card);try{localStorage.setItem(SHARED,JSON.stringify(list.slice(0,300)))}catch{}window.dispatchEvent(new CustomEvent("controlphi:shared",{detail:{source:"infinity-phi",storyKey:card.storyKey}}));setCollected(v=>{const next={...v,[x.id]:true};const ids=Object.keys(next).filter(id=>next[id]);setCollectedCount(ids.length);try{localStorage.setItem(SESSION,JSON.stringify({query:q,kind,ids}))}catch{}return next})}
   function newsUrl(x:Item,similar=false){const p=new URLSearchParams({collect:"1",from:"infinity-phi",sharedTitle:x.title,sharedBody:x.description.slice(0,1800),sharedUrl:x.source,sharedImage:x.image,sharedDomain:"archive.org",sharedQuery:q});if(similar)p.set("buildSimilar","1");return`${NEWS}?${p.toString()}#story=${encodeURIComponent(x.source)}`}
   async function share(x:Item){const url=newsUrl(x);if(!navigator.share){try{await navigator.clipboard.writeText(url);setShared(v=>({...v,[x.id]:"Link copied"}))}catch{}return}try{await navigator.share({title:x.title,text:x.description.slice(0,320),url});setShared(v=>({...v,[x.id]:starShare(url)}))}catch(e:any){if(e?.name!=="AbortError")setShared(v=>({...v,[x.id]:"Share again"}))}}
 
