@@ -6,6 +6,7 @@ type Item={id:string;title:string;description:string;source:string;image:string;
 const clean=(v:any)=>String(Array.isArray(v)?v[0]:v||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
 const SHARED="phiShared:collection:v1";
 const SESSION="infinityPhi:mediaCollectedSession:v1";
+const LEGACY_MEDIA="infinityPhi:selectedMedia:v1";
 const OVERVIEW="infinityPhi:mediaOverview:v1";
 const NEWS="https://www-infinity4.github.io/News-Phi/";
 
@@ -27,7 +28,7 @@ function starShare(reference:string){
 export default function ArchiveMediaFeed({kind}:{kind:"audio"|"video"}){
   const[q,setQ]=useState(""),[items,setItems]=useState<Item[]>([]),[busy,setBusy]=useState(false),[collected,setCollected]=useState<Record<string,boolean>>({}),[shared,setShared]=useState<Record<string,string>>({}),[collectedCount,setCollectedCount]=useState(0);
   async function run(term:string){
-    const exact=clean(term);if(!exact)return;setCollected({});setCollectedCount(0);try{localStorage.setItem(SESSION,JSON.stringify({query:exact,kind,ids:[]}))}catch{}setBusy(true);
+    const exact=clean(term);if(!exact)return;setCollected({});setCollectedCount(0);try{localStorage.removeItem(LEGACY_MEDIA);localStorage.setItem(SESSION,JSON.stringify({query:exact,kind,ids:[]}))}catch{}setBusy(true);
     try{
       const words=exact.toLowerCase().match(/[a-z0-9]+/g)||[];
       const quoted=`"${exact.replace(/"/g,"")}"`;
@@ -46,7 +47,7 @@ export default function ArchiveMediaFeed({kind}:{kind:"audio"|"video"}){
       setItems(built);
     }finally{setBusy(false)}
   }
-  useEffect(()=>{const t=new URLSearchParams(location.search).get("q")||"";setQ(t);setCollected({});setCollectedCount(0);try{localStorage.setItem(SESSION,JSON.stringify({query:t,kind,ids:[]}))}catch{}if(t)void run(t)},[]);
+  useEffect(()=>{const t=new URLSearchParams(location.search).get("q")||"";setQ(t);setCollected({});setCollectedCount(0);try{localStorage.removeItem(LEGACY_MEDIA);localStorage.setItem(SESSION,JSON.stringify({query:t,kind,ids:[]}))}catch{}if(t)void run(t)},[]);
   function backToOverview(){try{localStorage.setItem(OVERVIEW,JSON.stringify({query:q,returnFrom:kind,at:Date.now()}))}catch{}location.assign(`${appPath("phi")}?q=${encodeURIComponent(q)}&run=1&collected=1`)}
 
   function record(x:Item){return{id:`archive-${kind}-${x.id}`,storyKey:x.source,title:x.title,sourceTitle:x.title,extract:x.description,url:x.source,domain:"archive.org",provider:"Internet Archive",image:x.image,imageVerified:true,sourceBacked:true,sourceLocked:true,searchQuery:q,collectedAt:new Date().toISOString(),collectedFrom:"Infinity Phi",mediaKind:kind,files:x.files}}
