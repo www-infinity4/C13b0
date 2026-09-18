@@ -27,7 +27,7 @@ function starShare(reference:string){
 export default function ArchiveMediaFeed({kind}:{kind:"audio"|"video"}){
   const[q,setQ]=useState(""),[items,setItems]=useState<Item[]>([]),[busy,setBusy]=useState(false),[collected,setCollected]=useState<Record<string,boolean>>({}),[shared,setShared]=useState<Record<string,string>>({}),[collectedCount,setCollectedCount]=useState(0);
   async function run(term:string){
-    const exact=clean(term);if(!exact)return;setBusy(true);
+    const exact=clean(term);if(!exact)return;setCollected({});setCollectedCount(0);try{localStorage.setItem(SESSION,JSON.stringify({query:exact,kind,ids:[]}))}catch{}setBusy(true);
     try{
       const words=exact.toLowerCase().match(/[a-z0-9]+/g)||[];
       const quoted=`"${exact.replace(/"/g,"")}"`;
