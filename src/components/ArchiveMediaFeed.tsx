@@ -24,18 +24,37 @@ function starShare(reference:string){
 }
 
 export default function ArchiveMediaFeed({kind}:{kind:"audio"|"video"}){
-  const[q,setQ]=useState(""),[items,setItems]=useState<Item[]>([]),[busy,setBusy]=useState(false),[collected,setCollected]=useState<Record<string,boolean>>({}),[shared,setShared]=useState<Record<string,string>>({});
-  async function run(term:string){if(!term)return;setBusy(true);try{const u=new URL("https://archive.org/advancedsearch.php");u.search=new URLSearchParams({q:`(${term}) AND mediatype:${kind==="audio"?"audio":"movies"}`,"fl[]":"identifier,title,description",rows:"40",page:"1",output:"json"}).toString();const d=await(await fetch(u)).json();const docs=(d.response?.docs||[]).slice(0,20);const built=(await Promise.all(docs.map(async(x:any)=>{const id=clean(x.identifier);try{const m=await(await fetch(`https://archive.org/metadata/${encodeURIComponent(id)}`)).json(),ok=kind==="audio"?/\.(mp3|ogg|oga|flac|m4a)$/i:/\.(mp4|ogv|webm|m4v)$/i,files=(m.files||[]).filter((z:any)=>ok.test(z.name||"")&&!/sample|thumb/i.test(z.name||"")).slice(0,20).map((z:any)=>({name:clean(z.title||z.name),url:`https://archive.org/download/${encodeURIComponent(id)}/${String(z.name).split("/").map(encodeURIComponent).join("/")}`}));return files.length?{id,title:clean(x.title)||id,description:clean(x.description),source:`https://archive.org/details/${encodeURIComponent(id)}`,image:`https://archive.org/services/img/${encodeURIComponent(id)}`,files}:null}catch{return null}}))).filter(Boolean) as Item[];setItems(built)}finally{setBusy(false)}}
-  useEffect(()=>{const t=new URLSearchParams(location.search).get("q")||"";setQ(t);if(t)void run(t)},[]);
+  const[q,setQ]=useState(""),[items,setItems]=useState<Item[]>([]),[busy,setBusy]=useState(false),[collected,setCollected]=useState<Record<string,boolean>>({}),[shared,setShared]=useState<Record<string,string>>({}),[collectedCount,setCollectedCount]=useState(0);
+  async function run(term:string){
+    const exact=clean(term);if(!exact)return;setBusy(true);
+    try{
+      const words=exact.toLowerCase().match(/[a-z0-9]+/g)||[];
+      const quoted=`"${exact.replace(/"/g,"")}"`;
+      const archiveQuery=`(${quoted} OR title:(${quoted}) OR description:(${quoted})) AND mediatype:${kind==="audio"?"audio":"movies"}`;
+      const u=new URL("https://archive.org/advancedsearch.php");
+      u.search=new URLSearchParams({q:archiveQuery,"fl[]":"identifier,title,description,creator,date,downloads",rows:"80",page:"1",sort:"downloads desc",output:"json"}).toString();
+      const d=await(await fetch(u)).json();
+      const scored=(d.response?.docs||[]).map((x:any)=>{
+        const title=clean(x.title).toLowerCase(),desc=clean(x.description).toLowerCase(),creator=clean(x.creator).toLowerCase(),hay=`${title} ${desc} ${creator}`;
+        let score=0;if(title===exact.toLowerCase())score+=100;if(title.includes(exact.toLowerCase()))score+=60;if(desc.includes(exact.toLowerCase()))score+=35;
+        for(const w of words){if(title.includes(w))score+=12;if(desc.includes(w))score+=4;if(creator.includes(w))score+=5}
+        if(words.length&&words.every(w=>hay.includes(w)))score+=40;
+        return{x,score};
+      }).filter((v:any)=>v.score>=Math.max(20,words.length*8)).sort((a:any,b:any)=>b.score-a.score||Number(b.x.downloads||0)-Number(a.x.downloads||0)).slice(0,20);
+      const built=(await Promise.all(scored.map(async({x}:any)=>{const id=clean(x.identifier);try{const m=await(await fetch(`https://archive.org/metadata/${encodeURIComponent(id)}`)).json(),ok=kind==="audio"?/\.(mp3|ogg|oga|flac|m4a)$/i:/\.(mp4|ogv|webm|m4v)$/i,files=(m.files||[]).filter((z:any)=>ok.test(z.name||"")&&!/sample|thumb|trailer|preview/i.test(z.name||"")).slice(0,20).map((z:any)=>({name:clean(z.title||z.name),url:`https://archive.org/download/${encodeURIComponent(id)}/${String(z.name).split("/").map(encodeURIComponent).join("/")}`}));return files.length?{id,title:clean(x.title)||id,description:clean(x.description),source:`https://archive.org/details/${encodeURIComponent(id)}`,image:`https://archive.org/services/img/${encodeURIComponent(id)}`,files}:null}catch{return null}}))).filter(Boolean) as Item[];
+      setItems(built);
+    }finally{setBusy(false)}
+  }
+  useEffect(()=>{const t=new URLSearchParams(location.search).get("q")||"";setQ(t);try{const raw=JSON.parse(localStorage.getItem(SHARED)||"[]");setCollectedCount(Array.isArray(raw)?raw.length:0)}catch{}if(t)void run(t)},[]);
   function backToOverview(){try{localStorage.setItem(OVERVIEW,JSON.stringify({query:q,returnFrom:kind,at:Date.now()}))}catch{}location.assign(`${appPath("phi")}?q=${encodeURIComponent(q)}&run=1&collected=1`)}
 
   function record(x:Item){return{id:`archive-${kind}-${x.id}`,storyKey:x.source,title:x.title,sourceTitle:x.title,extract:x.description,url:x.source,domain:"archive.org",provider:"Internet Archive",image:x.image,imageVerified:true,sourceBacked:true,sourceLocked:true,searchQuery:q,collectedAt:new Date().toISOString(),collectedFrom:"Infinity Phi",mediaKind:kind,files:x.files}}
-  function collect(x:Item){const card=record(x);let list:any[]=[];try{const raw=JSON.parse(localStorage.getItem(SHARED)||"[]");list=Array.isArray(raw)?raw:[]}catch{}const i=list.findIndex(v=>(v?.storyKey||v?.url||v?.id)===card.storyKey);if(i>=0)list[i]={...list[i],...card};else list.unshift(card);try{localStorage.setItem(SHARED,JSON.stringify(list.slice(0,300)))}catch{}window.dispatchEvent(new CustomEvent("controlphi:shared",{detail:{source:"infinity-phi",storyKey:card.storyKey}}));setCollected(v=>({...v,[x.id]:true}))}
+  function collect(x:Item){const card=record(x);let list:any[]=[];try{const raw=JSON.parse(localStorage.getItem(SHARED)||"[]");list=Array.isArray(raw)?raw:[]}catch{}const i=list.findIndex(v=>(v?.storyKey||v?.url||v?.id)===card.storyKey);if(i>=0)list[i]={...list[i],...card};else list.unshift(card);try{localStorage.setItem(SHARED,JSON.stringify(list.slice(0,300)))}catch{}window.dispatchEvent(new CustomEvent("controlphi:shared",{detail:{source:"infinity-phi",storyKey:card.storyKey}}));setCollectedCount(list.length);setCollected(v=>({...v,[x.id]:true}))}
   function newsUrl(x:Item,similar=false){const p=new URLSearchParams({collect:"1",from:"infinity-phi",sharedTitle:x.title,sharedBody:x.description.slice(0,1800),sharedUrl:x.source,sharedImage:x.image,sharedDomain:"archive.org",sharedQuery:q});if(similar)p.set("buildSimilar","1");return`${NEWS}?${p.toString()}#story=${encodeURIComponent(x.source)}`}
   async function share(x:Item){const url=newsUrl(x);if(!navigator.share){try{await navigator.clipboard.writeText(url);setShared(v=>({...v,[x.id]:"Link copied"}))}catch{}return}try{await navigator.share({title:x.title,text:x.description.slice(0,320),url});setShared(v=>({...v,[x.id]:starShare(url)}))}catch(e:any){if(e?.name!=="AbortError")setShared(v=>({...v,[x.id]:"Share again"}))}}
 
   return <main className="min-h-screen bg-white text-slate-950"><div className="mx-auto max-w-6xl px-4 pb-24 pt-20">
-    <button type="button" onClick={backToOverview} className="rounded-full bg-violet-700 px-4 py-2 text-sm font-black text-white">← Back to overview + collected cards</button>
+    <div className="flex items-start justify-between gap-3"><button type="button" onClick={backToOverview} className="rounded-full bg-violet-700 px-4 py-2 text-sm font-black text-white">← Back to overview</button><div className="relative rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 pr-8 text-xs font-black text-violet-900">Collected cards<span className="absolute -right-2 -top-2 grid h-7 min-w-7 place-items-center rounded-full bg-orange-500 px-1.5 text-xs font-black text-white shadow">{collectedCount}</span></div></div>
     <h1 className="mt-4 text-4xl font-black">{kind==="audio"?"Audio φ":"Video φ"}</h1>
     <p className="mt-2 text-slate-600">Infinity Phi playable Internet Archive results. Collect, build and share these cards through the same Infinity card connections.</p>
     <form className="mt-5 flex gap-2" onSubmit={e=>{e.preventDefault();void run(q)}}><input className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white p-3 text-slate-950" value={q} onChange={e=>setQ(e.target.value)}/><button className="rounded-xl bg-violet-700 px-5 font-black text-white">{busy?"Searching…":"Search"}</button></form>
