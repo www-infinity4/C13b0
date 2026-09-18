@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ExternalLink } from "lucide-react";
+import { ChevronDown, ExternalLink, Share2 } from "lucide-react";
 import { appPath } from "@/lib/base-path";
 import { secureLoad, secureLoadDurable, secureSave, secureSaveDurable } from "@/lib/secure-storage";
 import { buildSemanticExpansionCards, dedupeSemantic, type SemanticCard } from "@/lib/phi-semantic-expansion";
@@ -42,6 +42,8 @@ type StorySection = { id: string; title: string; paragraphs: string[]; images: C
 const PAPERS = "infinity_phi_research_v1";
 const PAPER_PREFIX = "infinity_phi_paper_v2_";
 const SELECTION_PREFIX = "infinity_phi_selection_v2_";
+const SHARED_COLLECTION = "phiShared:collection:v1";
+const NEWS_PHI_URL = "https://www-infinity4.github.io/News-Phi/";
 const clean = (value: unknown) => String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 const sentences = (value: string) => clean(value).split(/(?<=[.!?])\s+/).map(clean).filter((line) => line.length > 42);
 const words = (value: string) => clean(value).toLowerCase().match(/[a-z0-9]+(?:-[a-z0-9]+)?/g) || [];
@@ -232,6 +234,114 @@ async function savePaper(paper: Paper) {
   } catch {}
 }
 
+type ShareResult = { copied?: boolean; cancelled?: boolean; awarded?: number; progressToNextCoin?: number };
+
+function cardSource(card: SemanticCard, fallbackQuery: string): Source {
+  const source = card.source;
+  return {
+    title: clean(source?.title || card.title || fallbackQuery),
+    url: clean(source?.url || ""),
+    excerpt: clean(source?.excerpt || card.body),
+    provider: clean(source?.provider || "Infinity Phi"),
+    imageUrl: clean(source?.imageUrl || "") || undefined,
+  };
+}
+
+function collectMagazineCard(card: SemanticCard, query: string) {
+  const source = cardSource(card, query);
+  const storyKey = source.url || card.key;
+  const record = {
+    id: `infinity-card-${card.key}`,
+    storyKey,
+    title: card.title,
+    sourceTitle: source.title,
+    extract: card.body,
+    sourceExtract: source.excerpt,
+    url: source.url,
+    domain: source.provider,
+    provider: source.provider,
+    image: source.imageUrl || "",
+    imageVerified: Boolean(source.imageUrl),
+    sourceBacked: Boolean(source.url),
+    sourceLocked: true,
+    searchQuery: query,
+    collectedAt: new Date().toISOString(),
+    collectedFrom: "Infinity Phi",
+    mediaKind: "image",
+  };
+  let list: any[] = [];
+  try {
+    const raw = JSON.parse(localStorage.getItem(SHARED_COLLECTION) || "[]");
+    list = Array.isArray(raw) ? raw : [];
+  } catch {}
+  const index = list.findIndex((item) => (item?.storyKey || item?.url || item?.id) === storyKey);
+  if (index >= 0) list[index] = { ...list[index], ...record, collectedAt: new Date().toISOString() };
+  else list.unshift(record);
+  try { localStorage.setItem(SHARED_COLLECTION, JSON.stringify(list.slice(0, 300))); } catch {}
+  window.dispatchEvent(new CustomEvent("controlphi:shared", { detail: { source: "infinity-phi", storyKey } }));
+}
+
+function awardShare(reference: string) {
+  try {
+    const id = `phi-share-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const read = (key: string, fallback: any) => { try { return JSON.parse(localStorage.getItem(key) || "null") || fallback; } catch { return fallback; } };
+    const session = read("starquest_session", null);
+    const users = read("starquest_users", {});
+    const signed = session?.key && users[session.key];
+    const wallet: any = signed || read("starquest_guest_profile_v1", { tokens: 0, shareCount: 0, pendingShareCredits: 0, shareEvents: [], ledger: [] });
+    wallet.tokens = Math.max(0, Number(wallet.tokens) || 0);
+    wallet.shareCount = Math.max(0, Number(wallet.shareCount) || 0) + 1;
+    wallet.pendingShareCredits = Math.max(0, Number(wallet.pendingShareCredits) || 0) + 1;
+    wallet.shareEvents = Array.isArray(wallet.shareEvents) ? wallet.shareEvents : [];
+    wallet.ledger = Array.isArray(wallet.ledger) ? wallet.ledger : [];
+    wallet.shareEvents.push({ id, reference, method: "web_share_api", confirmed: true, createdAt: Date.now() });
+    let awarded = 0;
+    while (wallet.pendingShareCredits >= 10) { wallet.pendingShareCredits -= 10; wallet.tokens++; awarded++; }
+    wallet.ledger.push({ id: `tx-${id}`, type: awarded ? "share_reward" : "share_credit", amount: awarded, balance: wallet.tokens, pendingShareCredits: wallet.pendingShareCredits, referenceId: id, createdAt: Date.now() });
+    if (signed) { users[session.key] = wallet; localStorage.setItem("starquest_users", JSON.stringify(users)); }
+    else localStorage.setItem("starquest_guest_profile_v1", JSON.stringify(wallet));
+    return { progressToNextCoin: wallet.pendingShareCredits, awarded };
+  } catch { return {}; }
+}
+
+async function shareMagazineCard(card: SemanticCard, query: string): Promise<ShareResult> {
+  const source = cardSource(card, query);
+  const params = new URLSearchParams({
+    sharedTitle: card.title,
+    sharedBody: card.body.slice(0, 1200),
+    sharedUrl: source.url,
+    sharedImage: source.imageUrl || "",
+    sharedDomain: source.provider,
+    sharedQuery: query,
+  });
+  const url = `${NEWS_PHI_URL}?${params.toString()}#story=${encodeURIComponent(source.url || card.key)}`;
+  if (!navigator.share) {
+    try { await navigator.clipboard.writeText(url); return { copied: true }; } catch { return {}; }
+  }
+  try {
+    await navigator.share({ title: card.title, text: card.body.slice(0, 320), url });
+    return awardShare(url);
+  } catch (error: any) {
+    return error?.name === "AbortError" ? { cancelled: true } : {};
+  }
+}
+
+function similarCardsUrl(card: SemanticCard, query: string) {
+  const source = cardSource(card, query);
+  const params = new URLSearchParams({
+    collect: "1",
+    from: "infinity-phi",
+    buildSimilar: "1",
+    sharedTitle: card.title,
+    sharedBody: card.body.slice(0, 1800),
+    sharedUrl: source.url,
+    sharedImage: source.imageUrl || "",
+    sharedDomain: source.provider,
+    sharedQuery: query,
+  });
+  return `${NEWS_PHI_URL}?${params.toString()}#story=${encodeURIComponent(source.url || card.key)}`;
+}
+
 export default function PhiMagazineV5() {
   const [paper, setPaper] = useState<Paper | null>(null);
   const [selection, setSelection] = useState<SelectionState>({ branches: [], branchIds: [], branchBodies: [], terms: [], imageUrls: [], noteImages: {}, notes: [], deepNotes: [], updatedAt: "" });
@@ -241,6 +351,8 @@ export default function PhiMagazineV5() {
   const [visualLoading, setVisualLoading] = useState(false);
   const [building, setBuilding] = useState<string | null>(null);
   const [openStory, setOpenStory] = useState(false);
+  const [shareStatus, setShareStatus] = useState<Record<string, string>>({});
+  const [collectStatus, setCollectStatus] = useState<Record<string, string>>({});
 
   const rootCards = useMemo(() => paper ? buildSemanticExpansionCards(paper.query, paper.overview, paper.sources, paper.findings, "", [], 15) : [], [paper]);
   const selectedCard = useMemo(() => findSelectedCard(rootCards, selection), [rootCards, selection]);
@@ -352,12 +464,28 @@ export default function PhiMagazineV5() {
         <h2 className={styles.indexHeading}>Explore the next questions around {focus.label}</h2>
         <p className={styles.indexIntro}>These orange cards use the same answer-first index as the research page, but they are rebuilt from this publication’s verified branch instead of drifting back to the broader search.</p>
         <div className={styles.indexGrid}>
-          {magazineCards.slice(0, 15).map((card, index) => <article className={styles.indexCard} key={card.key}>
-            <button type="button" disabled={Boolean(building)} onClick={() => void buildFocused(card)}>
-              {card.source?.imageUrl && (!focus.locked || verifyPublicationSource(card.source, focus)) ? <img src={card.source.imageUrl} alt="" loading="lazy" /> : <div className={styles.imageFallback}>φ</div>}
-              <div className={styles.indexCopy}><small>{card.hashPath || `#${index + 1}`} · {card.intent}</small><h3>{card.title}</h3><p>{card.body}</p></div>
-            </button>
-          </article>)}
+          {magazineCards.slice(0, 15).map((card, index) => {
+            const source = cardSource(card, paper.query);
+            return <article className={styles.indexCard} key={card.key}>
+              <button className={styles.indexMain} type="button" disabled={Boolean(building)} onClick={() => void buildFocused(card)}>
+                {card.source?.imageUrl && (!focus.locked || verifyPublicationSource(card.source, focus)) ? <img src={card.source.imageUrl} alt="" loading="lazy" /> : <div className={styles.imageFallback}>φ</div>}
+                <div className={styles.indexCopy}><small>{card.hashPath || `#${index + 1}`} · {card.intent}</small><h3>{card.title}</h3><p>{card.body}</p></div>
+              </button>
+              <div className={styles.indexActions}>
+                {source.url && <a href={source.url} target="_blank" rel="noreferrer">Read source <ExternalLink size={13} /></a>}
+                <button type="button" onClick={() => { collectMagazineCard(card, paper.query); setCollectStatus((current) => ({ ...current, [card.key]: "✓ Collected" })); }}>{collectStatus[card.key] || "Collect"}</button>
+                <button type="button" onClick={() => void buildFocused(card)}>Build this story</button>
+                <a href={similarCardsUrl(card, paper.query)}>Build similar cards</a>
+                <button type="button" onClick={async () => {
+                  const result = await shareMagazineCard(card, paper.query);
+                  setShareStatus((current) => ({
+                    ...current,
+                    [card.key]: result.awarded ? "Shared · 1 StarCoin!" : result.progressToNextCoin != null ? `Shared · ${result.progressToNextCoin}/10 ⭐` : result.copied ? "Link copied" : "Share card · +1/10 ⭐",
+                  }));
+                }}><Share2 size={13} /> {shareStatus[card.key] || "Share card · +1/10 ⭐"}</button>
+              </div>
+            </article>;
+          })}
         </div>
       </section>
 
