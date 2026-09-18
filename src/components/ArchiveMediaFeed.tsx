@@ -5,6 +5,7 @@ import { appPath } from "@/lib/base-path";
 type Item={id:string;title:string;description:string;source:string;image:string;files:{name:string;url:string}[]};
 const clean=(v:any)=>String(Array.isArray(v)?v[0]:v||"").replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim();
 const SHARED="phiShared:collection:v1";
+const OVERVIEW="infinityPhi:mediaOverview:v1";
 const NEWS="https://www-infinity4.github.io/News-Phi/";
 
 function starShare(reference:string){
@@ -26,6 +27,7 @@ export default function ArchiveMediaFeed({kind}:{kind:"audio"|"video"}){
   const[q,setQ]=useState(""),[items,setItems]=useState<Item[]>([]),[busy,setBusy]=useState(false),[collected,setCollected]=useState<Record<string,boolean>>({}),[shared,setShared]=useState<Record<string,string>>({});
   async function run(term:string){if(!term)return;setBusy(true);try{const u=new URL("https://archive.org/advancedsearch.php");u.search=new URLSearchParams({q:`(${term}) AND mediatype:${kind==="audio"?"audio":"movies"}`,"fl[]":"identifier,title,description",rows:"40",page:"1",output:"json"}).toString();const d=await(await fetch(u)).json();const docs=(d.response?.docs||[]).slice(0,20);const built=(await Promise.all(docs.map(async(x:any)=>{const id=clean(x.identifier);try{const m=await(await fetch(`https://archive.org/metadata/${encodeURIComponent(id)}`)).json(),ok=kind==="audio"?/\.(mp3|ogg|oga|flac|m4a)$/i:/\.(mp4|ogv|webm|m4v)$/i,files=(m.files||[]).filter((z:any)=>ok.test(z.name||"")&&!/sample|thumb/i.test(z.name||"")).slice(0,20).map((z:any)=>({name:clean(z.title||z.name),url:`https://archive.org/download/${encodeURIComponent(id)}/${String(z.name).split("/").map(encodeURIComponent).join("/")}`}));return files.length?{id,title:clean(x.title)||id,description:clean(x.description),source:`https://archive.org/details/${encodeURIComponent(id)}`,image:`https://archive.org/services/img/${encodeURIComponent(id)}`,files}:null}catch{return null}}))).filter(Boolean) as Item[];setItems(built)}finally{setBusy(false)}}
   useEffect(()=>{const t=new URLSearchParams(location.search).get("q")||"";setQ(t);if(t)void run(t)},[]);
+  function backToOverview(){try{localStorage.setItem(OVERVIEW,JSON.stringify({query:q,returnFrom:kind,at:Date.now()}))}catch{}location.assign(`${appPath("phi")}?q=${encodeURIComponent(q)}&run=1&collected=1`)}
 
   function record(x:Item){return{id:`archive-${kind}-${x.id}`,storyKey:x.source,title:x.title,sourceTitle:x.title,extract:x.description,url:x.source,domain:"archive.org",provider:"Internet Archive",image:x.image,imageVerified:true,sourceBacked:true,sourceLocked:true,searchQuery:q,collectedAt:new Date().toISOString(),collectedFrom:"Infinity Phi",mediaKind:kind,files:x.files}}
   function collect(x:Item){const card=record(x);let list:any[]=[];try{const raw=JSON.parse(localStorage.getItem(SHARED)||"[]");list=Array.isArray(raw)?raw:[]}catch{}const i=list.findIndex(v=>(v?.storyKey||v?.url||v?.id)===card.storyKey);if(i>=0)list[i]={...list[i],...card};else list.unshift(card);try{localStorage.setItem(SHARED,JSON.stringify(list.slice(0,300)))}catch{}window.dispatchEvent(new CustomEvent("controlphi:shared",{detail:{source:"infinity-phi",storyKey:card.storyKey}}));setCollected(v=>({...v,[x.id]:true}))}
@@ -33,7 +35,7 @@ export default function ArchiveMediaFeed({kind}:{kind:"audio"|"video"}){
   async function share(x:Item){const url=newsUrl(x);if(!navigator.share){try{await navigator.clipboard.writeText(url);setShared(v=>({...v,[x.id]:"Link copied"}))}catch{}return}try{await navigator.share({title:x.title,text:x.description.slice(0,320),url});setShared(v=>({...v,[x.id]:starShare(url)}))}catch(e:any){if(e?.name!=="AbortError")setShared(v=>({...v,[x.id]:"Share again"}))}}
 
   return <main className="min-h-screen bg-white text-slate-950"><div className="mx-auto max-w-6xl px-4 pb-24 pt-20">
-    <a href={appPath("phi")} className="font-black text-violet-700">← Infinity Phi</a>
+    <button type="button" onClick={backToOverview} className="rounded-full bg-violet-700 px-4 py-2 text-sm font-black text-white">← Back to overview + collected cards</button>
     <h1 className="mt-4 text-4xl font-black">{kind==="audio"?"Audio φ":"Video φ"}</h1>
     <p className="mt-2 text-slate-600">Infinity Phi playable Internet Archive results. Collect, build and share these cards through the same Infinity card connections.</p>
     <form className="mt-5 flex gap-2" onSubmit={e=>{e.preventDefault();void run(q)}}><input className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white p-3 text-slate-950" value={q} onChange={e=>setQ(e.target.value)}/><button className="rounded-xl bg-violet-700 px-5 font-black text-white">{busy?"Searching…":"Search"}</button></form>
