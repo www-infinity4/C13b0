@@ -9,6 +9,7 @@
   const OMNI_BUILDER = 'https://www-infinity4.github.io/Omni-Phi/cards/';
   const SHARED_COLLECTION = 'phiShared:collection:v1';
   const IMAGE_SELECTIONS = 'phiShared:imageSelections:v1';
+  const CURRENT_SEARCH_COLLECTION = 'infinityPhi:currentSearchCollection:v1';
   const OMNI_RESEARCH = 'omniPhi:lastResearch:v1';
   const OMNI_REACTIONS = 'omniPhi:cardReactions:v1';
   const PAGE_SIZE = 50;
@@ -343,6 +344,19 @@
     if (status) status.textContent = message;
   }
 
+  function currentSearchItems(query = queryText()) {
+    const normalized = clean(query).toLowerCase();
+    const shared = read(SHARED_COLLECTION, []);
+    return (Array.isArray(shared) ? shared : []).filter((item) => clean(item?.searchQuery).toLowerCase() === normalized);
+  }
+
+  function syncCurrentSearchCollection(query = queryText()) {
+    const items = currentSearchItems(query);
+    write(CURRENT_SEARCH_COLLECTION, { query, items, updatedAt: new Date().toISOString() });
+    window.dispatchEvent(new CustomEvent('infinityphi:current-search-collection', { detail: { query, items } }));
+    return items;
+  }
+
   function saveImageSeed(item) {
     const query = queryText();
     const url = item.sourceUrl || item.url;
@@ -382,6 +396,7 @@
     write(IMAGE_SELECTIONS, [record, ...imageList.filter((entry) => entry?.image !== record.image && entry?.url !== record.url)].slice(0, 250));
 
     mergeImageIntoWebsiteData(record);
+    syncCurrentSearchCollection(query);
     window.dispatchEvent(new CustomEvent('controlphi:shared', { detail: { source: 'infinity-phi-image', storyKey: key } }));
     window.dispatchEvent(new CustomEvent('infinityphi:image-selected', { detail: record }));
     return record;
@@ -564,7 +579,8 @@
       storyKey: source.url,
       sourceLocked: true,
     }));
-    const imageSources = read(IMAGE_SELECTIONS, []).filter?.((item) => !item.searchQuery || String(item.searchQuery).toLowerCase() === query.toLowerCase()).map((item) => ({
+    const currentCollected = syncCurrentSearchCollection(query);
+    const imageSources = currentCollected.filter((item) => (item?.mediaKind || item?.kind || '').toString().includes('image') || item?.image).map((item) => ({
       id: item.id,
       title: item.title,
       url: item.url,
@@ -589,7 +605,12 @@
       sourceSystem: 'Infinity Phi → shared Omni website engine',
       profileSnapshot: {},
     };
-    const combined = [...imageSources, ...(Array.isArray(base.sources) ? base.sources : []), ...sourceCards];
+    const mediaSources = currentCollected.filter((item) => ['audio','video'].includes(String(item?.mediaKind || '').toLowerCase())).map((item) => ({
+      id: item.id, title: item.title || item.sourceTitle, url: item.url, domain: item.domain, provider: item.provider,
+      extract: item.extract || item.sourceExtract, image: item.image || item.imageUrl || '', imageUrl: item.image || item.imageUrl || '',
+      storyKey: item.storyKey || item.url || item.id, sourceLocked: true, mediaKind: item.mediaKind, files: item.files || []
+    }));
+    const combined = [...imageSources, ...mediaSources, ...(Array.isArray(base.sources) ? base.sources : []), ...sourceCards];
     const seen = new Set();
     const sources = combined.filter((item) => {
       const key = item?.storyKey || item?.url || item?.id || item?.title;
@@ -624,6 +645,8 @@
   }
 
   function refreshShell() {
+    const q = queryText();
+    if (q && clean(activeQuery).toLowerCase() !== clean(q).toLowerCase()) syncCurrentSearchCollection(q);
     ensureStyles();
     ensureImageButton();
     ensureWebsiteButton();
