@@ -49,8 +49,7 @@ const subjectWords = (v: string) => {
   const meaningful = words(v).filter((word) => !MEDIA_QUALIFIERS.has(word));
   return (meaningful.length ? meaningful : words(v)).slice(0, 10);
 };
-const fireflyMovieIntent = (v: string) =>
-  /\bfirefly\b/i.test(v) && /\b(movie|film|full)\b/i.test(v);
+const movieIntent = (v: string) => /\b(movie|film|feature|full[- ]?length)\b/i.test(v);
 const SHARED = "phiShared:collection:v1",
   SESSION = "infinityPhi:mediaCollectedSession:v1",
   CURRENT = "infinityPhi:currentSearchCollection:v1",
@@ -83,12 +82,17 @@ function bestPlayableFiles(files: any[], kind: "audio" | "video") {
       kind === "audio"
         ? /\.(mp3|ogg|oga|flac|m4a)$/i
         : /\.(mp4|webm|ogv|m4v)$/i,
-    priority = (name: string) => {
+    priority = (file: any) => {
+      const name = String(file?.name || "");
       if (kind === "audio")
         return /\.mp3$/i.test(name) ? 0 : /\.m4a$/i.test(name) ? 1 : /\.ogg$/i.test(name) ? 2 : 3;
       let score = /\.mp4$/i.test(name) ? 0 : /\.webm$/i.test(name) ? 2 : 4;
       if (/\b(full|complete|feature|movie|serenity)\b/i.test(name)) score -= 20;
       if (/deleted|featurette|behind[ ._-]*the[ ._-]*scenes|scene\s*\d+/i.test(name)) score += 30;
+      const duration = Number(file?.length || file?.duration || 0),
+        size = Number(file?.size || 0);
+      if (duration >= 3600 || size >= 500_000_000) score -= 40;
+      else if (duration > 0 && duration < 1200) score += 25;
       return score;
     },
     seen = new Set<string>();
@@ -102,7 +106,7 @@ function bestPlayableFiles(files: any[], kind: "audio" | "video") {
         !pornographic(file?.name, file?.title) &&
         String(file?.private || "") !== "true",
     )
-    .sort((a, b) => priority(a.name || "") - priority(b.name || ""))
+    .sort((a, b) => priority(a) - priority(b))
     .filter((file) => {
       const key = mediaStem(file?.name || "");
       if (!key || seen.has(key)) return false;
@@ -150,9 +154,7 @@ function archiveQuery(
     fieldMatch = (word: string) =>
       `(title:${word} OR subject:${word} OR description:${word} OR creator:${word})`;
   if (tier === "exact")
-    return fireflyMovieIntent(term)
-      ? `mediatype:${media} AND (title:"${phrase}" OR title:"serenity" OR subject:"${phrase}" OR subject:"serenity" OR description:"${phrase}")`
-      : `mediatype:${media} AND (title:"${phrase}" OR subject:"${phrase}" OR description:"${phrase}")`;
+    return `mediatype:${media} AND (title:"${phrase}" OR subject:"${phrase}" OR description:"${phrase}")`;
   if (tier === "all words")
     return `mediatype:${media} AND (${safeWords.map(fieldMatch).join(" AND ")})`;
   const pairs =
@@ -215,7 +217,11 @@ function relevance(doc: any, term: string) {
   if (title === phrase) score += 120;
   if (title.includes(phrase)) score += 80;
   if (description.includes(phrase)) score += 45;
-  if (/\bfirefly\b/i.test(term) && /\b(movie|film|full)\b/i.test(term) && /\bserenity\b/i.test(title)) score += 900;
+  if (movieIntent(term)) {
+    const titleCoverage = requested.filter((word) => title.includes(word)).length;
+    if (requested.length && titleCoverage === requested.length) score += 700;
+    if (/\b(movie|film|feature|motion picture)\b/i.test(`${title} ${description}`)) score += 120;
+  }
   score += titleHits * 180;
   score += hits * 18;
   if (requested.length && hits === requested.length) score += 90;
@@ -223,10 +229,7 @@ function relevance(doc: any, term: string) {
 }
 function titleMatchesSubject(doc: any, term: string) {
   const title = clean(doc?.title, 1000).toLowerCase();
-  return (
-    subjectWords(term).some((word) => title.includes(word)) ||
-    (fireflyMovieIntent(term) && title.includes("serenity"))
-  );
+  return subjectWords(term).some((word) => title.includes(word));
 }
 function matchesBlendedSearch(doc: any, current: string, previous: string) {
   if (!titleMatchesSubject(doc, current)) return false;
