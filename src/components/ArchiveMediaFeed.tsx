@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { appPath } from "@/lib/base-path";
 import { writeMediaCardWithGpt } from "@/lib/phi-gpt-router";
 import {
@@ -32,7 +32,8 @@ const SHARED = "phiShared:collection:v1",
   SESSION = "infinityPhi:mediaCollectedSession:v1",
   CURRENT = "infinityPhi:currentSearchCollection:v1",
   LEGACY_MEDIA = "infinityPhi:selectedMedia:v1",
-  OVERVIEW = "infinityPhi:mediaOverview:v1";
+  OVERVIEW = "infinityPhi:mediaOverview:v1",
+  SEARCH_HISTORY = "infinityPhi:mediaSearchHistory:v1";
 const PORNOGRAPHY =
   /\b(porn(?:ography|ographic)?|xxx|hardcore sex|adult sex video|sex tape|explicit sexual|hentai|rule 34|fetish porn|erotic sex film)\b/i;
 const timedFetch = (
@@ -145,6 +146,7 @@ async function archiveDocs(
   kind: "audio" | "video",
   term: string,
   tier: "exact" | "all words" | "related",
+  page = 1,
 ) {
   const u = new URL("https://archive.org/advancedsearch.php");
   u.search = new URLSearchParams({
@@ -152,7 +154,7 @@ async function archiveDocs(
     "fl[]":
       "identifier,title,description,creator,date,downloads,subject,collection",
     rows: tier === "related" ? "100" : "80",
-    page: "1",
+    page: String(Math.max(1, page)),
     sort: "downloads desc",
     output: "json",
   }).toString();
@@ -271,12 +273,46 @@ export default function ArchiveMediaFeed({
     [shared, setShared] = useState<Record<string, string>>({}),
     [collectedCount, setCollectedCount] = useState(0),
     [notice, setNotice] = useState("");
+  const pageRef = useRef(1),
+    itemsRef = useRef<Item[]>([]),
+    fallbackRef = useRef(0);
+  function recentSearches(current: string) {
+    try {
+      const value = JSON.parse(localStorage.getItem(SEARCH_HISTORY) || "[]");
+      return (Array.isArray(value) ? value : [])
+        .map((term) => clean(term, 500))
+        .filter(
+          (term, index, all) =>
+            term &&
+            term.toLowerCase() !== clean(current).toLowerCase() &&
+            all.findIndex(
+              (other) => other.toLowerCase() === term.toLowerCase(),
+            ) === index,
+        )
+        .slice(0, 12);
+    } catch {
+      return [];
+    }
+  }
+  function rememberSearch(term: string) {
+    try {
+      const history = recentSearches(term);
+      localStorage.setItem(
+        SEARCH_HISTORY,
+        JSON.stringify([term, ...history].slice(0, 12)),
+      );
+    } catch {}
+  }
   async function run(term: string, append = false) {
     const exact = clean(term);
     if (!exact) return;
     if (!append) {
+      pageRef.current = 1;
+      fallbackRef.current = 0;
+      itemsRef.current = [];
       setCollected({});
       setCollectedCount(0);
+      rememberSearch(exact);
       try {
         localStorage.removeItem(LEGACY_MEDIA);
         localStorage.setItem(
@@ -288,11 +324,12 @@ export default function ArchiveMediaFeed({
     setBusy(true);
     setNotice("");
     try {
+      const requestedPage = append ? pageRef.current + 1 : 1;
       const tiers: ["exact" | "all words" | "related", any[]][] = (
         await Promise.all([
-          archiveDocs(kind, exact, "exact"),
-          archiveDocs(kind, exact, "all words"),
-          archiveDocs(kind, exact, "related"),
+          archiveDocs(kind, exact, "exact", requestedPage),
+          archiveDocs(kind, exact, "all words", requestedPage),
+          archiveDocs(kind, exact, "related", requestedPage),
         ])
       ).map((docs, index) => [
         ["exact", "all words", "related"][index] as
@@ -314,7 +351,7 @@ export default function ArchiveMediaFeed({
               Number(b.downloads || 0) - Number(a.downloads || 0),
           )
           .slice(0, 24);
-      const groups = (
+      let groups = (
         await Promise.all(
           ranked.map(async (doc: any) => {
             const id = clean(doc.identifier);
@@ -368,19 +405,96 @@ export default function ArchiveMediaFeed({
       )
         .flat()
         .slice(0, 30) as Item[];
-      setItems((previous) =>
-        append
-          ? [
-              ...previous,
-              ...groups.filter(
-                (item) => !previous.some((old) => old.id === item.id),
-              ),
-            ].slice(0, 40)
-          : groups,
+      groups = groups.filter(
+        (item) => !itemsRef.current.some((old) => old.id === item.id),
       );
-      if (!groups.length)
+      let fallbackTerm = "",
+        previousTerm = "";
+      if (append && !groups.length) {
+        const history = recentSearches(exact);
+        previousTerm =
+          history[fallbackRef.current % Math.max(1, history.length)] || "";
+        fallbackTerm = previousTerm ? clean(`${exact} ${previousTerm}`, 900) : "";
+        if (fallbackTerm) {
+          fallbackRef.current += 1;
+          const fallbackDocs = await archiveDocs(
+            kind,
+            fallbackTerm,
+            "related",
+            1,
+          );
+          const fallbackRanked = fallbackDocs
+            .filter((doc: any) => clean(doc.identifier))
+            .sort(
+              (a: any, b: any) =>
+                relevance(b, fallbackTerm) - relevance(a, fallbackTerm),
+            )
+            .slice(0, 24);
+          groups = (
+            await Promise.all(
+              fallbackRanked.map(async (doc: any) => {
+                const id = clean(doc.identifier);
+                try {
+                  const response = await timedFetch(
+                    `https://archive.org/metadata/${encodeURIComponent(id)}`,
+                    { cache: "no-store" },
+                    12000,
+                  );
+                  if (!response.ok) return [];
+                  const metadata = await response.json(),
+                    meta = metadata?.metadata || {};
+                  if (
+                    pornographic(
+                      meta.title,
+                      meta.description,
+                      meta.subject,
+                      meta.collection,
+                      meta.identifier,
+                    )
+                  )
+                    return [];
+                  return bestPlayableFiles(metadata.files || [], kind).map(
+                    (file: any, index: number) => ({
+                      id: `${id}:${clean(file.name, 500)}`,
+                      title:
+                        clean(file.title || doc.title || meta.title, 300) ||
+                        `Track ${index + 1}`,
+                      description: clean(
+                        doc.description || meta.description,
+                        2600,
+                      ),
+                      source: `https://archive.org/details/${encodeURIComponent(id)}`,
+                      image: `https://archive.org/services/img/${encodeURIComponent(id)}`,
+                      file: {
+                        name: clean(file.title || file.name, 300),
+                        url: `https://archive.org/download/${encodeURIComponent(id)}/${String(file.name).split("/").map(encodeURIComponent).join("/")}`,
+                      },
+                      match: "related" as const,
+                    }),
+                  );
+                } catch {
+                  return [];
+                }
+              }),
+            )
+          )
+            .flat()
+            .filter(
+              (item) => !itemsRef.current.some((old) => old.id === item.id),
+            )
+            .slice(0, 30);
+        }
+      }
+      pageRef.current = requestedPage;
+      itemsRef.current = append ? [...itemsRef.current, ...groups] : groups;
+      setItems(itemsRef.current);
+      if (fallbackTerm && groups.length)
         setNotice(
-          `No safe playable ${kind} files were returned. Try the full subject again without removing its important words.`,
+          `The complete “${exact}” results were exhausted, so Add more blended it with your recent “${previousTerm}” search to find new playable ${kind}.`,
+        );
+      else if (!groups.length)
+        setNotice(
+          `No additional playable ${kind} was returned yet. Tap Add more to keep searching the Archive and your recent searches.`,
         );
     } finally {
       setBusy(false);
@@ -454,7 +568,7 @@ export default function ArchiveMediaFeed({
         fileName: item.file.name,
       }),
       card = record(item, writeup);
-    appendPhiTokenItems(tokenId, q, [card]);
+    const updatedToken = appendPhiTokenItems(tokenId, q, [card]);
     let list: any[] = [];
     try {
       const raw = JSON.parse(localStorage.getItem(SHARED) || "[]");
@@ -467,14 +581,10 @@ export default function ArchiveMediaFeed({
     else list.unshift(card);
     try {
       localStorage.setItem(SHARED, JSON.stringify(list.slice(0, 300)));
-      const current = list.filter(
-        (value: any) =>
-          clean(value?.searchQuery).toLowerCase() === clean(q).toLowerCase(),
-      );
       const packet = {
         query: q,
         tokenId,
-        items: current,
+        items: updatedToken.items,
         updatedAt: new Date().toISOString(),
       };
       localStorage.setItem(CURRENT, JSON.stringify(packet));
@@ -485,7 +595,7 @@ export default function ArchiveMediaFeed({
           query: q,
           tokenId,
           returnFrom: kind,
-          items: [card],
+          items: updatedToken.items,
           at: Date.now(),
         }),
       );
@@ -507,13 +617,18 @@ export default function ArchiveMediaFeed({
       try {
         localStorage.setItem(
           SESSION,
-          JSON.stringify({ query: q, kind, tokenId, ids, items: [card] }),
+          JSON.stringify({
+            query: q,
+            kind,
+            tokenId,
+            ids,
+            items: updatedToken.items,
+          }),
         );
       } catch {}
       return next;
     });
     setCollecting((value) => ({ ...value, [item.id]: false }));
-    backToOverview();
   }
   async function share(item: Item) {
     const url = item.source;
@@ -574,7 +689,8 @@ export default function ArchiveMediaFeed({
           Exact full-query matches appear first, followed by results containing
           every search word, then closely related playable files. Each card has
           one player. Pornography identified in Archive metadata or file names
-          is blocked before a player is created.
+          is blocked before a player is created. R-rated and other
+          non-pornographic material remains available.
         </p>
         <form className="mt-5 flex gap-2" onSubmit={submit}>
           <input
@@ -678,6 +794,14 @@ export default function ArchiveMediaFeed({
             </article>
           ))}
         </section>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void run(q, true)}
+          className="mx-auto mt-8 block rounded-full bg-violet-800 px-7 py-3 font-black text-white disabled:opacity-50"
+        >
+          {busy ? "Adding more…" : "Add more"}
+        </button>
         {!busy && q && !items.length && !notice && (
           <p className="mt-8">
             No safe playable {kind} files returned on this pass.
