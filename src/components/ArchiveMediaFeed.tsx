@@ -28,6 +28,26 @@ const words = (v: string): string[] =>
   (clean(v)
     .toLowerCase()
     .match(/[a-z0-9]+/g) || []) as string[];
+const MEDIA_QUALIFIERS = new Set([
+  "audio",
+  "episode",
+  "film",
+  "full",
+  "movie",
+  "movies",
+  "music",
+  "playable",
+  "show",
+  "song",
+  "sound",
+  "stream",
+  "video",
+  "watch",
+]);
+const subjectWords = (v: string) => {
+  const meaningful = words(v).filter((word) => !MEDIA_QUALIFIERS.has(word));
+  return (meaningful.length ? meaningful : words(v)).slice(0, 10);
+};
 const SHARED = "phiShared:collection:v1",
   SESSION = "infinityPhi:mediaCollectedSession:v1",
   CURRENT = "infinityPhi:currentSearchCollection:v1",
@@ -128,18 +148,22 @@ function archiveQuery(
   tier: "exact" | "all words" | "related",
 ) {
   const media = kind === "audio" ? "audio" : "movies",
-    safeWords = words(term).slice(0, 10),
-    phrase = clean(term, 500).replace(/["\\]/g, " ");
+    safeWords = subjectWords(term),
+    phrase = safeWords.join(" ").replace(/["\\]/g, " "),
+    fieldMatch = (word: string) =>
+      `(title:${word} OR subject:${word} OR description:${word} OR creator:${word})`;
   if (tier === "exact")
-    return `mediatype:${media} AND (title:"${phrase}" OR description:"${phrase}" OR "${phrase}")`;
+    return `mediatype:${media} AND (title:"${phrase}" OR subject:"${phrase}" OR description:"${phrase}")`;
   if (tier === "all words")
-    return `mediatype:${media} AND (${safeWords.join(" AND ")})`;
+    return `mediatype:${media} AND (${safeWords.map(fieldMatch).join(" AND ")})`;
   const pairs =
     safeWords.length > 1
       ? safeWords.flatMap((a, i) =>
-          safeWords.slice(i + 1).map((b) => `(${a} AND ${b})`),
+          safeWords
+            .slice(i + 1)
+            .map((b) => `(${fieldMatch(a)} AND ${fieldMatch(b)})`),
         )
-      : safeWords;
+      : safeWords.map(fieldMatch);
   return `mediatype:${media} AND (${pairs.join(" OR ")})`;
 }
 async function archiveDocs(
@@ -179,18 +203,20 @@ async function archiveDocs(
   }
 }
 function relevance(doc: any, term: string) {
-  const requested = words(term),
+  const requested = subjectWords(term),
     title = clean(doc.title).toLowerCase(),
     description = clean(doc.description).toLowerCase(),
     creator = clean(doc.creator).toLowerCase(),
     hay = `${title} ${description} ${creator}`;
   const hits = requested.filter((word) => hay.includes(word)).length,
-    phrase = clean(term).toLowerCase();
+    titleHits = requested.filter((word) => title.includes(word)).length,
+    phrase = requested.join(" ");
   let score =
     doc._tier === "exact" ? 300 : doc._tier === "all words" ? 200 : 100;
   if (title === phrase) score += 120;
   if (title.includes(phrase)) score += 80;
   if (description.includes(phrase)) score += 45;
+  score += titleHits * 180;
   score += hits * 18;
   if (requested.length && hits === requested.length) score += 90;
   return score;
