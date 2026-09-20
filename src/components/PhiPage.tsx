@@ -30,6 +30,9 @@ const PAPERS = "infinity_phi_research_v1";
 const PAPER_PREFIX = "infinity_phi_paper_v2_";
 const LEDGER = "c13b0_infinity_token_ledger_v3";
 const REFINE_PREFIX = "infinity_phi_refinement_v1_";
+const ACTIVE_TOKEN = "infinityPhi:activeToken:v1";
+const SHARED_COLLECTION = "phiShared:collection:v1";
+const CURRENT_SEARCH_COLLECTION = "infinityPhi:currentSearchCollection:v1";
 
 const clean = (value: unknown) => String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 const splitSentences = (value: string) => clean(value).split(/(?<=[.!?])\s+/).map(clean).filter((item) => item.length > 45);
@@ -435,6 +438,12 @@ async function persistAfterRender(paper: Paper, nextHistory: HistoryItem[]) {
       id: paper.id, researchId: paper.id, stage: "research", kind: "research", color: "yellow",
       status: "finished", value: 1, units: 1, title: paper.title, query: paper.query,
       resolved: paper.resolved, sourceCount: paper.sources.length, walletId: wallet.walletId,
+      collectedCards: (() => {
+        try {
+          const shared = JSON.parse(localStorage.getItem(SHARED_COLLECTION) || "[]");
+          return (Array.isArray(shared) ? shared : []).filter((item: any) => item?.tokenId === paper.id);
+        } catch { return []; }
+      })(),
       createdAt: new Date(paper.created).toISOString(),
     };
     await secureSaveDurable(LEDGER, [token, ...existing.filter((item: any) => item.id !== paper.id)].slice(0, 200));
@@ -471,6 +480,12 @@ export default function PhiPage() {
     if (!q) return;
     const resolved = resolve(q, currentHistory);
     const id = `phi-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // A regular first-page search is the only operation that starts a new token.
+    // Media routes keep this token id and append their selected cards to it.
+    try {
+      localStorage.setItem(ACTIVE_TOKEN, JSON.stringify({ id, query: q, createdAt: new Date().toISOString() }));
+      localStorage.setItem(CURRENT_SEARCH_COLLECTION, JSON.stringify({ tokenId: id, query: q, items: [], updatedAt: new Date().toISOString() }));
+    } catch {}
     const shell = makePaper(q, resolved.resolved, resolved.identity, [], id);
     shell.title = `${q}: building the evidence and story…`;
     shell.overview = `Searching live sources for ${q}…`;
