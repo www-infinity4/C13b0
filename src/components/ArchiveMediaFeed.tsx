@@ -49,6 +49,8 @@ const subjectWords = (v: string) => {
   const meaningful = words(v).filter((word) => !MEDIA_QUALIFIERS.has(word));
   return (meaningful.length ? meaningful : words(v)).slice(0, 10);
 };
+const fireflyMovieIntent = (v: string) =>
+  /\bfirefly\b/i.test(v) && /\b(movie|film|full)\b/i.test(v);
 const SHARED = "phiShared:collection:v1",
   SESSION = "infinityPhi:mediaCollectedSession:v1",
   CURRENT = "infinityPhi:currentSearchCollection:v1",
@@ -81,20 +83,14 @@ function bestPlayableFiles(files: any[], kind: "audio" | "video") {
       kind === "audio"
         ? /\.(mp3|ogg|oga|flac|m4a)$/i
         : /\.(mp4|webm|ogv|m4v)$/i,
-    priority = (name: string) =>
-      kind === "audio"
-        ? /\.mp3$/i.test(name)
-          ? 0
-          : /\.m4a$/i.test(name)
-            ? 1
-            : /\.ogg$/i.test(name)
-              ? 2
-              : 3
-        : /\.mp4$/i.test(name)
-          ? 0
-          : /\.webm$/i.test(name)
-            ? 1
-            : 2,
+    priority = (name: string) => {
+      if (kind === "audio")
+        return /\.mp3$/i.test(name) ? 0 : /\.m4a$/i.test(name) ? 1 : /\.ogg$/i.test(name) ? 2 : 3;
+      let score = /\.mp4$/i.test(name) ? 0 : /\.webm$/i.test(name) ? 2 : 4;
+      if (/\b(full|complete|feature|movie|serenity)\b/i.test(name)) score -= 20;
+      if (/deleted|featurette|behind[ ._-]*the[ ._-]*scenes|scene\s*\d+/i.test(name)) score += 30;
+      return score;
+    },
     seen = new Set<string>();
   return files
     .filter(
@@ -154,7 +150,9 @@ function archiveQuery(
     fieldMatch = (word: string) =>
       `(title:${word} OR subject:${word} OR description:${word} OR creator:${word})`;
   if (tier === "exact")
-    return `mediatype:${media} AND (title:"${phrase}" OR subject:"${phrase}" OR description:"${phrase}")`;
+    return fireflyMovieIntent(term)
+      ? `mediatype:${media} AND (title:"${phrase}" OR title:"serenity" OR subject:"${phrase}" OR subject:"serenity" OR description:"${phrase}")`
+      : `mediatype:${media} AND (title:"${phrase}" OR subject:"${phrase}" OR description:"${phrase}")`;
   if (tier === "all words")
     return `mediatype:${media} AND (${safeWords.map(fieldMatch).join(" AND ")})`;
   const pairs =
@@ -217,6 +215,7 @@ function relevance(doc: any, term: string) {
   if (title === phrase) score += 120;
   if (title.includes(phrase)) score += 80;
   if (description.includes(phrase)) score += 45;
+  if (/\bfirefly\b/i.test(term) && /\b(movie|film|full)\b/i.test(term) && /\bserenity\b/i.test(title)) score += 900;
   score += titleHits * 180;
   score += hits * 18;
   if (requested.length && hits === requested.length) score += 90;
@@ -224,7 +223,10 @@ function relevance(doc: any, term: string) {
 }
 function titleMatchesSubject(doc: any, term: string) {
   const title = clean(doc?.title, 1000).toLowerCase();
-  return subjectWords(term).some((word) => title.includes(word));
+  return (
+    subjectWords(term).some((word) => title.includes(word)) ||
+    (fireflyMovieIntent(term) && title.includes("serenity"))
+  );
 }
 function matchesBlendedSearch(doc: any, current: string, previous: string) {
   if (!titleMatchesSubject(doc, current)) return false;
@@ -306,7 +308,6 @@ export default function ArchiveMediaFeed({
 }) {
   const [q, setQ] = useState(""),
     [tokenId, setTokenId] = useState(""),
-    [tokenLabel, setTokenLabel] = useState("Token A"),
     [items, setItems] = useState<Item[]>([]),
     [busy, setBusy] = useState(false),
     [collected, setCollected] = useState<Record<string, boolean>>({}),
@@ -414,15 +415,17 @@ export default function ArchiveMediaFeed({
                 )
               )
                 return [];
-              return bestPlayableFiles(metadata.files || [], kind).map(
+              const playableFiles = bestPlayableFiles(metadata.files || [], kind);
+              return playableFiles.map(
                 (file: any, index: number) => {
-                  const name =
-                      clean(file.title || file.name, 300) ||
+                  const basename = String(file.name || "").split("/").pop() || "",
+                    name =
+                      clean(file.title || basename.replace(/\.[^.]+$/, ""), 300) ||
                       `Track ${index + 1}`,
                     parent = clean(doc.title || meta.title, 300) || id;
                   return {
                     id: `${id}:${clean(file.name, 500)}`,
-                    title: name === clean(file.name, 300) ? parent : name,
+                    title: playableFiles.length === 1 ? parent : name,
                     description: clean(
                       doc.description || meta.description,
                       2600,
@@ -445,9 +448,13 @@ export default function ArchiveMediaFeed({
       )
         .flat()
         .slice(0, 30) as Item[];
-      groups = groups.filter(
-        (item) => !itemsRef.current.some((old) => old.id === item.id),
-      );
+      const seenCards = new Set(itemsRef.current.map((item) => mediaStem(item.title)));
+      groups = groups.filter((item) => {
+        const key = mediaStem(item.title);
+        if (!key || seenCards.has(key)) return false;
+        seenCards.add(key);
+        return !itemsRef.current.some((old) => old.id === item.id);
+      });
       let fallbackTerm = "",
         previousTerm = "";
       if (append && !groups.length) {
@@ -556,7 +563,6 @@ export default function ArchiveMediaFeed({
       );
     setQ(term);
     setTokenId(token.id);
-    setTokenLabel(token.label);
     setCollected(Object.fromEntries(existingIds.map((id) => [id, true])));
     setCollectedCount(existing.length);
     try {
@@ -732,7 +738,7 @@ export default function ArchiveMediaFeed({
             ← AI Overview
           </button>
           <div className="relative rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 pr-8 text-xs font-black text-violet-900">
-            {tokenLabel} · added
+            Collected
             <span className="absolute -right-2 -top-2 grid h-7 min-w-7 place-items-center rounded-full bg-orange-500 px-1.5 text-xs font-black text-white shadow">
               {collectedCount}
             </span>
