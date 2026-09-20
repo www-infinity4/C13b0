@@ -8,6 +8,7 @@ import {
   phiTokenItems,
   resolvePhiSearchToken,
 } from "@/lib/phi-search-token";
+import { awardPhiStarCredit } from "@/lib/phi-star-rewards";
 
 type MediaFile = { name: string; url: string };
 type Item = {
@@ -49,7 +50,8 @@ const subjectWords = (v: string) => {
   const meaningful = words(v).filter((word) => !MEDIA_QUALIFIERS.has(word));
   return (meaningful.length ? meaningful : words(v)).slice(0, 10);
 };
-const movieIntent = (v: string) => /\b(movie|film|feature|full[- ]?length)\b/i.test(v);
+const movieIntent = (v: string) =>
+  /\b(movie|film|feature|full[- ]?length)\b/i.test(v);
 const SHARED = "phiShared:collection:v1",
   SESSION = "infinityPhi:mediaCollectedSession:v1",
   CURRENT = "infinityPhi:currentSearchCollection:v1",
@@ -85,10 +87,21 @@ function bestPlayableFiles(files: any[], kind: "audio" | "video") {
     priority = (file: any) => {
       const name = String(file?.name || "");
       if (kind === "audio")
-        return /\.mp3$/i.test(name) ? 0 : /\.m4a$/i.test(name) ? 1 : /\.ogg$/i.test(name) ? 2 : 3;
+        return /\.mp3$/i.test(name)
+          ? 0
+          : /\.m4a$/i.test(name)
+            ? 1
+            : /\.ogg$/i.test(name)
+              ? 2
+              : 3;
       let score = /\.mp4$/i.test(name) ? 0 : /\.webm$/i.test(name) ? 2 : 4;
       if (/\b(full|complete|feature|movie|serenity)\b/i.test(name)) score -= 20;
-      if (/deleted|featurette|behind[ ._-]*the[ ._-]*scenes|scene\s*\d+/i.test(name)) score += 30;
+      if (
+        /deleted|featurette|behind[ ._-]*the[ ._-]*scenes|scene\s*\d+/i.test(
+          name,
+        )
+      )
+        score += 30;
       const duration = Number(file?.length || file?.duration || 0),
         size = Number(file?.size || 0);
       if (duration >= 3600 || size >= 500_000_000) score -= 40;
@@ -218,9 +231,14 @@ function relevance(doc: any, term: string) {
   if (title.includes(phrase)) score += 80;
   if (description.includes(phrase)) score += 45;
   if (movieIntent(term)) {
-    const titleCoverage = requested.filter((word) => title.includes(word)).length;
+    const titleCoverage = requested.filter((word) =>
+      title.includes(word),
+    ).length;
     if (requested.length && titleCoverage === requested.length) score += 700;
-    if (/\b(movie|film|feature|motion picture)\b/i.test(`${title} ${description}`)) score += 120;
+    if (
+      /\b(movie|film|feature|motion picture)\b/i.test(`${title} ${description}`)
+    )
+      score += 120;
   }
   score += titleHits * 180;
   score += hits * 18;
@@ -234,14 +252,23 @@ function titleMatchesSubject(doc: any, term: string) {
 function matchesBlendedSearch(doc: any, current: string, previous: string) {
   if (!titleMatchesSubject(doc, current)) return false;
   const metadata = clean(
-    [doc?.title, doc?.description, doc?.creator, doc?.subject, doc?.collection].join(
-      " ",
-    ),
+    [
+      doc?.title,
+      doc?.description,
+      doc?.creator,
+      doc?.subject,
+      doc?.collection,
+    ].join(" "),
     8000,
   ).toLowerCase();
   return subjectWords(previous).some((word) => metadata.includes(word));
 }
 function starShare(reference: string) {
+  const reward = awardPhiStarCredit("share", reference);
+  return reward.awarded
+    ? "Shared · 1 StarCoin!"
+    : `Shared · ${reward.progressToNextCoin}/10 ⭐`;
+  /* Legacy inline wallet writer retained below unreachable for storage migration safety. */
   try {
     const read = (k: string, f: any) => {
         try {
@@ -418,32 +445,38 @@ export default function ArchiveMediaFeed({
                 )
               )
                 return [];
-              const availableFiles = bestPlayableFiles(metadata.files || [], kind),
-                playableFiles = kind === "video" ? availableFiles.slice(0, 1) : availableFiles;
-              return playableFiles.map(
-                (file: any, index: number) => {
-                  const basename = String(file.name || "").split("/").pop() || "",
-                    name =
-                      clean(file.title || basename.replace(/\.[^.]+$/, ""), 300) ||
-                      `Track ${index + 1}`,
-                    parent = clean(doc.title || meta.title, 300) || id;
-                  return {
-                    id: `${id}:${clean(file.name, 500)}`,
-                    title: playableFiles.length === 1 ? parent : name,
-                    description: clean(
-                      doc.description || meta.description,
-                      2600,
-                    ),
-                    source: `https://archive.org/details/${encodeURIComponent(id)}`,
-                    image: `https://archive.org/services/img/${encodeURIComponent(id)}`,
-                    file: {
-                      name,
-                      url: `https://archive.org/download/${encodeURIComponent(id)}/${String(file.name).split("/").map(encodeURIComponent).join("/")}`,
-                    },
-                    match: doc._tier as Item["match"],
-                  };
-                },
-              );
+              const availableFiles = bestPlayableFiles(
+                  metadata.files || [],
+                  kind,
+                ),
+                playableFiles =
+                  kind === "video"
+                    ? availableFiles.slice(0, 1)
+                    : availableFiles;
+              return playableFiles.map((file: any, index: number) => {
+                const basename =
+                    String(file.name || "")
+                      .split("/")
+                      .pop() || "",
+                  name =
+                    clean(
+                      file.title || basename.replace(/\.[^.]+$/, ""),
+                      300,
+                    ) || `Track ${index + 1}`,
+                  parent = clean(doc.title || meta.title, 300) || id;
+                return {
+                  id: `${id}:${clean(file.name, 500)}`,
+                  title: playableFiles.length === 1 ? parent : name,
+                  description: clean(doc.description || meta.description, 2600),
+                  source: `https://archive.org/details/${encodeURIComponent(id)}`,
+                  image: `https://archive.org/services/img/${encodeURIComponent(id)}`,
+                  file: {
+                    name,
+                    url: `https://archive.org/download/${encodeURIComponent(id)}/${String(file.name).split("/").map(encodeURIComponent).join("/")}`,
+                  },
+                  match: doc._tier as Item["match"],
+                };
+              });
             } catch {
               return [];
             }
@@ -452,7 +485,9 @@ export default function ArchiveMediaFeed({
       )
         .flat()
         .slice(0, 30) as Item[];
-      const seenCards = new Set(itemsRef.current.map((item) => mediaStem(item.title)));
+      const seenCards = new Set(
+        itemsRef.current.map((item) => mediaStem(item.title)),
+      );
       groups = groups.filter((item) => {
         const key = mediaStem(item.title);
         if (!key || seenCards.has(key)) return false;
@@ -465,7 +500,9 @@ export default function ArchiveMediaFeed({
         const history = recentSearches(exact);
         previousTerm =
           history[fallbackRef.current % Math.max(1, history.length)] || "";
-        fallbackTerm = previousTerm ? clean(`${exact} ${previousTerm}`, 900) : "";
+        fallbackTerm = previousTerm
+          ? clean(`${exact} ${previousTerm}`, 900)
+          : "";
         if (fallbackTerm) {
           fallbackRef.current += 1;
           const fallbackDocs = await archiveDocs(
@@ -512,28 +549,27 @@ export default function ArchiveMediaFeed({
                     metadata.files || [],
                     kind,
                   );
-                  return (kind === "video"
-                    ? availableFiles.slice(0, 1)
-                    : availableFiles
-                  ).map(
-                    (file: any, index: number) => ({
-                      id: `${id}:${clean(file.name, 500)}`,
-                      title:
-                        clean(file.title || doc.title || meta.title, 300) ||
-                        `Track ${index + 1}`,
-                      description: clean(
-                        doc.description || meta.description,
-                        2600,
-                      ),
-                      source: `https://archive.org/details/${encodeURIComponent(id)}`,
-                      image: `https://archive.org/services/img/${encodeURIComponent(id)}`,
-                      file: {
-                        name: clean(file.title || file.name, 300),
-                        url: `https://archive.org/download/${encodeURIComponent(id)}/${String(file.name).split("/").map(encodeURIComponent).join("/")}`,
-                      },
-                      match: "related" as const,
-                    }),
-                  );
+                  return (
+                    kind === "video"
+                      ? availableFiles.slice(0, 1)
+                      : availableFiles
+                  ).map((file: any, index: number) => ({
+                    id: `${id}:${clean(file.name, 500)}`,
+                    title:
+                      clean(file.title || doc.title || meta.title, 300) ||
+                      `Track ${index + 1}`,
+                    description: clean(
+                      doc.description || meta.description,
+                      2600,
+                    ),
+                    source: `https://archive.org/details/${encodeURIComponent(id)}`,
+                    image: `https://archive.org/services/img/${encodeURIComponent(id)}`,
+                    file: {
+                      name: clean(file.title || file.name, 300),
+                      url: `https://archive.org/download/${encodeURIComponent(id)}/${String(file.name).split("/").map(encodeURIComponent).join("/")}`,
+                    },
+                    match: "related" as const,
+                  }));
                 } catch {
                   return [];
                 }
@@ -626,6 +662,7 @@ export default function ArchiveMediaFeed({
     };
   }
   async function collect(item: Item) {
+    const alreadyCollected = Boolean(collected[item.id]);
     setCollecting((value) => ({ ...value, [item.id]: true }));
     const lookup = await mediaLookup(item),
       writeup = await writeMediaCardWithGpt({
@@ -683,6 +720,7 @@ export default function ArchiveMediaFeed({
         detail: { source: "infinity-phi", storyKey: card.storyKey },
       }),
     );
+    if (!alreadyCollected) awardPhiStarCredit("collect", card.storyKey);
     setCollected((value) => {
       const next = { ...value, [item.id]: true },
         ids = Object.keys(next).filter((id) => next[id]);
@@ -708,7 +746,7 @@ export default function ArchiveMediaFeed({
     if (!navigator.share) {
       try {
         await navigator.clipboard.writeText(url);
-        setShared((value) => ({ ...value, [item.id]: "Link copied" }));
+        setShared((value) => ({ ...value, [item.id]: starShare(url) }));
       } catch {}
       return;
     }
