@@ -90,7 +90,7 @@
     const query = queryText().toLowerCase();
     const rows = read(IMAGE_KEY, []);
     if (!Array.isArray(rows)) return;
-    rows.filter((record) => !query || !record?.searchQuery || String(record.searchQuery).toLowerCase() === query).slice(0,8).reverse().forEach(inject);
+    rows.filter((record) => !query || !record?.searchQuery || String(record.searchQuery).toLowerCase() === query).reverse().forEach(inject);
   }
 
   window.addEventListener('infinityphi:image-selected', (event) => inject(event.detail));
