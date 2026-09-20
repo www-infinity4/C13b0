@@ -11,6 +11,7 @@ import {
   resolvePhiSearchToken,
 } from "@/lib/phi-search-token";
 import { awardPhiStarCredit } from "@/lib/phi-star-rewards";
+import { writeImageCardWithGpt } from "@/lib/phi-gpt-router";
 type ImageResult = {
   id: string;
   image: string;
@@ -329,16 +330,27 @@ export default function InfinityImagesPage() {
         `image:${item.original || item.image || item.id}`,
       );
   }
-  function buildOverview() {
-    const images = selectedRef.current.slice(-20).map(compactImage);
-    if (!images.length) return;
+  async function buildOverview() {
+    const rawImages = selectedRef.current.slice(-20).map(compactImage);
     const term = clean(active || query),
-      packet = JSON.stringify({
-        version: "infinity-images-v2",
-        query: term,
-        createdAt: new Date().toISOString(),
-        images,
-      });
+      images = await Promise.all(
+        rawImages.map(async (image) => ({
+          ...image,
+          description: await writeImageCardWithGpt({
+            query: term,
+            title: image.title,
+            description: image.description,
+            provider: image.provider,
+          }),
+        })),
+      );
+    if (!images.length) return;
+    const packet = JSON.stringify({
+      version: "infinity-images-v2",
+      query: term,
+      createdAt: new Date().toISOString(),
+      images,
+    });
     persist(term, images);
     const tokenId = publishSelectedImages(term, images);
     try {
@@ -383,7 +395,7 @@ export default function InfinityImagesPage() {
             type="button"
             className={styles.overview}
             disabled={!selected.length}
-            onClick={buildOverview}
+            onClick={() => void buildOverview()}
           >
             Back to AI Overview →
           </button>
