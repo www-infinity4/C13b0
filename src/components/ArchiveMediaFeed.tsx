@@ -418,7 +418,8 @@ export default function ArchiveMediaFeed({
                 )
               )
                 return [];
-              const playableFiles = bestPlayableFiles(metadata.files || [], kind);
+              const availableFiles = bestPlayableFiles(metadata.files || [], kind),
+                playableFiles = kind === "video" ? availableFiles.slice(0, 1) : availableFiles;
               return playableFiles.map(
                 (file: any, index: number) => {
                   const basename = String(file.name || "").split("/").pop() || "",
@@ -507,7 +508,14 @@ export default function ArchiveMediaFeed({
                     )
                   )
                     return [];
-                  return bestPlayableFiles(metadata.files || [], kind).map(
+                  const availableFiles = bestPlayableFiles(
+                    metadata.files || [],
+                    kind,
+                  );
+                  return (kind === "video"
+                    ? availableFiles.slice(0, 1)
+                    : availableFiles
+                  ).map(
                     (file: any, index: number) => ({
                       id: `${id}:${clean(file.name, 500)}`,
                       title:
