@@ -1,6 +1,12 @@
 "use client";
 
 export type PhiStarReward = { awarded: number; progressToNextCoin: number };
+export type PhiStarSnapshot = {
+  balance: number;
+  progress: number;
+  shares: number;
+  effective: number;
+};
 
 const read = (key: string, fallback: any) => {
   try {
@@ -9,6 +15,40 @@ const read = (key: string, fallback: any) => {
     return fallback;
   }
 };
+
+export function phiStarSnapshot(): PhiStarSnapshot {
+  const session = read("starquest_session", null),
+    users = read("starquest_users", {}),
+    profile =
+      (session?.key && users[session.key]) ||
+      read("starquest_guest_profile_v1", {}),
+    balance = Math.max(0, Number(profile?.tokens) || 0),
+    progress = Math.max(0, Number(profile?.pendingShareCredits) || 0),
+    shares = Math.max(0, Number(profile?.shareCount) || 0);
+  return { balance, progress, shares, effective: balance + progress / 10 };
+}
+
+function mirrorUnifiedWallet(wallet: any) {
+  try {
+    const state = read("infinity_unified_wallet_v1", null),
+      walletId = state?.currentWalletId;
+    if (!walletId || !state?.wallets?.[walletId]) return;
+    const active = state.wallets[walletId],
+      balances =
+        active.balances && typeof active.balances === "object"
+          ? active.balances
+          : {};
+    active.balances = {
+      ...balances,
+      starCoin: wallet.tokens + wallet.pendingShareCredits / 10,
+      starCoinWhole: wallet.tokens,
+      starCoinProgress: wallet.pendingShareCredits,
+    };
+    active.starCoinShares = wallet.shareCount;
+    state.updatedAt = new Date().toISOString();
+    localStorage.setItem("infinity_unified_wallet_v1", JSON.stringify(state));
+  } catch {}
+}
 
 export function awardPhiStarCredit(
   action: "share" | "collect",
@@ -88,6 +128,7 @@ export function awardPhiStarCredit(
         JSON.stringify(wallet),
       );
     }
+    mirrorUnifiedWallet(wallet);
     window.dispatchEvent(new Event("infinity-wallet-updated"));
     return { awarded, progressToNextCoin: wallet.pendingShareCredits };
   } catch {
