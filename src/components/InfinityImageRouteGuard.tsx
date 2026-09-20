@@ -55,15 +55,6 @@ export default function InfinityImageRouteGuard() {
           const overview=Array.from(main.querySelectorAll("section")).find(s=>(s.textContent||"").toLowerCase().includes("ai overview"));
           const hero=overview?.querySelector("img") as HTMLImageElement|null;
           if(hero){hero.src=picks[0].image||picks[0].original||hero.src;hero.alt=picks[0].title||hero.alt;}
-          const cards=Array.from(main.querySelectorAll("article.phi-orange-card"));
-          cards.forEach((card,i)=>{
-            const pick=picks[i%picks.length];
-            let img=card.querySelector("img") as HTMLImageElement|null;
-            if(!img){img=document.createElement("img");img.className="h-44 w-full object-cover";card.insertBefore(img,card.firstChild);}
-            img.src=pick.image||pick.original||"";
-            img.alt=pick.title||"Selected Infinity Phi image";
-            img.onerror=()=>{if(pick.original&&img&&img.src!==pick.original)img.src=pick.original};
-          });
           const title=overview?.querySelector("h1") as HTMLElement|null;
           if(title){title.style.color="#0f172a";title.style.fontWeight="900";}
         };
