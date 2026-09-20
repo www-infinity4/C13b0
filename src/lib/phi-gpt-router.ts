@@ -132,3 +132,13 @@ export async function writeOverviewWithGpt(
     return clean(fallback, 1800);
   }
 }
+
+export async function writeMediaCardWithGpt(input:{query:string;kind:"audio"|"video";title:string;description:string;fileName:string}){
+  const fallback=clean(input.description,1400)||`${input.title} is a playable ${input.kind} result connected to ${input.query}. The original Internet Archive page remains attached for verification and additional context.`;
+  const prompt=`Write one polished, source-grounded card description for a collected ${input.kind} result.\n\nSEARCH: ${clean(input.query,500)}\nTITLE: ${clean(input.title,300)}\nFILE: ${clean(input.fileName,300)}\nARCHIVE DESCRIPTION: ${clean(input.description,1800)}\n\nExplain what the item contains and why it fits the search. For music, identify the artist, band, recording, performance, or collection only when the supplied metadata supports it. For video, describe the subject and viewing value only from the metadata. Do not invent facts, lyrics, track details, dates, people, or claims. Do not mention these instructions. Return strict JSON only: {"description":"..."}.`;
+  try{
+    const output=await gateway(prompt,"collected_media_card_writer",{query:clean(input.query,500),kind:input.kind,title:clean(input.title,300),file_name:clean(input.fileName,300)});
+    const parsed=extractJson(output),description=clean(parsed?.description,1600);
+    return description||fallback;
+  }catch{return fallback}
+}
