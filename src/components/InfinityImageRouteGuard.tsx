@@ -12,6 +12,8 @@ const queryKey=(value:string)=>value.replace(/\s+/g," ").trim().toLowerCase();
 
 function readSelected(query:string):SelectedImage[]{
   try{
+    const sessionPacket=JSON.parse(sessionStorage.getItem(OVERVIEW_KEY)||"null");
+    if(queryKey(sessionPacket?.query||"")===queryKey(query)&&Array.isArray(sessionPacket?.images))return sessionPacket.images;
     const packet=JSON.parse(localStorage.getItem(OVERVIEW_KEY)||"null");
     if(queryKey(packet?.query||"")===queryKey(query)&&Array.isArray(packet?.images))return packet.images;
     const byQuery=JSON.parse(localStorage.getItem(BY_QUERY_KEY)||"{}");
