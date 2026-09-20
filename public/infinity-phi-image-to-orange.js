@@ -59,6 +59,26 @@
     }
   }
 
+  async function enrichFromSource(card, record) {
+    const sourceUrl = clean(record.sourceUrl || record.url || '', 1600);
+    if (!sourceUrl || !/^https?:\/\//i.test(sourceUrl) || card.dataset.phiFullSourceReady === '1') return;
+    card.dataset.phiFullSourceReady = 'loading';
+    try {
+      const parsed = new URL(sourceUrl);
+      const reader = `https://r.jina.ai/http://${parsed.host}${parsed.pathname}${parsed.search}`;
+      const response = await fetch(reader, { cache: 'no-store', headers: { Accept: 'text/plain' } });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const fullText = clean(await response.text(), 12000);
+      if (!fullText) throw new Error('empty_source');
+      card.dataset.phiFullSourceText = fullText;
+      card.dataset.phiFullSourceUrl = sourceUrl;
+      card.dataset.phiFullSourceReady = '1';
+      window.dispatchEvent(new CustomEvent('infinityphi:image-source-evidence-ready', { detail: { sourceUrl, key: keyOf(record) } }));
+    } catch {
+      card.dataset.phiFullSourceReady = 'fallback';
+    }
+  }
+
   function makeCard(record) {
     const key = keyOf(record);
     const sourceUrl = clean(record.sourceUrl || record.url || '', 1200);
@@ -73,6 +93,7 @@
     card.innerHTML = `${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(title)}" class="h-44 w-full object-cover" loading="lazy">` : ''}<div class="p-5"><small class="font-black uppercase tracking-[.12em] text-yellow-200">Image refinement · ${escapeHtml(domain)}</small><h3 class="mt-2 text-xl font-black leading-tight text-yellow-100">${escapeHtml(title)}</h3><p class="mt-3 leading-6 text-orange-50">${escapeHtml(body.slice(0,520))}${body.length>520?'…':''}</p><div class="mt-4 flex flex-wrap gap-2">${sourceUrl ? `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 rounded-full bg-black/25 px-3 py-2 text-xs font-black">Read source</a>` : ''}<a href="${escapeHtml(newsUrl(record))}" class="rounded-full bg-yellow-300 px-3 py-2 text-xs font-black text-red-950">Show me more · News Phi</a><button type="button" class="phi-share-card inline-flex items-center gap-1 rounded-full border border-white/40 bg-white/10 px-3 py-2 text-xs font-black">Share card · +1/10 ⭐</button></div></div>`;
     card.querySelector('img')?.addEventListener('error', (event) => { event.currentTarget.style.display='none'; }, {once:true});
     card.querySelector('.phi-share-card')?.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); void shareRecord(record, event.currentTarget); });
+    void enrichFromSource(card, record);
     return card;
   }
 
