@@ -5,6 +5,7 @@ import { appPath } from "@/lib/base-path";
 import { writeMediaCardWithGpt } from "@/lib/phi-gpt-router";
 import {
   appendPhiTokenItems,
+  phiTokenItems,
   resolvePhiSearchToken,
 } from "@/lib/phi-search-token";
 
@@ -350,8 +351,6 @@ export default function ArchiveMediaFeed({
       pageRef.current = 1;
       fallbackRef.current = 0;
       itemsRef.current = [];
-      setCollected({});
-      setCollectedCount(0);
       rememberSearch(exact);
       try {
         localStorage.removeItem(LEGACY_MEDIA);
@@ -548,17 +547,29 @@ export default function ArchiveMediaFeed({
   useEffect(() => {
     const params = new URLSearchParams(location.search),
       term = params.get("q") || "",
-      token = resolvePhiSearchToken(term, params.get("token") || "");
+      token = resolvePhiSearchToken(term, params.get("token") || ""),
+      existing = phiTokenItems(token.id).filter(
+        (item: any) => String(item?.mediaKind || "").toLowerCase() === kind,
+      ),
+      existingIds = existing.map((item: any) =>
+        clean(item?.id).replace(new RegExp(`^archive-${kind}-`), ""),
+      );
     setQ(term);
     setTokenId(token.id);
     setTokenLabel(token.label);
-    setCollected({});
-    setCollectedCount(0);
+    setCollected(Object.fromEntries(existingIds.map((id) => [id, true])));
+    setCollectedCount(existing.length);
     try {
       localStorage.removeItem(LEGACY_MEDIA);
       localStorage.setItem(
         SESSION,
-        JSON.stringify({ query: term, kind, tokenId: token.id, ids: [] }),
+        JSON.stringify({
+          query: term,
+          kind,
+          tokenId: token.id,
+          ids: existingIds,
+          items: token.items,
+        }),
       );
     } catch {}
     if (term) void run(term);
