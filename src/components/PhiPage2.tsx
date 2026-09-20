@@ -17,6 +17,7 @@ import {
   resolvePhiSearchToken,
 } from "@/lib/phi-search-token";
 import { awardPhiStarCredit } from "@/lib/phi-star-rewards";
+import { writeCollectedOverviewWithGpt } from "@/lib/phi-gpt-router";
 
 type HistoryItem = {
   query: string;
@@ -740,7 +741,6 @@ function imagePicksForQuery(q: string) {
 }
 function collectedForQuery(q: string, tokenId = currentPhiTokenId(q)) {
   const tokenItems = tokenId ? phiTokenItems(tokenId) : [];
-  if (tokenId) return tokenItems;
   const key = clean(q).toLowerCase(),
     picks = imagePicksForQuery(q),
     current: any[] = [];
@@ -763,7 +763,7 @@ function collectedForQuery(q: string, tokenId = currentPhiTokenId(q)) {
       );
   } catch {}
   const seen = new Set<string>();
-  return [...picks, ...current].filter((x: any) => {
+  return [...picks, ...tokenItems, ...current].filter((x: any) => {
     const isImage =
         x?.selectedFromImageSearch ||
         x?.kind === "image-seed" ||
@@ -896,7 +896,8 @@ export default function PhiPage2() {
       tokenId = freshToken?.id || currentPhiTokenId(q);
     setQuery(q);
     setInput(q);
-    setCollected(collectedForQuery(q, tokenId));
+    const selected = collectedForQuery(q, tokenId);
+    setCollected(selected);
     setBusy(true);
     setNotice("");
     setRecord({
@@ -925,6 +926,12 @@ export default function PhiPage2() {
       const result = await searchAllSources(q);
       if (id !== requestRef.current) return;
       const nextRecord = buildRecord(q, result.resolved, result.sources);
+      if (selected.length)
+        nextRecord.overview = await writeCollectedOverviewWithGpt(
+          q,
+          selected,
+          productOverview(q, nextRecord.overview, selected),
+        );
       setRecord(nextRecord);
       setBusy(false);
       if (!nextRecord.sources.length)
