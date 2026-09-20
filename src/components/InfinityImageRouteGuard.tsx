@@ -5,15 +5,18 @@ import PhiSearchRouteGuard from "@/components/PhiSearchRouteGuard";
 import { appPath } from "@/lib/base-path";
 
 type SelectedImage={image?:string;original?:string;title?:string;description?:string;sourceUrl?:string;provider?:string};
-const IMAGE_KEY="infinity_phi_image_selections_v3";
+const BY_QUERY_KEY="infinity_phi_image_selections_by_query_v1";
 const OVERVIEW_KEY="infinity_phi_selected_image_overview_v1";
 
-function readSelected():SelectedImage[]{
+const queryKey=(value:string)=>value.replace(/\s+/g," ").trim().toLowerCase();
+
+function readSelected(query:string):SelectedImage[]{
   try{
-    const direct=JSON.parse(localStorage.getItem(IMAGE_KEY)||"[]");
-    if(Array.isArray(direct)&&direct.length)return direct;
     const packet=JSON.parse(localStorage.getItem(OVERVIEW_KEY)||"null");
-    return Array.isArray(packet?.images)?packet.images:[];
+    if(queryKey(packet?.query||"")===queryKey(query)&&Array.isArray(packet?.images))return packet.images;
+    const byQuery=JSON.parse(localStorage.getItem(BY_QUERY_KEY)||"{}");
+    const saved=byQuery?.[queryKey(query)];
+    return Array.isArray(saved)?saved:[];
   }catch{return[]}
 }
 
@@ -42,7 +45,8 @@ export default function InfinityImageRouteGuard() {
     const fromImages=params.get("images")==="selected";
     let observer:MutationObserver|undefined;
     if(fromImages){
-      const picks=readSelected().filter(x=>x.image||x.original);
+      const query=params.get("q")||"";
+      const picks=readSelected(query).filter(x=>x.image||x.original);
       if(picks.length){
         document.documentElement.dataset.infinitySelectedImages="true";
         const bind=()=>{
