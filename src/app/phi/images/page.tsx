@@ -7,9 +7,10 @@ import {
 } from "@/lib/phi-retrieval-backends";
 import styles from "./page.module.css";
 import {
-  appendPhiTokenItems,
+  replacePhiTokenKindItems,
   resolvePhiSearchToken,
 } from "@/lib/phi-search-token";
+import { awardPhiStarCredit } from "@/lib/phi-star-rewards";
 type ImageResult = {
   id: string;
   image: string;
@@ -108,7 +109,7 @@ function publishSelectedImages(query: string, images: ImageResult[]) {
       kind: "image-seed",
       selectedFromImageSearch: true,
     })),
-    updated = appendPhiTokenItems(token.id, query, cards);
+    updated = replacePhiTokenKindItems(token.id, query, "image", cards);
   const shared = readJson<any[]>(SHARED_COLLECTION, []),
     keys = new Set(cards.map((x) => x.storyKey)),
     sameQuery = (x: any) => queryKey(x?.searchQuery || "") === queryKey(query),
@@ -228,8 +229,20 @@ export default function InfinityImagesPage() {
   const selectedRef = useRef<ImageResult[]>([]),
     requestRef = useRef(new Map<string, Promise<ImageResult[]>>());
   useEffect(() => {
-    const q = clean(new URLSearchParams(location.search).get("q")),
+    const params = new URLSearchParams(location.search),
+      q = clean(params.get("q")),
       saved = q ? readSelected(q) : [];
+    if (q) {
+      const token = resolvePhiSearchToken(q, params.get("token") || "");
+      if (params.get("token") !== token.id) {
+        params.set("token", token.id);
+        history.replaceState(
+          {},
+          "",
+          `${location.pathname}?${params.toString()}`,
+        );
+      }
+    }
     selectedRef.current = saved;
     setSelected(saved);
     if (q) persist(q, saved);
@@ -287,10 +300,15 @@ export default function InfinityImagesPage() {
     setSelected(saved);
     persist(term, saved);
     setActive(term);
-    const u = new URL(location.href);
+    const token = resolvePhiSearchToken(
+        active || term,
+        new URLSearchParams(location.search).get("token") || "",
+      ),
+      u = new URL(location.href);
     u.pathname = appPath("phi/images");
     u.search = "";
     u.searchParams.set("q", term);
+    u.searchParams.set("token", token.id);
     history.replaceState({}, "", u.toString());
     void fetchImages(term, 1, true);
   }
@@ -302,7 +320,14 @@ export default function InfinityImagesPage() {
       : [...c, item];
     selectedRef.current = n;
     setSelected(n);
-    persist(active || query, n);
+    const term = clean(active || query);
+    persist(term, n);
+    publishSelectedImages(term, n);
+    if (!c.some((x) => x.id === item.id))
+      awardPhiStarCredit(
+        "collect",
+        `image:${item.original || item.image || item.id}`,
+      );
   }
   function buildOverview() {
     const images = selectedRef.current.slice(-20).map(compactImage);
