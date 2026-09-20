@@ -221,6 +221,20 @@ function relevance(doc: any, term: string) {
   if (requested.length && hits === requested.length) score += 90;
   return score;
 }
+function titleMatchesSubject(doc: any, term: string) {
+  const title = clean(doc?.title, 1000).toLowerCase();
+  return subjectWords(term).some((word) => title.includes(word));
+}
+function matchesBlendedSearch(doc: any, current: string, previous: string) {
+  if (!titleMatchesSubject(doc, current)) return false;
+  const metadata = clean(
+    [doc?.title, doc?.description, doc?.creator, doc?.subject, doc?.collection].join(
+      " ",
+    ),
+    8000,
+  ).toLowerCase();
+  return subjectWords(previous).some((word) => metadata.includes(word));
+}
 function starShare(reference: string) {
   try {
     const read = (k: string, f: any) => {
@@ -367,7 +381,8 @@ export default function ArchiveMediaFeed({
           .flatMap(([, docs]) => docs)
           .filter((doc: any) => {
             const id = clean(doc.identifier);
-            if (!id || seenDocs.has(id)) return false;
+            if (!id || seenDocs.has(id) || !titleMatchesSubject(doc, exact))
+              return false;
             seenDocs.add(id);
             return true;
           })
@@ -376,7 +391,7 @@ export default function ArchiveMediaFeed({
               relevance(b, exact) - relevance(a, exact) ||
               Number(b.downloads || 0) - Number(a.downloads || 0),
           )
-          .slice(0, 24);
+          .slice(0, 80);
       let groups = (
         await Promise.all(
           ranked.map(async (doc: any) => {
@@ -450,12 +465,16 @@ export default function ArchiveMediaFeed({
             1,
           );
           const fallbackRanked = fallbackDocs
-            .filter((doc: any) => clean(doc.identifier))
+            .filter(
+              (doc: any) =>
+                clean(doc.identifier) &&
+                matchesBlendedSearch(doc, exact, previousTerm),
+            )
             .sort(
               (a: any, b: any) =>
                 relevance(b, fallbackTerm) - relevance(a, fallbackTerm),
             )
-            .slice(0, 24);
+            .slice(0, 80);
           groups = (
             await Promise.all(
               fallbackRanked.map(async (doc: any) => {
