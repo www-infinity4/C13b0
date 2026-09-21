@@ -15,6 +15,54 @@ const clean = (value: unknown, max = 1800) =>
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, max);
+const readJson = (key: string, fallback: any) => {
+  try { return JSON.parse(localStorage.getItem(key) || "null") || fallback; }
+  catch { return fallback; }
+};
+function creditInfinitySearch(token: PhiSearchToken) {
+  try {
+    const session = readJson("starquest_session", null),
+      users = readJson("starquest_users", {}),
+      signed = session?.key && users[session.key],
+      wallet: any = signed || readJson("starquest_guest_profile_v1", {
+        key: "__guest__", tokens: 0, infinityTokens: 0, infinityLedger: [], infinitySearches: [],
+      });
+    wallet.infinityTokens = Math.max(0, Number(wallet.infinityTokens) || 0);
+    wallet.infinityLedger = Array.isArray(wallet.infinityLedger) ? wallet.infinityLedger : [];
+    wallet.infinitySearches = Array.isArray(wallet.infinitySearches) ? wallet.infinitySearches : [];
+    if (!wallet.infinityLedger.some((entry: any) => entry?.tokenId === token.id)) {
+      wallet.infinityTokens += 1;
+      wallet.infinityLedger.push({
+        id: token.id, tokenId: token.id, type: "search_reward", amount: 1,
+        balance: wallet.infinityTokens, source: "infinity-phi", query: token.query,
+        fingerprint: `infinity-search:${token.id}`, createdAt: Date.now(),
+      });
+      wallet.infinitySearches.push({ tokenId: token.id, query: token.query, source: "infinity-phi", createdAt: Date.now() });
+      wallet.infinityLedger = wallet.infinityLedger.slice(-1000);
+      wallet.infinitySearches = wallet.infinitySearches.slice(-1000);
+      if (signed) {
+        users[session.key] = wallet;
+        localStorage.setItem("starquest_users", JSON.stringify(users));
+      } else localStorage.setItem("starquest_guest_profile_v1", JSON.stringify(wallet));
+    }
+    const unified = readJson("infinity_unified_wallet_v1", {}),
+      searches = Array.isArray(unified.searches) ? unified.searches : [];
+    if (!searches.some((entry: any) => entry?.tokenId === token.id))
+      searches.push({ tokenId: token.id, query: token.query, source: "infinity-phi", createdAt: Date.now() });
+    unified.infinityTokens = wallet.infinityTokens;
+    unified.searches = searches.slice(-1000);
+    const walletId = unified.currentWalletId;
+    if (walletId && unified.wallets?.[walletId]) {
+      const active = unified.wallets[walletId];
+      active.balances = { ...(active.balances || {}), infinityTokens: wallet.infinityTokens };
+    }
+    unified.updatedAt = Date.now();
+    unified.source = "infinity-phi";
+    localStorage.setItem("infinity_unified_wallet_v1", JSON.stringify(unified));
+    window.dispatchEvent(new Event("infinity-wallet-updated"));
+    window.dispatchEvent(new CustomEvent("controlphi:wallet-change", { detail: { infinityTokens: wallet.infinityTokens, source: "infinity-phi" } }));
+  } catch {}
+}
 const tokenLabel = (query: string) =>
   `Infinity token · ${clean(query, 72) || "Untitled search"}`;
 const itemKey = (item: any) => {
@@ -77,6 +125,7 @@ export function beginPhiSearchToken(query: string) {
       items: [],
     };
   write([token, ...tokens]);
+  creditInfinitySearch(token);
   return activate(token);
 }
 export function resolvePhiSearchToken(query: string, requestedId = "") {
