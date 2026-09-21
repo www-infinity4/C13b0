@@ -219,6 +219,9 @@ export async function writeCollectedOverviewWithGpt(
       1000,
     ),
     source: clean(item?.url || item?.sourceUrl, 500),
+    playableSource: clean(item?.files?.[0]?.url || item?.mediaUrl, 700),
+    fileName: clean(item?.files?.[0]?.name, 260),
+    tokenId: clean(item?.tokenId, 300),
   }));
   const prompt = `Rewrite the Infinity Phi AI Overview around the user's complete collected set.
 
