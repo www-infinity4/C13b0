@@ -42,7 +42,8 @@ export default function InfinityImageRouteGuard() {
       const next = new URLSearchParams();
       if (q) next.set("q", q);
       if (token) next.set("token", token);
-      window.location.assign(next.size ? `${targetPath}?${next.toString()}` : targetPath);
+      const search = next.toString();
+      window.location.assign(search ? `${targetPath}?${search}` : targetPath);
     };
 
     document.addEventListener("click", guard, true);
