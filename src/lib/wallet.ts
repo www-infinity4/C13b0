@@ -112,12 +112,17 @@ export function loadLocalWallet(): WalletRecord | null {
 }
 
 export function saveLocalWallet(wallet: WalletRecord): void {
+  const previous = secureLoad<WalletRecord | null>(LOCAL_WALLET, null);
+  const changed =
+    !previous ||
+    previous.walletId !== wallet.walletId ||
+    previous.displayName !== wallet.displayName;
   secureSave(LOCAL_WALLET, wallet);
   activateUnifiedWallet(wallet);
   if (typeof document !== "undefined") {
     const secure = location.protocol === "https:" ? "; Secure" : "";
     document.cookie = `${WALLET_COOKIE}=${encodeURIComponent(JSON.stringify(wallet))}; Max-Age=31536000; Path=/; SameSite=Lax${secure}`;
-    window.dispatchEvent(new Event("infinity-wallet-updated"));
+    if (changed) window.dispatchEvent(new Event("infinity-wallet-updated"));
   }
 }
 
