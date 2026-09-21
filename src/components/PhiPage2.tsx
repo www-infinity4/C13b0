@@ -1148,13 +1148,16 @@ export default function PhiPage2() {
                     <small className="mt-1 block font-bold text-cyan-800">
                       {clean(x.mediaKind || x.kind || "source")}
                     </small>
-                    {(x.image || x.imageUrl) && (
-                      <img
-                        src={x.image || x.imageUrl}
-                        alt={clean(x.title)}
-                        className="mt-3 h-36 w-full rounded-xl object-cover"
-                      />
-                    )}
+                    {String(x.mediaKind || "").toLowerCase() === "video" && x.files?.[0]?.url ? (
+                      <video controls preload="metadata" poster={x.image || x.imageUrl} src={x.files[0].url} className="mt-3 aspect-video w-full rounded-xl bg-black" />
+                    ) : String(x.mediaKind || "").toLowerCase() === "audio" && x.files?.[0]?.url ? (
+                      <div className="mt-3">
+                        {(x.image || x.imageUrl) && <img src={x.image || x.imageUrl} alt={clean(x.title)} className="mb-3 h-36 w-full rounded-xl object-cover" />}
+                        <audio controls preload="none" src={x.files[0].url} className="w-full" />
+                      </div>
+                    ) : (x.image || x.imageUrl) ? (
+                      <img src={x.image || x.imageUrl} alt={clean(x.title)} className="mt-3 h-36 w-full rounded-xl object-cover" />
+                    ) : null}
                   </article>
                 ))}
               </div>
