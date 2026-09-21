@@ -38,7 +38,11 @@ export default function InfinityImageRouteGuard() {
       const params = new URLSearchParams(window.location.search);
       const q = params.get("q")?.trim() || "";
       const targetPath = appPath("phi/images");
-      window.location.assign(q ? `${targetPath}?q=${encodeURIComponent(q)}` : targetPath);
+      const token = params.get("token")?.trim() || "";
+      const next = new URLSearchParams();
+      if (q) next.set("q", q);
+      if (token) next.set("token", token);
+      window.location.assign(next.size ? `${targetPath}?${next.toString()}` : targetPath);
     };
 
     document.addEventListener("click", guard, true);
