@@ -1017,7 +1017,6 @@ export default function PhiPage2() {
         (s) => !selectedKeys.has((s.url || s.id).toLowerCase()),
       ),
     ].slice(0, Math.max(10, selectedImages.length + selectedMedia.length)),
-    purple: Source[] = [],
     green = sources.slice(0, 15),
     hero =
       selectedImages[0] ||
@@ -1268,22 +1267,6 @@ export default function PhiPage2() {
               ))}
             </div>
           </section>
-          <section className="rounded-[30px] bg-violet-950 p-5 text-white">
-            <h2 className="text-2xl font-black">Purple cards</h2>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {purple.map((s, i) => (
-                <article
-                  key={`p-${s.id}-${i}`}
-                  className="rounded-2xl bg-white/10 p-4"
-                >
-                  <h3 className="font-black">{s.title}</h3>
-                  <p className="mt-2 text-sm leading-6">
-                    {sentence(s.excerpt)}
-                  </p>
-                </article>
-              ))}
-            </div>
-          </section>
           <section className="rounded-[30px] bg-emerald-950 p-5 text-white">
             <h2 className="text-2xl font-black">Green sources</h2>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -1311,12 +1294,21 @@ export default function PhiPage2() {
               <b>Infinity history is still connected.</b>
             </section>
           )}
-          <section className="py-6 text-center">
+          <section className="flex flex-wrap justify-center gap-3 py-6 text-center">
             <a
               href={`${appPath("phi/build")}?${new URLSearchParams({ q: query, mode: "website" })}`}
               className="inline-block rounded-2xl bg-emerald-600 px-8 py-4 text-lg font-black text-white shadow-lg"
             >
               Generate Website →
+            </a>
+            <a
+              href={`https://www-infinity4.github.io/Web-Phi/?${new URLSearchParams({
+                q: query,
+                token: activeTokenId,
+              })}`}
+              className="inline-block rounded-2xl bg-violet-700 px-8 py-4 text-lg font-black text-white shadow-lg"
+            >
+              Website directions in Web Phi →
             </a>
           </section>
         </article>
