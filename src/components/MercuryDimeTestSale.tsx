@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import SaleCard from "@/components/build-phi/SaleCard";
 
 const KEY = "infinityPhi:testReceipts:v1";
 const PHOTO = "https://commons.wikimedia.org/wiki/Special:FilePath/Mercury_dime.jpg";
@@ -54,16 +55,15 @@ export default function MercuryDimeTestSale() {
       </article>)}</div> : <p className="mt-3 text-sm text-slate-600">Test receipts will appear here after checkout on this browser.</p>}
     </aside>}
     <article className="overflow-hidden rounded-[30px] border-2 border-orange-400 bg-gradient-to-br from-orange-500 via-orange-600 to-red-800 text-white shadow-2xl">
-      {view === "listing" && <div className="grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-        <div className="grid min-h-64 place-items-center bg-orange-100 p-6"><img src={PHOTO} alt="Stock photo of a 1936-D Mercury dime, front and back" className="max-h-72 w-full object-contain drop-shadow-2xl" /></div>
-        <div className="flex flex-col justify-center p-6 sm:p-9">
-          <span className="w-fit rounded-full bg-white/20 px-3 py-1 text-xs font-black uppercase tracking-widest">Test sale · coin</span>
-          <h2 className="mt-4 text-3xl font-black sm:text-4xl">1936-D Mercury dime</h2>
-          <p className="mt-3 max-w-xl text-orange-50">One Mercury dime. Representative stock photo; condition and inventory are not verified for this test listing.</p>
-          <div className="mt-6 flex flex-wrap items-center gap-4"><strong className="text-3xl">100 Quants</strong><button type="button" onClick={() => setView("checkout")} className="rounded-full bg-white px-7 py-3 font-black text-orange-950 shadow-lg">Buy now →</button></div>
-          <p className="mt-4 text-xs text-orange-100">Checkout demonstration only. No wallet debit or physical shipment.</p>
-        </div>
-      </div>}
+      {view === "listing" && <SaleCard listing={{
+        title: "1936-D Mercury dime",
+        priceLabel: "100 Quants",
+        imageUrl: PHOTO,
+        imageAlt: "Stock photo of a 1936-D Mercury dime, front and back",
+        description: "One Mercury dime. Representative stock photo; condition and inventory are not verified for this test listing.",
+        badge: "Test sale · coin",
+        testOnly: true,
+      }} onBuy={() => setView("checkout")} />}
       {view === "checkout" && <div className="mx-auto max-w-2xl p-6 sm:p-9">
         <button type="button" onClick={() => setView("listing")} className="text-sm font-bold text-orange-100">← Back to listing</button>
         <h2 className="mt-4 text-3xl font-black">Shipping information</h2>
