@@ -282,7 +282,7 @@ export default function PhiWorkbenchV3() {
   const latestSelectedImage = selectedImages[selectedImages.length-1] || "";
 
   return <main className={styles.page}>
-    <header className={styles.topbar}><a href={`${appPath("phi")}?id=${encodeURIComponent(paper.id)}`}><ArrowLeft size={20}/></a><div><b>Infinity Phi workbench</b><small>{enriching ? "Reshaping the story and finding the next useful branches…" : `${visibleBranches.length} live directions · ${notes.length} notes · ${images.length} distinct images`}</small></div><a className={styles.publishTop} href={magazineUrl}><Printer size={17}/> Page 3</a></header>
+    <header className={styles.topbar}><a href={`${appPath("phi")}?id=${encodeURIComponent(paper.id)}`}><ArrowLeft size={20}/></a><div><b>Infinity Phi workbench</b><small>{enriching ? "Reshaping the story and finding the next useful branches…" : `${visibleBranches.length} live directions · ${notes.length} notes · ${images.length} distinct images`}</small></div><a className={styles.publishTop} href={appPath("phi/build/cards")}>Sale card template</a><a className={styles.publishTop} href={magazineUrl}><Printer size={17}/> Page 3</a></header>
 
     <section className={styles.hero}>{hero && <img src={hero} alt=""/>}<div className={styles.heroShade}/><div className={styles.heroCopy}><small>PAGE TWO · WORKING RESEARCH</small><h1>{paper.title}</h1><p>{focus ? focusedStory.slice(0,2).join(" ") : paper.overview}</p></div></section>
 
