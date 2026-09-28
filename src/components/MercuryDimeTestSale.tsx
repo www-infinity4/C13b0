@@ -54,7 +54,7 @@ export default function MercuryDimeTestSale() {
         <p className="mt-2 font-bold text-orange-900">No Quants transferred. No item will ship.</p>
       </article>)}</div> : <p className="mt-3 text-sm text-slate-600">Test receipts will appear here after checkout on this browser.</p>}
     </aside>}
-    <article className="overflow-hidden rounded-[30px] border-2 border-orange-400 bg-gradient-to-br from-orange-500 via-orange-600 to-red-800 text-white shadow-2xl">
+    <div className={view === "listing" ? "" : "overflow-hidden rounded-[30px] border-2 border-orange-400 bg-gradient-to-br from-orange-500 via-orange-600 to-red-800 text-white shadow-2xl"}>
       {view === "listing" && <SaleCard listing={{
         title: "1936-D Mercury dime",
         priceLabel: "100 Quants",
@@ -85,7 +85,7 @@ export default function MercuryDimeTestSale() {
         <p className="mt-2 text-sm text-orange-100">No Quants transferred. No physical coin will ship.</p>
         <button type="button" onClick={() => setView("listing")} className="mt-6 rounded-full bg-white px-6 py-3 font-black text-orange-950">View listing</button>
       </div>}
-    </article>
+    </div>
     <p className="mt-2 text-xs text-slate-500">Stock image: <a href="https://commons.wikimedia.org/wiki/File:Mercury_dime.jpg" target="_blank" rel="noopener noreferrer" className="underline">Wikimedia Commons</a>. Test listing image, not an image of an item held by a seller.</p>
   </section>;
 }
