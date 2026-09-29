@@ -6,7 +6,7 @@ type Props = { listing: SaleCardListing; onBuy: () => void; onCollect?: () => vo
 export default function SaleCard({ listing, onBuy, onCollect, onShare, onShopPhi, collected = false }: Props) {
   return <article className="overflow-hidden rounded-[30px] border-2 border-orange-400 bg-gradient-to-br from-orange-500 via-orange-600 to-red-800 text-white shadow-2xl">
     <div className="grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-      <div className="grid min-h-64 place-items-center bg-transparent p-6"><img src={listing.imageUrl} alt={listing.imageAlt} className="max-h-72 w-full object-contain drop-shadow-2xl mix-blend-multiply" /></div>
+      <div className="grid min-h-64 place-items-center bg-orange-100 p-6"><img src={listing.imageUrl} alt={listing.imageAlt} className="max-h-72 w-full object-contain drop-shadow-2xl" /></div>
       <div className="flex flex-col justify-center p-6 sm:p-9">
         <div className="flex flex-wrap items-center gap-2"><span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-black uppercase tracking-widest text-orange-950">Advertisement</span><span className="w-fit rounded-full bg-white/20 px-3 py-1 text-xs font-black uppercase tracking-widest">{listing.badge || "For sale"}</span></div>
         <h2 className="mt-4 text-3xl font-black sm:text-4xl">{listing.title}</h2><p className="mt-3 max-w-xl text-orange-50">{listing.description}</p><strong className="mt-6 text-3xl">{listing.priceLabel}</strong>
