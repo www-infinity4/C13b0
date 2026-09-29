@@ -201,3 +201,41 @@ npm run lint   # ESLint
 - **Jest + ts-jest** for cartoon-engine tests
 - **js-yaml** for YAML blueprint output
 - **Node.js `crypto`** (built-in) for SHA-256 hashes — no external crypto deps
+
+
+## Marketplace sale + fulfillment implementation ledger
+
+This section is an implementation contract, not a claim that every item is complete. Automation and agents should compare these requirements against the live code and mark an item complete only after code and runtime verification.
+
+### Implemented / present in source
+- [x] Test Mercury-dime advertisement card exists in the Infinity Phi runtime.
+- [x] Collect action writes the advertisement into the shared Shop cart path.
+- [x] Collected state uses the same live cart as the cart UI so browser-storage failure does not immediately undo the visible state.
+- [x] Successful Collect requests one Control Phi collect credit, representing 0.1 StarCoin progress, with listing-ID deduplication.
+- [x] Successful Collect requests that the Shop cart open so the collected card can be seen immediately.
+- [x] Shop Phi can receive the seed query `Mercury dime` from the advertisement.
+
+### Must be runtime-verified
+- [ ] On the deployed Android page, one tap changes `Collect` to `Collected`.
+- [ ] The exact Mercury-dime card appears in the visible Shop cart immediately after collection.
+- [ ] Control Phi visibly reports the 0.1 StarCoin collection credit exactly once.
+- [ ] Collected/cart state survives refresh and cross-device use after durable server persistence is added.
+- [ ] Shop Phi provider tabs render real provider inventory inside Shop Phi rather than merely redirecting from the provider tab.
+
+### Not built yet — sale/order backend
+- [ ] Replace the current simulated 100-Quant checkout with a verified wallet transaction.
+- [ ] Create a Cloudflare Worker order API and D1 order storage.
+- [ ] Store order ID, listing ID, seller ID, buyer ID, amount, payment transaction ID, timestamps and fulfillment status.
+- [ ] Store buyer shipping name/address as private fulfillment data; never embed shipping PII in a transferable Quant, StarCoin, public ledger, URL, advertisement, or public event.
+- [ ] Authorize shipping-data reads so only the authenticated seller for that order and the buyer can access appropriate order data.
+- [ ] Seller wallet inbox message: `Sale received · Mercury dime · 100 Quants · Ship item`.
+- [ ] `Ship item` opens the private fulfillment record with order number and buyer-provided shipping information.
+- [ ] Seller can mark order shipped and optionally add carrier/tracking.
+- [ ] Buyer wallet/order history receives fulfillment status updates.
+- [ ] Idempotency: one payment transaction can create only one order and one seller receipt.
+- [ ] Never display `paid` or `100 Quants received` until the wallet transaction is server-verified.
+
+### Agent/README continuity rule
+For substantial Infinity/Phi subsystems, maintain a repository implementation ledger like this one. Requirements must be classified as implemented, runtime-verification-needed, or not-built. A bot must not infer completion from prose, a commit existing, or a UI mockup. Completion requires the relevant code plus verification evidence.
+
+Claude-Flow/Monitor automation should use these ledgers as audit inputs: inspect unchecked items, compare them with repository/runtime state, create scoped repair jobs, and only change status after verification.
