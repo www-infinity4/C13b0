@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import SaleCard from "@/components/build-phi/SaleCard";
-import { addPhiCartItem, PHI_CART_KEY } from "@/components/build-phi/PhiShopCart";
+import { addPhiCartItem, readPhiCart, PHI_CART_KEY } from "@/components/build-phi/PhiShopCart";
 
 const KEY = "infinityPhi:testReceipts:v1";
 const PHOTO = "https://commons.wikimedia.org/wiki/Special:FilePath/Mercury_dime.jpg";
@@ -35,10 +35,8 @@ export default function MercuryDimeTestSale() {
       }
     } catch {}
     const syncCollected = () => {
-      try {
-        const cart = JSON.parse(localStorage.getItem(PHI_CART_KEY) || "[]");
-        setCollected(Array.isArray(cart) && cart.some((x: { id?: string }) => x.id === LISTING_ID || x.id === LEGACY_LISTING_ID));
-      } catch { setCollected(false); }
+      const cart = readPhiCart();
+      setCollected(cart.some(x => x.id === LISTING_ID || x.id === LEGACY_LISTING_ID));
     };
     window.addEventListener("infinity-shop-cart-updated", syncCollected);
     window.addEventListener("storage", syncCollected);
@@ -55,6 +53,7 @@ export default function MercuryDimeTestSale() {
     const control = (window as Window & { ControlPhi?: { ensureActionCredit?: (reference:string,kind:string)=>unknown } }).ControlPhi;
     control?.ensureActionCredit?.(LISTING_ID, "collect");
     window.dispatchEvent(new CustomEvent("infinity-starcoin-collect", { detail: { source: "advertisement", listingId: LISTING_ID, amount: 0.1 } }));
+    window.dispatchEvent(new CustomEvent("infinity-shop-cart-open"));
   }
   async function share() { const url = `${location.origin}${location.pathname}#${LISTING_ID}`; const data = { title: "Mercury dime · Advertisement", text: "Mercury dime · 100 Quants · Infinity Phi test advertisement", url }; try { if (navigator.share) await navigator.share(data); else await navigator.clipboard.writeText(`${data.text} ${url}`); } catch { return; } window.dispatchEvent(new CustomEvent("infinity-starcoin-share", { detail: { source: "advertisement", listingId: LISTING_ID, amount: 0.1, url } })); }
   function shopPhi() { const params = new URLSearchParams({ q: "Mercury dime", source: "infinity-phi-ad" }); window.location.assign(`https://www-infinity4.github.io/Alien-Radio/shop.html?${params.toString()}`); }
