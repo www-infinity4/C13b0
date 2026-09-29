@@ -19,7 +19,7 @@ export default function MercuryDimeTestSale() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [latest, setLatest] = useState<Receipt | null>(null);
   useEffect(() => { setReceipts(load()); try { setCollected(JSON.parse(localStorage.getItem(PHI_CART_KEY) || "[]").some((x: { id?: string }) => x.id === LISTING_ID)); } catch {} }, []);
-  function collect() { addPhiCartItem({ id: LISTING_ID, title: "1936-D Mercury dime", priceLabel: "100 Quants", imageUrl: PHOTO, description: "One Mercury dime. Representative stock photo; test listing." }); setCollected(true); }
+  function collect() { addPhiCartItem({ id: LISTING_ID, title: "1936-D Mercury dime", priceLabel: "100 Quants", imageUrl: PHOTO, description: "One Mercury dime. Representative stock photo; test listing." }); setCollected(true); const control = (window as Window & { ControlPhi?: { ensureActionCredit?: (reference:string,kind:string)=>unknown } }).ControlPhi; control?.ensureActionCredit?.(LISTING_ID, "collect"); }
   async function share() { const url = `${location.origin}${location.pathname}#${LISTING_ID}`; const data = { title: "1936-D Mercury dime · Advertisement", text: "1936-D Mercury dime · 100 Quants · Infinity Phi test advertisement", url }; try { if (navigator.share) await navigator.share(data); else await navigator.clipboard.writeText(`${data.text} ${url}`); } catch { return; } window.dispatchEvent(new CustomEvent("infinity-starcoin-share", { detail: { source: "advertisement", listingId: LISTING_ID, amount: 0.1, url } })); }
   function shopPhi() { window.location.assign(`https://www-infinity4.github.io/Shop-Phi/?q=${encodeURIComponent("1936-D Mercury dime")}`); }
   function complete(event: FormEvent<HTMLFormElement>) {
