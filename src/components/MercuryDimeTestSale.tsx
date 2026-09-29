@@ -6,7 +6,7 @@ import { addPhiCartItem, PHI_CART_KEY } from "@/components/build-phi/PhiShopCart
 
 const KEY = "infinityPhi:testReceipts:v1";
 const PHOTO = "https://commons.wikimedia.org/wiki/Special:FilePath/Mercury_dime.jpg";
-const LISTING_ID = "test-1936-d-mercury-dime";
+const LISTING_ID = "test-random-mercury-dime";
 type Receipt = { id: string; placed: string; shipDate: string; destination: string; name: string };
 function load(): Receipt[] {
   try { const data = JSON.parse(localStorage.getItem(KEY) || "[]"); return Array.isArray(data) ? data.slice(0, 20) : []; }
@@ -19,9 +19,9 @@ export default function MercuryDimeTestSale() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [latest, setLatest] = useState<Receipt | null>(null);
   useEffect(() => { setReceipts(load()); try { setCollected(JSON.parse(localStorage.getItem(PHI_CART_KEY) || "[]").some((x: { id?: string }) => x.id === LISTING_ID)); } catch {} }, []);
-  function collect() { addPhiCartItem({ id: LISTING_ID, title: "1936-D Mercury dime", priceLabel: "100 Quants", imageUrl: PHOTO, description: "One Mercury dime. Representative stock photo; test listing." }); setCollected(true); const control = (window as Window & { ControlPhi?: { ensureActionCredit?: (reference:string,kind:string)=>unknown } }).ControlPhi; control?.ensureActionCredit?.(LISTING_ID, "collect"); }
-  async function share() { const url = `${location.origin}${location.pathname}#${LISTING_ID}`; const data = { title: "1936-D Mercury dime · Advertisement", text: "1936-D Mercury dime · 100 Quants · Infinity Phi test advertisement", url }; try { if (navigator.share) await navigator.share(data); else await navigator.clipboard.writeText(`${data.text} ${url}`); } catch { return; } window.dispatchEvent(new CustomEvent("infinity-starcoin-share", { detail: { source: "advertisement", listingId: LISTING_ID, amount: 0.1, url } })); }
-  function shopPhi() { window.location.assign(`https://www-infinity4.github.io/Shop-Phi/?q=${encodeURIComponent("1936-D Mercury dime")}`); }
+  function collect() { addPhiCartItem({ id: LISTING_ID, title: "Mercury dime", priceLabel: "100 Quants", imageUrl: PHOTO, description: "One Mercury dime. Representative stock photo; test listing." }); setCollected(true); const control = (window as Window & { ControlPhi?: { ensureActionCredit?: (reference:string,kind:string)=>unknown } }).ControlPhi; control?.ensureActionCredit?.(LISTING_ID, "collect"); }
+  async function share() { const url = `${location.origin}${location.pathname}#${LISTING_ID}`; const data = { title: "Mercury dime · Advertisement", text: "Mercury dime · 100 Quants · Infinity Phi test advertisement", url }; try { if (navigator.share) await navigator.share(data); else await navigator.clipboard.writeText(`${data.text} ${url}`); } catch { return; } window.dispatchEvent(new CustomEvent("infinity-starcoin-share", { detail: { source: "advertisement", listingId: LISTING_ID, amount: 0.1, url } })); }
+  function shopPhi() { window.location.assign(`https://www-infinity4.github.io/Shop-Phi/?q=${encodeURIComponent("Mercury dime")}`); }
   function complete(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -54,7 +54,7 @@ export default function MercuryDimeTestSale() {
     {inbox && <aside className="mb-4 rounded-3xl border border-orange-200 bg-white p-5 shadow-lg" aria-label="Receipt inbox">
       <div className="flex items-center justify-between"><h2 className="text-xl font-black text-slate-950">Your message box</h2><button type="button" onClick={() => setInbox(false)} aria-label="Close receipts" className="text-2xl text-slate-600">×</button></div>
       {receipts.length ? <div className="mt-3 space-y-3">{receipts.map(r => <article key={r.id} className="rounded-2xl bg-orange-50 p-4 text-sm text-slate-900">
-        <b>Test receipt · 1936-D Mercury dime</b><p>Receipt {r.id} · 100 Quants · test purchase</p>
+        <b>Test receipt · Mercury dime</b><p>Receipt {r.id} · 100 Quants · test purchase</p>
         <p>Placed: {new Date(r.placed).toLocaleString()} · Illustrative ship date: {r.shipDate}</p>
         <p>Demo seller: Infinity Phi marketplace test · Contact: no seller contact available · Destination: {r.destination}</p>
         <p className="mt-2 font-bold text-orange-900">No Quants transferred. No item will ship.</p>
@@ -62,10 +62,10 @@ export default function MercuryDimeTestSale() {
     </aside>}
     <div className={view === "listing" ? "" : "overflow-hidden rounded-[30px] border-2 border-orange-400 bg-gradient-to-br from-orange-500 via-orange-600 to-red-800 text-white shadow-2xl"}>
       {view === "listing" && <SaleCard listing={{
-        title: "1936-D Mercury dime",
+        title: "Mercury dime",
         priceLabel: "100 Quants",
         imageUrl: PHOTO,
-        imageAlt: "Stock photo of a 1936-D Mercury dime, front and back",
+        imageAlt: "Stock photo of a Mercury dime, front and back",
         description: "One Mercury dime. Representative stock photo; condition and inventory are not verified for this test listing.",
         badge: "Test sale · coin",
         testOnly: true,
@@ -73,7 +73,7 @@ export default function MercuryDimeTestSale() {
       {view === "checkout" && <div className="mx-auto max-w-2xl p-6 sm:p-9">
         <button type="button" onClick={() => setView("listing")} className="text-sm font-bold text-orange-100">← Back to listing</button>
         <h2 className="mt-4 text-3xl font-black">Shipping information</h2>
-        <p className="mt-2 text-orange-50">1936-D Mercury dime · 100 Quants · test checkout</p>
+        <p className="mt-2 text-orange-50">Mercury dime · 100 Quants · test checkout</p>
         <form onSubmit={complete} className="mt-6 grid gap-3 sm:grid-cols-2">
           <label className="text-sm font-bold sm:col-span-2">Full name<input name="name" required maxLength={100} autoComplete="name" className="mt-1 w-full rounded-xl border border-orange-200 bg-white p-3 text-slate-950" /></label>
           <label className="text-sm font-bold sm:col-span-2">Street address<input name="street" required maxLength={160} autoComplete="street-address" className="mt-1 w-full rounded-xl border border-orange-200 bg-white p-3 text-slate-950" /></label>
