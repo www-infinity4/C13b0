@@ -2,9 +2,11 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import SaleCard from "@/components/build-phi/SaleCard";
+import { addPhiCartItem, PHI_CART_KEY } from "@/components/build-phi/PhiShopCart";
 
 const KEY = "infinityPhi:testReceipts:v1";
 const PHOTO = "https://commons.wikimedia.org/wiki/Special:FilePath/Mercury_dime.jpg";
+const LISTING_ID = "test-1936-d-mercury-dime";
 type Receipt = { id: string; placed: string; shipDate: string; destination: string; name: string };
 function load(): Receipt[] {
   try { const data = JSON.parse(localStorage.getItem(KEY) || "[]"); return Array.isArray(data) ? data.slice(0, 20) : []; }
@@ -13,9 +15,13 @@ function load(): Receipt[] {
 export default function MercuryDimeTestSale() {
   const [view, setView] = useState<"listing" | "checkout" | "purchased">("listing");
   const [inbox, setInbox] = useState(false);
+  const [collected, setCollected] = useState(false);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [latest, setLatest] = useState<Receipt | null>(null);
-  useEffect(() => setReceipts(load()), []);
+  useEffect(() => { setReceipts(load()); try { setCollected(JSON.parse(localStorage.getItem(PHI_CART_KEY) || "[]").some((x: { id?: string }) => x.id === LISTING_ID)); } catch {} }, []);
+  function collect() { addPhiCartItem({ id: LISTING_ID, title: "1936-D Mercury dime", priceLabel: "100 Quants", imageUrl: PHOTO, description: "One Mercury dime. Representative stock photo; test listing." }); setCollected(true); }
+  async function share() { const url = `${location.origin}${location.pathname}#${LISTING_ID}`; const data = { title: "1936-D Mercury dime · Advertisement", text: "1936-D Mercury dime · 100 Quants · Infinity Phi test advertisement", url }; try { if (navigator.share) await navigator.share(data); else await navigator.clipboard.writeText(`${data.text} ${url}`); } catch { return; } window.dispatchEvent(new CustomEvent("infinity-starcoin-share", { detail: { source: "advertisement", listingId: LISTING_ID, amount: 0.1, url } })); }
+  function shopPhi() { window.location.assign(`https://www-infinity4.github.io/Shop-Phi/?q=${encodeURIComponent("1936-D Mercury dime")}`); }
   function complete(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -40,7 +46,7 @@ export default function MercuryDimeTestSale() {
     setView("purchased");
     setInbox(true);
   }
-  return <section aria-label="Mercury dime test sale" className="mx-auto w-full max-w-6xl px-3 sm:px-5" style={{margin:"24px auto 30px"}}>
+  return <section id={LISTING_ID} aria-label="Mercury dime test sale" className="mx-auto w-full max-w-6xl px-3 sm:px-5" style={{margin:"24px auto 30px"}}>
     <div className="mb-3 flex items-center justify-between gap-3">
       <span className="text-xs font-black uppercase tracking-[.18em] text-orange-700">Infinity Phi marketplace · test listing</span>
       <button type="button" onClick={() => setInbox(!inbox)} className="rounded-full border border-orange-300 bg-white px-4 py-2 text-sm font-black text-orange-950 shadow-sm" aria-expanded={inbox}>✉ Receipts {receipts.length ? `(${receipts.length})` : ""}</button>
@@ -63,7 +69,7 @@ export default function MercuryDimeTestSale() {
         description: "One Mercury dime. Representative stock photo; condition and inventory are not verified for this test listing.",
         badge: "Test sale · coin",
         testOnly: true,
-      }} onBuy={() => setView("checkout")} />}
+      }} onBuy={() => setView("checkout")} onCollect={collect} collected={collected} onShare={share} onShopPhi={shopPhi} />}
       {view === "checkout" && <div className="mx-auto max-w-2xl p-6 sm:p-9">
         <button type="button" onClick={() => setView("listing")} className="text-sm font-bold text-orange-100">← Back to listing</button>
         <h2 className="mt-4 text-3xl font-black">Shipping information</h2>
