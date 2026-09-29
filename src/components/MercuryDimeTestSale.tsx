@@ -65,7 +65,7 @@ export default function MercuryDimeTestSale() {
         title: "Mercury dime",
         priceLabel: "100 Quants",
         imageUrl: PHOTO,
-        imageAlt: "Stock photo of a Mercury dime, front and back",
+        imageAlt: "Representative stock photo of a Mercury dime, front and back",
         description: "One Mercury dime. Representative stock photo; condition and inventory are not verified for this test listing.",
         badge: "Test sale · coin",
         testOnly: true,
