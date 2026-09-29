@@ -7,6 +7,7 @@ import { addPhiCartItem, PHI_CART_KEY } from "@/components/build-phi/PhiShopCart
 const KEY = "infinityPhi:testReceipts:v1";
 const PHOTO = "https://commons.wikimedia.org/wiki/Special:FilePath/Mercury_dime.jpg";
 const LISTING_ID = "test-random-mercury-dime";
+const LEGACY_LISTING_ID = "test-1936-d-mercury-dime";
 type Receipt = { id: string; placed: string; shipDate: string; destination: string; name: string };
 function load(): Receipt[] {
   try { const data = JSON.parse(localStorage.getItem(KEY) || "[]"); return Array.isArray(data) ? data.slice(0, 20) : []; }
@@ -18,8 +19,23 @@ export default function MercuryDimeTestSale() {
   const [collected, setCollected] = useState(false);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [latest, setLatest] = useState<Receipt | null>(null);
-  useEffect(() => { setReceipts(load()); try { setCollected(JSON.parse(localStorage.getItem(PHI_CART_KEY) || "[]").some((x: { id?: string }) => x.id === LISTING_ID)); } catch {} }, []);
-  function collect() { addPhiCartItem({ id: LISTING_ID, title: "Mercury dime", priceLabel: "100 Quants", imageUrl: PHOTO, description: "One Mercury dime. Representative stock photo; test listing." }); setCollected(true); const control = (window as Window & { ControlPhi?: { ensureActionCredit?: (reference:string,kind:string)=>unknown } }).ControlPhi; control?.ensureActionCredit?.(LISTING_ID, "collect"); }
+  useEffect(() => {
+    setReceipts(load());
+    try {
+      const cart = JSON.parse(localStorage.getItem(PHI_CART_KEY) || "[]");
+      if (!Array.isArray(cart)) return;
+      const existing = cart.find((x: { id?: string }) => x.id === LISTING_ID || x.id === LEGACY_LISTING_ID);
+      if (existing) {
+        setCollected(true);
+        if (existing.id === LEGACY_LISTING_ID) {
+          const migrated = [{ ...existing, id: LISTING_ID, title: "Mercury dime" }, ...cart.filter((x: { id?: string }) => x.id !== LEGACY_LISTING_ID && x.id !== LISTING_ID)];
+          localStorage.setItem(PHI_CART_KEY, JSON.stringify(migrated));
+          window.dispatchEvent(new CustomEvent("infinity-shop-cart-updated", { detail: { item: migrated[0], count: migrated.length } }));
+        }
+      }
+    } catch {}
+  }, []);
+  function collect() { const next = addPhiCartItem({ id: LISTING_ID, title: "Mercury dime", priceLabel: "100 Quants", imageUrl: PHOTO, description: "One Mercury dime. Representative stock photo; test listing." }); setCollected(next.some(item => item.id === LISTING_ID)); const control = (window as Window & { ControlPhi?: { ensureActionCredit?: (reference:string,kind:string)=>unknown } }).ControlPhi; control?.ensureActionCredit?.(LISTING_ID, "collect"); }
   async function share() { const url = `${location.origin}${location.pathname}#${LISTING_ID}`; const data = { title: "Mercury dime · Advertisement", text: "Mercury dime · 100 Quants · Infinity Phi test advertisement", url }; try { if (navigator.share) await navigator.share(data); else await navigator.clipboard.writeText(`${data.text} ${url}`); } catch { return; } window.dispatchEvent(new CustomEvent("infinity-starcoin-share", { detail: { source: "advertisement", listingId: LISTING_ID, amount: 0.1, url } })); }
   function shopPhi() { window.location.assign(`https://www-infinity4.github.io/Alien-Radio/shop.html?q=${encodeURIComponent("Mercury dime")}`); }
   function complete(event: FormEvent<HTMLFormElement>) {
