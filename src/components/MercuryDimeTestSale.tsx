@@ -34,10 +34,22 @@ export default function MercuryDimeTestSale() {
         }
       }
     } catch {}
+    const syncCollected = () => {
+      try {
+        const cart = JSON.parse(localStorage.getItem(PHI_CART_KEY) || "[]");
+        setCollected(Array.isArray(cart) && cart.some((x: { id?: string }) => x.id === LISTING_ID || x.id === LEGACY_LISTING_ID));
+      } catch { setCollected(false); }
+    };
+    window.addEventListener("infinity-shop-cart-updated", syncCollected);
+    window.addEventListener("storage", syncCollected);
+    return () => {
+      window.removeEventListener("infinity-shop-cart-updated", syncCollected);
+      window.removeEventListener("storage", syncCollected);
+    };
   }, []);
   function collect() { const next = addPhiCartItem({ id: LISTING_ID, title: "Mercury dime", priceLabel: "100 Quants", imageUrl: PHOTO, description: "One Mercury dime. Representative stock photo; test listing." }); setCollected(next.some(item => item.id === LISTING_ID)); const control = (window as Window & { ControlPhi?: { ensureActionCredit?: (reference:string,kind:string)=>unknown } }).ControlPhi; control?.ensureActionCredit?.(LISTING_ID, "collect"); }
   async function share() { const url = `${location.origin}${location.pathname}#${LISTING_ID}`; const data = { title: "Mercury dime · Advertisement", text: "Mercury dime · 100 Quants · Infinity Phi test advertisement", url }; try { if (navigator.share) await navigator.share(data); else await navigator.clipboard.writeText(`${data.text} ${url}`); } catch { return; } window.dispatchEvent(new CustomEvent("infinity-starcoin-share", { detail: { source: "advertisement", listingId: LISTING_ID, amount: 0.1, url } })); }
-  function shopPhi() { window.location.assign(`https://www-infinity4.github.io/Alien-Radio/shop.html?q=${encodeURIComponent("Mercury dime")}`); }
+  function shopPhi() { const params = new URLSearchParams({ q: "Mercury dime", source: "infinity-phi-ad" }); window.location.assign(`https://www-infinity4.github.io/Alien-Radio/shop.html?${params.toString()}`); }
   function complete(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
