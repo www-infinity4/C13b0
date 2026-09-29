@@ -12,7 +12,7 @@ export default function SaleCard({ listing, onBuy, onCollect, onShare, onShopPhi
         <h2 className="mt-4 text-3xl font-black sm:text-4xl">{listing.title}</h2><p className="mt-3 max-w-xl text-orange-50">{listing.description}</p><strong className="mt-6 text-3xl">{listing.priceLabel}</strong>
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
           <button type="button" onClick={onBuy} className="rounded-full border-2 border-white bg-white px-7 py-3 font-black text-orange-600 shadow-lg transition hover:bg-orange-50">Buy It Now</button>
-          {onCollect && <button type="button" onClick={onCollect} className="rounded-full bg-white px-6 py-3 font-black text-orange-950 shadow-lg">{collected ? "Collected ✓" : "Collect"}</button>}
+          {onCollect && <button type="button" onClick={onCollect} className="rounded-full border-2 border-orange-200 bg-white px-6 py-3 font-black text-orange-600 shadow-lg transition hover:bg-orange-50">{collected ? "Collected" : "Collect"}</button>}
           {onShare && <button type="button" onClick={onShare} className="rounded-full border border-white/60 bg-white/10 px-6 py-3 font-black text-white">Share · +0.1 StarCoin</button>}
           {onShopPhi && <button type="button" onClick={onShopPhi} className="rounded-full border border-white/60 bg-white/10 px-6 py-3 font-black text-white">Shop Phi · similar items</button>}
         </div>
