@@ -25,6 +25,8 @@ const QUANTA_HISTORY = "quantaPhiBuildHistoryV1";
 const STAR_SESSION = "starquest_session";
 const STAR_USERS = "starquest_users";
 const STAR_GUEST = "starquest_guest_profile_v1";
+const OMNI_PENDING = "omniPhi:pendingInfinitySearches:v1";
+const OMNI_LAST = "omniPhi:lastSearchToken:v1";
 
 type TokenRecord = {
   id: string;
@@ -151,6 +153,32 @@ function readEverySearchHistory(): TokenRecord[] {
     });
   }
 
+  const omniPending = jsonRead<any[]>(OMNI_PENDING, []);
+  if (Array.isArray(omniPending)) {
+    omniPending.forEach((item) => {
+      const query = String(item?.query || "").trim();
+      const id = String(item?.tokenId || item?.id || "").trim();
+      if (!query || !id) return;
+      add({
+        id, tokenId: id, query, title: query, kind: "omni-search", stage: "history",
+        source: "omni-phi", sourceSystem: "OMNI_PHI",
+        createdAt: item?.createdAt ? new Date(Number(item.createdAt) || item.createdAt).toISOString() : "",
+      });
+    });
+  }
+  const omniLast = jsonRead<any | null>(OMNI_LAST, null);
+  if (omniLast) {
+    const query = String(omniLast?.query || "").trim();
+    const id = String(omniLast?.tokenId || omniLast?.id || "").trim();
+    if (query && id) {
+      add({
+        id, tokenId: id, query, title: query, kind: "omni-search", stage: "history",
+        source: "omni-phi", sourceSystem: "OMNI_PHI",
+        createdAt: omniLast?.createdAt ? new Date(Number(omniLast.createdAt) || omniLast.createdAt).toISOString() : "",
+      });
+    }
+  }
+
   const quanta = jsonRead<any[]>(QUANTA_HISTORY, []);
   if (Array.isArray(quanta)) {
     quanta.forEach((item) => {
@@ -200,6 +228,21 @@ function readEverySearchHistory(): TokenRecord[] {
         id, tokenId: id, query, title: query, kind: source.includes("omni") ? "omni-search" : "research",
         stage: "history", source,
         sourceSystem: source.includes("omni") ? "OMNI_PHI" : "INFINITY_PHI",
+        createdAt: item?.createdAt ? new Date(Number(item.createdAt) || item.createdAt).toISOString() : "",
+      });
+    });
+    const walletLedger = Array.isArray(profile.infinityLedger) ? profile.infinityLedger : [];
+    walletLedger.forEach((item: any) => {
+      const query = String(item?.query || "").trim();
+      const id = String(item?.tokenId || item?.id || "").trim();
+      if (!query || !id) return;
+      const source = String(item?.source || "infinity-phi");
+      const lower = source.toLowerCase();
+      add({
+        id, tokenId: id, query, title: query,
+        kind: lower.includes("quanta") ? "quant" : lower.includes("omni") ? "omni-search" : "research",
+        stage: "history", source,
+        sourceSystem: lower.includes("quanta") ? "QUANTAPHI" : lower.includes("omni") ? "OMNI_PHI" : "INFINITY_PHI",
         createdAt: item?.createdAt ? new Date(Number(item.createdAt) || item.createdAt).toISOString() : "",
       });
     });
