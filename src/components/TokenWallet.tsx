@@ -35,7 +35,9 @@ type TokenRecord = {
   createdAt?: string;
   mintedAt?: string;
   units?: number;
-  source?: "action ledger" | "unified wallet";
+  source?: string;
+  sourceSystem?: string;
+  websiteUrl?: string;
 };
 
 type Material = {
@@ -105,9 +107,21 @@ function canonicalTitle(token: TokenRecord) {
 }
 
 function linkedWork(token: TokenRecord) {
+  if (token.websiteUrl) return token.websiteUrl;
   return token.researchId || token.id.startsWith("phi-")
     ? `${appPath("phi")}?id=${encodeURIComponent(token.researchId || token.id)}`
-    : `${appPath("studio/build")}?id=${encodeURIComponent(token.id)}&mode=preview`;
+    : `${appPath("studio/build")}?id=${encodeURIComponent(token.id)}&query=${encodeURIComponent(token.query || token.title || "")}&mode=preview`;
+}
+function websiteWork(token: TokenRecord) {
+  return token.websiteUrl || `${appPath("studio/build")}?id=${encodeURIComponent(token.id)}&query=${encodeURIComponent(token.query || token.title || "")}&mode=preview`;
+}
+function sourceLabel(token: TokenRecord) {
+  const source=String(token.sourceSystem || token.source || "").toLowerCase();
+  if (source.includes("quanta")) return "QuantaPhi · Quant";
+  if (source.includes("omni")) return "Omni Phi";
+  if (source.includes("infinity") || token.id.startsWith("phi-")) return "Infinity Phi";
+  if (source.includes("unified")) return "Unified wallet";
+  return token.kind || token.stage || "Infinity token";
 }
 
 export default function TokenWallet() {
@@ -129,10 +143,7 @@ export default function TokenWallet() {
       secureLoadDurable<TokenRecord[]>(LEDGER, []),
       secureLoadDurable<Amendments>(METADATA, {}),
     ]);
-    const all = mergeTokens(
-      actionTokens.map((token) => ({ ...token, source: "action ledger" })),
-      readUnifiedTokens(),
-    );
+    const all = mergeTokens(actionTokens, readUnifiedTokens());
     setWallet(activeWallet);
     setTokens(all);
     setAmendments(savedAmendments);
@@ -268,11 +279,21 @@ export default function TokenWallet() {
     const query = filter.trim().toLowerCase();
     if (!query) return tokens;
     return tokens.filter((token) =>
-      `${amendments[token.id]?.title || canonicalTitle(token)} ${token.id} ${token.stage || ""} ${token.kind || ""}`
+      `${amendments[token.id]?.title || canonicalTitle(token)} ${token.id} ${token.stage || ""} ${token.kind || ""} ${token.source || ""} ${token.sourceSystem || ""}`
         .toLowerCase()
         .includes(query),
     );
   }, [amendments, filter, tokens]);
+  const sourceCounts = useMemo(() => {
+    let infinity=0,omni=0,quanta=0;
+    tokens.forEach(token=>{
+      const source=String(token.sourceSystem || token.source || "").toLowerCase();
+      if(source.includes("quanta")) quanta+=1;
+      else if(source.includes("omni")) omni+=1;
+      else infinity+=1;
+    });
+    return {infinity,omni,quanta,total:tokens.length};
+  },[tokens]);
 
   return (
     <main className="min-h-screen bg-[#061a30] px-4 py-5 text-white sm:px-7">
@@ -292,7 +313,7 @@ export default function TokenWallet() {
             <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-[#168b4c]"><Wallet /></div>
             <div>
               <h1 className="font-serif text-4xl font-black tracking-tight">Token wallet</h1>
-              <p className="mt-2 max-w-3xl leading-7 text-white/60">Every token remains tied to its original ID and source. Your changes are saved as amendments, so editing never erases the token’s history.</p>
+              <p className="mt-2 max-w-3xl leading-7 text-white/60">Every token remains tied to its original ID and source. Your changes are saved as amendments, so editing never erases the token’s history.</p><div className="mt-4 flex flex-wrap gap-2 text-xs font-black"><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.total} total</span><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.infinity} Infinity</span><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.omni} Omni</span><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.quanta} Quants</span></div>
             </div>
           </div>
         </section>
@@ -306,7 +327,7 @@ export default function TokenWallet() {
             <div className="mt-3 grid max-h-[65dvh] gap-2 overflow-y-auto">
               {visibleTokens.map((token) => (
                 <button key={token.id} onClick={() => openToken(token.id)} className={`rounded-xl border p-4 text-left ${selectedId === token.id ? "border-[#f0bd55] bg-[#f0bd55]/10" : "border-white/10 bg-black/10"}`}>
-                  <span className="text-[11px] font-black uppercase tracking-wider text-[#8fc6ec]">{token.stage || token.kind || "token"}</span>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-[#8fc6ec]">{sourceLabel(token)}</span>
                   <b className="mt-1 block leading-5">{amendments[token.id]?.title || canonicalTitle(token)}</b>
                   <span className="mt-2 block truncate font-mono text-[11px] text-white/40">{token.id}</span>
                 </button>
@@ -323,12 +344,12 @@ export default function TokenWallet() {
                     <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[.18em] text-[#168b4c]"><ShieldCheck size={16} /> Canonical token</p>
                     <p className="mt-2 break-all font-mono text-xs text-slate-500">{selected.id}</p>
                   </div>
-                  <a href={linkedWork(selected)} className="flex items-center gap-2 rounded-full border border-slate-300 px-4 py-2 text-sm font-bold"><ExternalLink size={16} /> Open linked work</a>
+                  <div className="flex flex-wrap gap-2"><a href={linkedWork(selected)} className="flex items-center gap-2 rounded-full border border-slate-300 px-4 py-2 text-sm font-bold"><ExternalLink size={16} /> Open linked work</a><a href={websiteWork(selected)} className="flex items-center gap-2 rounded-full bg-[#168b4c] px-4 py-2 text-sm font-black text-white"><ExternalLink size={16} /> Open auto website</a></div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Info label="Original title" value={canonicalTitle(selected)} />
-                  <Info label="Source ledger" value={selected.source || "action ledger"} />
+                  <Info label="Source" value={sourceLabel(selected)} />
                   <Info label="Owner" value={selected.walletId || selected.ownerWalletId || wallet?.walletId || "Active wallet"} />
                   <Info label="Issued" value={selected.createdAt || selected.mintedAt ? new Date(selected.createdAt || selected.mintedAt!).toLocaleString() : "Recorded"} />
                 </div>
