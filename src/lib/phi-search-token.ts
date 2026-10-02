@@ -46,13 +46,14 @@ async function creditAuthoritativeInfinitySearch(token: PhiSearchToken) {
   try {
     const wallet = await authoritativeWallet();
     if (!wallet) return;
-    await wallet.mintToken("INFINITY_SEARCH", {
+    const result = await wallet.mintToken("INFINITY_SEARCH", {
       query: token.query,
       search_id: token.id,
       legacy_token_id: token.id,
       source: "INFINITY_PHI",
       created_at: token.createdAt,
     }, "infinity-search:" + token.id);
+    (window as any).InfinityTokenCount?.reconcile?.(Number(result?.balance) || 0);
   } catch (error) {
     console.warn("Authoritative Infinity search credit deferred", error);
   }
@@ -284,6 +285,7 @@ export function beginPhiSearchToken(query: string) {
       updatedAt: now,
       items: [],
     };
+  (window as any).InfinityTokenCount?.register?.(token.id);
   write([token, ...tokens]);
   publishCanonicalToken(canonicalPhiToken(token));
   prebuildCanonicalWebsite(token.id, token.query);
