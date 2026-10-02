@@ -144,6 +144,7 @@ function sourceLabel(token: TokenRecord) {
 export default function TokenWallet() {
   const [wallet, setWallet] = useState<WalletRecord | null>(null);
   const [tokens, setTokens] = useState<TokenRecord[]>([]);
+  const [tokenCount, setTokenCount] = useState(0);
   const [amendments, setAmendments] = useState<Amendments>({});
   const [selectedId, setSelectedId] = useState("");
   const [filter, setFilter] = useState("");
@@ -163,6 +164,7 @@ export default function TokenWallet() {
     const all = mergeTokens(actionTokens, readUnifiedTokens());
     setWallet(activeWallet);
     setTokens(all);
+    setTokenCount((window as any).InfinityTokenCount?.reconcile?.(all.length)?.value ?? all.length);
     setAmendments(savedAmendments);
     const requested = new URLSearchParams(location.search).get("token") || "";
     const nextId = all.some((token) => token.id === requested)
@@ -179,10 +181,12 @@ export default function TokenWallet() {
     window.addEventListener("storage", sync);
     window.addEventListener("infinity-history-updated", sync);
     window.addEventListener("infinity-wallet-updated", sync);
+    window.addEventListener("infinity:token-count-updated", sync);
     return () => {
       window.removeEventListener("storage", sync);
       window.removeEventListener("infinity-history-updated", sync);
       window.removeEventListener("infinity-wallet-updated", sync);
+      window.removeEventListener("infinity:token-count-updated", sync);
     };
     // The storage events keep later changes synchronized.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -309,8 +313,8 @@ export default function TokenWallet() {
       else if(source.includes("omni")) omni+=1;
       else infinity+=1;
     });
-    return {infinity,omni,quanta,total:tokens.length};
-  },[tokens]);
+    return {infinity,omni,quanta,total:tokenCount};
+  },[tokens,tokenCount]);
 
   return (
     <main className="min-h-screen bg-[#061a30] px-4 py-5 text-white sm:px-7">
