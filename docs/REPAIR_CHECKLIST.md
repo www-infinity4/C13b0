@@ -53,3 +53,10 @@ Status values:
 - [ ] Code Phi and Create Phi navigation still work
 
 **Current status:** SOURCE FIXED
+
+
+## Android query composer
+
+- Tapping the Infinity Phi query field must keep focus and open the Android keyboard.
+- Wallet refresh events must not run from a generic window focus event; wallet state refreshes from explicit wallet/storage events and when the drawer opens.
+- The front composer and the result-page search input must remain above decorative/overlay layers and accept pointer/touch input.
