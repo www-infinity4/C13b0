@@ -88,7 +88,11 @@ function readState(){
   };
 }
 function writeState(state){
-  const out={version:2,value:Math.max(0,Math.trunc(Number(state.value)||0)),countedTokenIds:[...new Set(state.countedTokenIds||[])].slice(-20000),updatedAt:new Date().toISOString()};
+  const ids=[...new Set(state.countedTokenIds||[])].slice(-20000);
+  const previous=readState();
+  const same=previous.value===Math.max(0,Math.trunc(Number(state.value)||0))&&previous.countedTokenIds.length===ids.length&&previous.countedTokenIds.every((id,index)=>id===ids[index]);
+  if(same)return previous;
+  const out={version:2,value:Math.max(0,Math.trunc(Number(state.value)||0)),countedTokenIds:ids,updatedAt:new Date().toISOString()};
   try{localStorage.setItem(STATE_KEY,JSON.stringify(out))}catch{}
   global.dispatchEvent(new CustomEvent('infinity:token-count-updated',{detail:out}));
   return out;
