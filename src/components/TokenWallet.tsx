@@ -358,6 +358,15 @@ export default function TokenWallet() {
       secureLoadDurable<Amendments>(METADATA, {}),
     ]);
     const all = mergeTokens(actionTokens, readUnifiedTokens(), readEverySearchHistory());
+    if (
+      all.length !== actionTokens.length ||
+      all.some((token, index) => {
+        const prior = actionTokens[index];
+        return !prior || prior.id !== token.id || prior.source !== token.source || prior.sourceSystem !== token.sourceSystem;
+      })
+    ) {
+      await secureSaveDurable(LEDGER, all);
+    }
     setWallet(activeWallet);
     setTokens(all);
     setTokenCount((window as any).InfinityTokenCount?.reconcile?.(all.length)?.value ?? all.length);
