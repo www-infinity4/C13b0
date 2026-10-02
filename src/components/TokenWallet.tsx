@@ -254,10 +254,32 @@ function readEverySearchHistory(): TokenRecord[] {
 function mergeTokens(actionTokens: TokenRecord[], unifiedTokens: TokenRecord[], historyTokens: TokenRecord[] = []) {
   const records = new Map<string, TokenRecord>();
   const provenance = new Map<string, string>();
+  const mergeRecord = (current: TokenRecord | undefined, incoming: TokenRecord, id: string) => {
+    const genericSource = (value?: string) => {
+      const source = String(value || "").toLowerCase();
+      return !source || source === "action ledger" || source === "unified wallet";
+    };
+    return {
+      ...(current || {}),
+      ...incoming,
+      id,
+      tokenId: incoming.tokenId || current?.tokenId,
+      query: incoming.query || current?.query,
+      title: incoming.title || current?.title,
+      kind: incoming.kind || current?.kind,
+      createdAt: incoming.createdAt || current?.createdAt,
+      mintedAt: incoming.mintedAt || current?.mintedAt,
+      websiteUrl: incoming.websiteUrl || current?.websiteUrl,
+      sourceSystem: incoming.sourceSystem || current?.sourceSystem,
+      source: !genericSource(incoming.source)
+        ? incoming.source
+        : current?.source || incoming.source || "unified wallet",
+    } as TokenRecord;
+  };
   actionTokens.forEach((token) => {
     const id = String(token.id || token.tokenId || "").trim();
     if (!id) return;
-    records.set(id, { ...token, id, source: token.source || "action ledger" });
+    records.set(id, mergeRecord(undefined, { ...token, source: token.source || "action ledger" }, id));
     const event = String(token.sourceEventId || token.quantSearchId || "").trim();
     if (event) provenance.set(event, id);
   });
@@ -267,11 +289,10 @@ function mergeTokens(actionTokens: TokenRecord[], unifiedTokens: TokenRecord[], 
     const event = String(token.sourceEventId || token.quantSearchId || "").trim();
     const canonicalId = event ? provenance.get(event) : "";
     if (canonicalId) {
-      const current = records.get(canonicalId)!;
-      records.set(canonicalId, { ...token, ...current, id: canonicalId });
+      records.set(canonicalId, mergeRecord(records.get(canonicalId), token, canonicalId));
       return;
     }
-    records.set(id, { ...records.get(id), ...token, id, source: token.source || "unified wallet" });
+    records.set(id, mergeRecord(records.get(id), token, id));
   });
   return [...records.values()].sort((a, b) =>
     String(b.createdAt || b.mintedAt || "").localeCompare(
