@@ -95,6 +95,12 @@ function fingerprint(value: unknown) {
   }
   return (h >>> 0).toString(36);
 }
+function dateString(value: unknown) {
+  if (value === null || value === undefined || value === "") return "";
+  const numeric = Number(value);
+  const date = new Date(Number.isFinite(numeric) && numeric > 0 ? numeric : String(value));
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+}
 
 function readUnifiedTokens(): TokenRecord[] {
   const state = jsonRead<Record<string, any> | null>(UNIFIED, null);
@@ -162,7 +168,7 @@ function readEverySearchHistory(): TokenRecord[] {
       add({
         id, tokenId: id, query, title: query, kind: "omni-search", stage: "history",
         source: "omni-phi", sourceSystem: "OMNI_PHI",
-        createdAt: item?.createdAt ? new Date(Number(item.createdAt) || item.createdAt).toISOString() : "",
+        createdAt: dateString(item?.createdAt),
       });
     });
   }
@@ -174,7 +180,7 @@ function readEverySearchHistory(): TokenRecord[] {
       add({
         id, tokenId: id, query, title: query, kind: "omni-search", stage: "history",
         source: "omni-phi", sourceSystem: "OMNI_PHI",
-        createdAt: omniLast?.createdAt ? new Date(Number(omniLast.createdAt) || omniLast.createdAt).toISOString() : "",
+        createdAt: dateString(omniLast?.createdAt),
       });
     }
   }
@@ -207,7 +213,7 @@ function readEverySearchHistory(): TokenRecord[] {
       kind: lower.includes("quanta") ? "quant" : lower.includes("omni") ? "omni-search" : "research",
       source: source || "unified wallet",
       sourceSystem: lower.includes("quanta") ? "QUANTAPHI" : lower.includes("omni") ? "OMNI_PHI" : lower.includes("infinity") ? "INFINITY_PHI" : undefined,
-      createdAt: item?.createdAt ? new Date(Number(item.createdAt) || item.createdAt).toISOString() : "",
+      createdAt: dateString(item?.createdAt),
     });
   });
 
@@ -228,7 +234,7 @@ function readEverySearchHistory(): TokenRecord[] {
         id, tokenId: id, query, title: query, kind: source.includes("omni") ? "omni-search" : "research",
         stage: "history", source,
         sourceSystem: source.includes("omni") ? "OMNI_PHI" : "INFINITY_PHI",
-        createdAt: item?.createdAt ? new Date(Number(item.createdAt) || item.createdAt).toISOString() : "",
+        createdAt: dateString(item?.createdAt),
       });
     });
     const walletLedger = Array.isArray(profile.infinityLedger) ? profile.infinityLedger : [];
@@ -243,7 +249,7 @@ function readEverySearchHistory(): TokenRecord[] {
         kind: lower.includes("quanta") ? "quant" : lower.includes("omni") ? "omni-search" : "research",
         stage: "history", source,
         sourceSystem: lower.includes("quanta") ? "QUANTAPHI" : lower.includes("omni") ? "OMNI_PHI" : "INFINITY_PHI",
-        createdAt: item?.createdAt ? new Date(Number(item.createdAt) || item.createdAt).toISOString() : "",
+        createdAt: dateString(item?.createdAt),
       });
     });
   });
