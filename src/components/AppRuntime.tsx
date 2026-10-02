@@ -10,16 +10,23 @@ const HANDOFF = "c13b0_infinity_spark_handoff_v3",
   LEDGER = "c13b0_infinity_token_ledger_v3",
   WALLET = "c13b0_infinity_wallet_v1",
   STATE = "c13b0_infinity_state_v1",
-  PHI_PAPERS = "infinity_phi_research_v1";
+  PHI_PAPERS = "infinity_phi_research_v1",
+  OMNI_HISTORY = "omniPhi:history:v1",
+  QUANTA_HISTORY = "quantaPhiBuildHistoryV1";
 type WalletRecord = { walletId: string; displayName: string };
 type Token = {
   id?: string;
   query?: string;
   title?: string;
   stage?: string;
+  kind?: string;
+  source?: string;
+  sourceSystem?: string;
   createdAt?: string;
   units?: number;
   paper?: unknown;
+  payload?: unknown;
+  websiteUrl?: string;
 };
 type Handoff = {
   token?: Token;
@@ -73,6 +80,45 @@ function fingerprint(value: unknown) {
   }
   return (h >>> 0).toString(36);
 }
+function legacySearchTokens(): Token[] {
+  if (typeof window === "undefined") return [];
+  const out: Token[] = [];
+  try {
+    const omni = JSON.parse(localStorage.getItem(OMNI_HISTORY) || "[]");
+    if (Array.isArray(omni)) {
+      for (const item of omni) {
+        const query = String(item?.query || "").trim();
+        if (!query) continue;
+        const createdAt = String(item?.createdAt || new Date().toISOString());
+        const id = `omni-history-${fingerprint(["omni", query, createdAt])}`;
+        out.push({
+          id, query, title: query, stage: "history", kind: "omni-search",
+          source: "omni-phi", sourceSystem: "OMNI_PHI", createdAt, units: 1,
+          websiteUrl: `https://www-infinity4.github.io/C13b0/studio/build/?id=${encodeURIComponent(id)}&query=${encodeURIComponent(query)}&mode=preview`,
+          payload: { title: query, dek: "Imported Omni Phi search history", overview: `Omni Phi search history for ${query}.`, sources: [] },
+        });
+      }
+    }
+  } catch {}
+  try {
+    const quanta = JSON.parse(localStorage.getItem(QUANTA_HISTORY) || "[]");
+    if (Array.isArray(quanta)) {
+      for (const item of quanta) {
+        const query = String(item?.query || "").trim();
+        if (!query) continue;
+        const createdAt = String(item?.created_at || item?.createdAt || new Date().toISOString());
+        const id = `quant-history-${fingerprint(["quanta", query, createdAt])}`;
+        out.push({
+          id, query, title: query, stage: "history", kind: "quant",
+          source: "quanta-phi", sourceSystem: "QUANTAPHI", createdAt, units: 1,
+          websiteUrl: `https://www-infinity4.github.io/C13b0/studio/build/?id=${encodeURIComponent(id)}&query=${encodeURIComponent(query)}&mode=preview`,
+          payload: { title: query, dek: "Imported QuantaPhi Quant history", overview: `QuantaPhi search history for ${query}.`, sources: [] },
+        });
+      }
+    }
+  } catch {}
+  return out;
+}
 export async function bridgeInfinityState() {
   const [handoff, savedDrafts, savedTokens, savedWallet, phiPapers] =
     await Promise.all([
@@ -98,7 +144,12 @@ export async function bridgeInfinityState() {
         createdAt: new Date(paper.created).toISOString(),
         units: 1,
       }));
-    tokens = uniqueTokens([...migrated, ...tokens]).slice(0, 200);
+    tokens = uniqueTokens([...migrated, ...tokens]);
+    await secureSaveDurable(LEDGER, tokens);
+  }
+  const importedLegacy = legacySearchTokens();
+  if (importedLegacy.length) {
+    tokens = uniqueTokens([...tokens, ...importedLegacy]);
     await secureSaveDurable(LEDGER, tokens);
   }
   if (handoff?.token?.id) {
