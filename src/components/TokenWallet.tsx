@@ -19,6 +19,12 @@ import { secureLoadDurable, secureSaveDurable } from "@/lib/secure-storage";
 const LEDGER = "c13b0_infinity_token_ledger_v3";
 const METADATA = "c13b0_infinity_token_amendments_v1";
 const UNIFIED = "infinity_unified_wallet_v1";
+const PHI_SEARCH_TOKENS = "infinityPhi:searchTokens:v1";
+const OMNI_HISTORY = "omniPhi:history:v1";
+const QUANTA_HISTORY = "quantaPhiBuildHistoryV1";
+const STAR_SESSION = "starquest_session";
+const STAR_USERS = "starquest_users";
+const STAR_GUEST = "starquest_guest_profile_v1";
 
 type TokenRecord = {
   id: string;
@@ -70,27 +76,139 @@ type Amendment = {
 
 type Amendments = Record<string, Amendment>;
 
-function readUnifiedTokens(): TokenRecord[] {
+function jsonRead<T>(key: string, fallback: T): T {
   try {
-    const state = JSON.parse(localStorage.getItem(UNIFIED) || "null") as {
-      tokens?: Record<string, Record<string, unknown>>;
-    } | null;
-    return Object.entries(state?.tokens || {}).map(([key, value]) => ({
-      ...value,
-      id: String(value.tokenId || key),
-      tokenId: String(value.tokenId || key),
-      title: String(value.title || "Infinity token"),
-      kind: String(value.kind || "collectible"),
-      ownerWalletId: value.ownerWalletId ? String(value.ownerWalletId) : undefined,
-      mintedAt: value.mintedAt ? String(value.mintedAt) : undefined,
-      source: "unified wallet" as const,
-    }));
+    return JSON.parse(localStorage.getItem(key) || "null") ?? fallback;
   } catch {
-    return [];
+    return fallback;
   }
 }
 
-function mergeTokens(actionTokens: TokenRecord[], unifiedTokens: TokenRecord[]) {
+function fingerprint(value: unknown) {
+  const text = JSON.stringify(value || {});
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(36);
+}
+
+function readUnifiedTokens(): TokenRecord[] {
+  const state = jsonRead<Record<string, any> | null>(UNIFIED, null);
+  return Object.entries(state?.tokens || {}).map(([key, raw]) => {
+    const value = raw && typeof raw === "object" ? raw as Record<string, any> : {};
+    const id = String(value.tokenId || value.id || key);
+    return {
+      ...value,
+      id,
+      tokenId: id,
+      title: String(value.title || value.query || "Infinity token"),
+      kind: String(value.kind || value.token_type || value.type || "collectible"),
+      ownerWalletId: value.ownerWalletId ? String(value.ownerWalletId) : undefined,
+      mintedAt: value.mintedAt ? String(value.mintedAt) : undefined,
+      source: String(value.source || "unified wallet"),
+      sourceSystem: value.sourceSystem ? String(value.sourceSystem) : undefined,
+    };
+  });
+}
+
+function readEverySearchHistory(): TokenRecord[] {
+  const out: TokenRecord[] = [];
+  const add = (token: Partial<TokenRecord> & { id?: string }) => {
+    const id = String(token.id || "").trim();
+    if (!id) return;
+    out.push({ ...token, id } as TokenRecord);
+  };
+
+  const phi = jsonRead<any[]>(PHI_SEARCH_TOKENS, []);
+  if (Array.isArray(phi)) {
+    phi.forEach((item) => {
+      const query = String(item?.query || "").trim();
+      const id = String(item?.id || "").trim();
+      if (!query || !id) return;
+      add({
+        id, tokenId: id, query, title: query, kind: "research", stage: "history",
+        source: "infinity-phi", sourceSystem: "INFINITY_PHI",
+        createdAt: String(item?.createdAt || item?.updatedAt || ""),
+        websiteUrl: `${appPath("studio/build")}?id=${encodeURIComponent(id)}&query=${encodeURIComponent(query)}&mode=preview`,
+      });
+    });
+  }
+
+  const omni = jsonRead<any[]>(OMNI_HISTORY, []);
+  if (Array.isArray(omni)) {
+    omni.forEach((item) => {
+      const query = String(item?.query || "").trim();
+      if (!query) return;
+      const createdAt = String(item?.createdAt || "");
+      const id = String(item?.tokenId || item?.id || `omni-history-${fingerprint(["omni", query, createdAt])}`);
+      add({
+        id, tokenId: id, query, title: query, kind: "omni-search", stage: "history",
+        source: "omni-phi", sourceSystem: "OMNI_PHI", createdAt,
+        websiteUrl: `${appPath("studio/build")}?id=${encodeURIComponent(id)}&query=${encodeURIComponent(query)}&mode=preview`,
+      });
+    });
+  }
+
+  const quanta = jsonRead<any[]>(QUANTA_HISTORY, []);
+  if (Array.isArray(quanta)) {
+    quanta.forEach((item) => {
+      const query = String(item?.query || "").trim();
+      if (!query) return;
+      const createdAt = String(item?.created_at || item?.createdAt || "");
+      const id = String(item?.token_id || item?.tokenId || item?.id || `quant-history-${fingerprint(["quanta", query, createdAt])}`);
+      add({
+        id, tokenId: id, query, title: query, kind: "quant", stage: "history",
+        source: "quanta-phi", sourceSystem: "QUANTAPHI", createdAt,
+        websiteUrl: String(item?.website || "") || `${appPath("studio/build")}?id=${encodeURIComponent(id)}&query=${encodeURIComponent(query)}&mode=preview`,
+      });
+    });
+  }
+
+  const unified = jsonRead<Record<string, any> | null>(UNIFIED, null);
+  const searches = Array.isArray(unified?.searches) ? unified!.searches : [];
+  searches.forEach((item: any) => {
+    const query = String(item?.query || "").trim();
+    const id = String(item?.tokenId || item?.id || "").trim();
+    if (!query || !id) return;
+    const source = String(item?.source || "");
+    const lower = source.toLowerCase();
+    add({
+      id, tokenId: id, query, title: query, stage: "history",
+      kind: lower.includes("quanta") ? "quant" : lower.includes("omni") ? "omni-search" : "research",
+      source: source || "unified wallet",
+      sourceSystem: lower.includes("quanta") ? "QUANTAPHI" : lower.includes("omni") ? "OMNI_PHI" : lower.includes("infinity") ? "INFINITY_PHI" : undefined,
+      createdAt: item?.createdAt ? new Date(Number(item.createdAt) || item.createdAt).toISOString() : "",
+    });
+  });
+
+  const session = jsonRead<{ key?: string } | null>(STAR_SESSION, null);
+  const users = jsonRead<Record<string, any>>(STAR_USERS, {});
+  const profiles = [
+    session?.key && users[session.key] ? users[session.key] : null,
+    jsonRead<Record<string, any>>(STAR_GUEST, {}),
+  ].filter(Boolean) as Record<string, any>[];
+  profiles.forEach((profile) => {
+    const walletSearches = Array.isArray(profile.infinitySearches) ? profile.infinitySearches : [];
+    walletSearches.forEach((item: any) => {
+      const query = String(item?.query || "").trim();
+      const id = String(item?.tokenId || item?.id || "").trim();
+      if (!query || !id) return;
+      const source = String(item?.source || "infinity-phi");
+      add({
+        id, tokenId: id, query, title: query, kind: source.includes("omni") ? "omni-search" : "research",
+        stage: "history", source,
+        sourceSystem: source.includes("omni") ? "OMNI_PHI" : "INFINITY_PHI",
+        createdAt: item?.createdAt ? new Date(Number(item.createdAt) || item.createdAt).toISOString() : "",
+      });
+    });
+  });
+
+  return out;
+}
+
+function mergeTokens(actionTokens: TokenRecord[], unifiedTokens: TokenRecord[], historyTokens: TokenRecord[] = []) {
   const records = new Map<string, TokenRecord>();
   const provenance = new Map<string, string>();
   actionTokens.forEach((token) => {
@@ -100,7 +218,7 @@ function mergeTokens(actionTokens: TokenRecord[], unifiedTokens: TokenRecord[]) 
     const event = String(token.sourceEventId || token.quantSearchId || "").trim();
     if (event) provenance.set(event, id);
   });
-  unifiedTokens.forEach((token) => {
+  [...historyTokens, ...unifiedTokens].forEach((token) => {
     const id = String(token.id || token.tokenId || "").trim();
     if (!id) return;
     const event = String(token.sourceEventId || token.quantSearchId || "").trim();
@@ -132,13 +250,21 @@ function linkedWork(token: TokenRecord) {
 function websiteWork(token: TokenRecord) {
   return token.websiteUrl || `${appPath("studio/build")}?id=${encodeURIComponent(token.id)}&query=${encodeURIComponent(token.query || token.title || "")}&mode=preview`;
 }
+function sourceKind(token: TokenRecord) {
+  const source = String(token.sourceSystem || token.source || "").toLowerCase();
+  const kind = String(token.kind || "").toLowerCase();
+  const id = String(token.id || "").toLowerCase();
+  if (source.includes("quanta") || kind === "quant" || id.startsWith("quant-")) return "quanta";
+  if (source.includes("omni") || kind.includes("omni") || id.startsWith("omni-")) return "omni";
+  if (source.includes("infinity") || id.startsWith("phi-") || kind === "research") return "infinity";
+  return "legacy";
+}
 function sourceLabel(token: TokenRecord) {
-  const source=String(token.sourceSystem || token.source || "").toLowerCase();
-  if (source.includes("quanta")) return "QuantaPhi · Quant";
-  if (source.includes("omni")) return "Omni Phi";
-  if (source.includes("infinity") || token.id.startsWith("phi-")) return "Infinity Phi";
-  if (source.includes("unified")) return "Unified wallet";
-  return token.kind || token.stage || "Infinity token";
+  const source = sourceKind(token);
+  if (source === "quanta") return "QuantaPhi · Quant";
+  if (source === "omni") return "Omni Phi";
+  if (source === "infinity") return "Infinity Phi";
+  return "Legacy token";
 }
 
 export default function TokenWallet() {
@@ -161,7 +287,7 @@ export default function TokenWallet() {
       secureLoadDurable<TokenRecord[]>(LEDGER, []),
       secureLoadDurable<Amendments>(METADATA, {}),
     ]);
-    const all = mergeTokens(actionTokens, readUnifiedTokens());
+    const all = mergeTokens(actionTokens, readUnifiedTokens(), readEverySearchHistory());
     setWallet(activeWallet);
     setTokens(all);
     setTokenCount((window as any).InfinityTokenCount?.reconcile?.(all.length)?.value ?? all.length);
@@ -306,14 +432,16 @@ export default function TokenWallet() {
     );
   }, [amendments, filter, tokens]);
   const sourceCounts = useMemo(() => {
-    let infinity=0,omni=0,quanta=0;
-    tokens.forEach(token=>{
-      const source=String(token.sourceSystem || token.source || "").toLowerCase();
-      if(source.includes("quanta")) quanta+=1;
-      else if(source.includes("omni")) omni+=1;
-      else infinity+=1;
+    let infinity=0,omni=0,quanta=0,legacy=0;
+    tokens.forEach((token) => {
+      const source = sourceKind(token);
+      if (source === "quanta") quanta += 1;
+      else if (source === "omni") omni += 1;
+      else if (source === "infinity") infinity += 1;
+      else legacy += 1;
     });
-    return {infinity,omni,quanta,total:tokenCount};
+    const missing = Math.max(0, tokenCount - tokens.length);
+    return { infinity, omni, quanta, legacy: legacy + missing, total: tokenCount };
   },[tokens,tokenCount]);
 
   return (
@@ -334,7 +462,7 @@ export default function TokenWallet() {
             <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-[#168b4c]"><Wallet /></div>
             <div>
               <h1 className="font-serif text-4xl font-black tracking-tight">Token wallet</h1>
-              <p className="mt-2 max-w-3xl leading-7 text-white/60">Every token remains tied to its original ID and source. Your changes are saved as amendments, so editing never erases the token’s history.</p><div className="mt-4 flex flex-wrap gap-2 text-xs font-black"><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.total} total</span><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.infinity} Infinity</span><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.omni} Omni</span><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.quanta} Quants</span></div>
+              <p className="mt-2 max-w-3xl leading-7 text-white/60">Every token remains tied to its original ID and source. Your changes are saved as amendments, so editing never erases the token’s history.</p><div className="mt-4 flex flex-wrap gap-2 text-xs font-black"><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.total} total</span><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.infinity} Infinity</span><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.omni} Omni</span><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.quanta} Quants</span>{sourceCounts.legacy > 0 && <span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.legacy} legacy / metadata pending</span>}</div>
             </div>
           </div>
         </section>
@@ -343,7 +471,7 @@ export default function TokenWallet() {
           <aside className="rounded-[1.6rem] border border-white/10 bg-white/[.06] p-4">
             <label className="flex items-center gap-2 rounded-xl bg-white/10 px-3">
               <Search size={17} className="text-white/45" />
-              <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={`Search ${tokens.length} tokens`} className="min-w-0 flex-1 bg-transparent py-3 text-base outline-none placeholder:text-white/35" />
+              <input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder={`Search ${tokens.length} recorded tokens`} className="min-w-0 flex-1 bg-transparent py-3 text-base outline-none placeholder:text-white/35" />
             </label>
             <div className="mt-3 grid max-h-[65dvh] gap-2 overflow-y-auto">
               {visibleTokens.map((token) => (
