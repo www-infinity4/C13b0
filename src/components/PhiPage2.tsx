@@ -15,6 +15,7 @@ import {
   beginPhiSearchToken,
   phiTokenItems,
   resolvePhiSearchToken,
+  syncPhiSearchTokenResearch,
 } from "@/lib/phi-search-token";
 import { awardPhiStarCredit } from "@/lib/phi-star-rewards";
 import { writeCollectedOverviewWithGpt } from "@/lib/phi-gpt-router";
@@ -951,6 +952,7 @@ export default function PhiPage2() {
         ].slice(-80),
       );
       saveSharedResearch(nextRecord);
+      syncPhiSearchTokenResearch(tokenId, q, nextRecord);
       window.dispatchEvent(new Event("infinity-history-updated"));
     } catch {
       if (id !== requestRef.current) return;
