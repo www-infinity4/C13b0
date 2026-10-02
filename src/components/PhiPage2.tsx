@@ -1078,9 +1078,14 @@ export default function PhiPage2() {
         >
           <Search size={20} className="text-violet-700" />
           <input
+            type="search"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            className="min-w-0 flex-1 bg-transparent px-1 py-2 font-semibold text-black placeholder:text-slate-500 outline-none"
+            onPointerDown={(e) => { if (document.activeElement !== e.currentTarget) e.currentTarget.focus({ preventScroll: true }); }}
+            inputMode="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            className="relative z-10 min-w-0 flex-1 touch-manipulation bg-transparent px-1 py-2 font-semibold text-black placeholder:text-slate-500 outline-none"
           />
           <button
             type="submit"
