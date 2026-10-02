@@ -90,7 +90,7 @@ function legacySearchTokens(): Token[] {
         const query = String(item?.query || "").trim();
         if (!query) continue;
         const createdAt = String(item?.createdAt || new Date().toISOString());
-        const id = `omni-history-${fingerprint(["omni", query, createdAt])}`;
+        const id = String(item?.tokenId || `omni-history-${fingerprint(["omni", query, createdAt])}`);
         out.push({
           id, query, title: query, stage: "history", kind: "omni-search",
           source: "omni-phi", sourceSystem: "OMNI_PHI", createdAt, units: 1,
@@ -107,7 +107,7 @@ function legacySearchTokens(): Token[] {
         const query = String(item?.query || "").trim();
         if (!query) continue;
         const createdAt = String(item?.created_at || item?.createdAt || new Date().toISOString());
-        const id = `quant-history-${fingerprint(["quanta", query, createdAt])}`;
+        const id = String(item?.token_id || item?.tokenId || `quant-history-${fingerprint(["quanta", query, createdAt])}`);
         out.push({
           id, query, title: query, stage: "history", kind: "quant",
           source: "quanta-phi", sourceSystem: "QUANTAPHI", createdAt, units: 1,
