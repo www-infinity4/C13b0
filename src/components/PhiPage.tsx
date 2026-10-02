@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { BookOpen, Check, ChevronDown, ExternalLink, Sparkles } from "lucide-react";
 import { secureLoad, secureLoadDurable, secureSave, secureSaveDurable } from "@/lib/secure-storage";
 import { connectOrCreateWallet } from "@/lib/wallet";
+import { appPath } from "@/lib/base-path";
 
 type HistoryItem = { query: string; resolved: string; kind: string; at: number };
 type Source = { title: string; url: string; excerpt: string; provider: string; imageUrl?: string };
@@ -434,10 +435,23 @@ async function persistAfterRender(paper: Paper, nextHistory: HistoryItem[]) {
   try {
     const existing = await secureLoadDurable<Record<string, unknown>[]>(LEDGER, []);
     const wallet = connectOrCreateWallet("Infinity Phi");
+    const websiteUrl = `${appPath("studio/build")}?id=${encodeURIComponent(paper.id)}&query=${encodeURIComponent(paper.query)}&mode=preview`;
     const token = {
       id: paper.id, researchId: paper.id, stage: "research", kind: "research", color: "yellow",
       status: "finished", value: 1, units: 1, title: paper.title, query: paper.query,
       resolved: paper.resolved, sourceCount: paper.sources.length, walletId: wallet.walletId,
+      source: "infinity-phi", sourceSystem: "INFINITY_PHI", websiteUrl,
+      payload: {
+        title: paper.title,
+        dek: paper.resolved,
+        overview: paper.overview,
+        findings: paper.findings,
+        sources: paper.sources.map((source) => ({
+          title: source.title,
+          url: source.url,
+          excerpt: source.excerpt,
+        })),
+      },
       collectedCards: (() => {
         try {
           const shared = JSON.parse(localStorage.getItem(SHARED_COLLECTION) || "[]");
@@ -448,6 +462,14 @@ async function persistAfterRender(paper: Paper, nextHistory: HistoryItem[]) {
     };
     await secureSaveDurable(LEDGER, [token, ...existing.filter((item: any) => item.id !== paper.id)]);
     window.dispatchEvent(new Event("infinity-history-updated"));
+    window.dispatchEvent(new Event("infinity-wallet-updated"));
+    const frame = document.createElement("iframe");
+    frame.src = websiteUrl;
+    frame.tabIndex = -1;
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.cssText = "position:fixed;width:1px;height:1px;right:-8px;bottom:-8px;opacity:0;pointer-events:none;border:0";
+    document.body.appendChild(frame);
+    window.setTimeout(() => frame.remove(), 18000);
   } catch {}
 }
 
