@@ -446,7 +446,7 @@ async function persistAfterRender(paper: Paper, nextHistory: HistoryItem[]) {
       })(),
       createdAt: new Date(paper.created).toISOString(),
     };
-    await secureSaveDurable(LEDGER, [token, ...existing.filter((item: any) => item.id !== paper.id)].slice(0, 200));
+    await secureSaveDurable(LEDGER, [token, ...existing.filter((item: any) => item.id !== paper.id)]);
     window.dispatchEvent(new Event("infinity-history-updated"));
   } catch {}
 }
