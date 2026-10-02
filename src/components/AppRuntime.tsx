@@ -12,7 +12,8 @@ const HANDOFF = "c13b0_infinity_spark_handoff_v3",
   STATE = "c13b0_infinity_state_v1",
   PHI_PAPERS = "infinity_phi_research_v1",
   OMNI_HISTORY = "omniPhi:history:v1",
-  QUANTA_HISTORY = "quantaPhiBuildHistoryV1";
+  QUANTA_HISTORY = "quantaPhiBuildHistoryV1",
+  PHI_SEARCH_TOKENS = "infinityPhi:searchTokens:v1";
 type WalletRecord = { walletId: string; displayName: string };
 type Token = {
   id?: string;
@@ -84,6 +85,35 @@ function legacySearchTokens(): Token[] {
   if (typeof window === "undefined") return [];
   const out: Token[] = [];
   try {
+    const infinity = JSON.parse(localStorage.getItem(PHI_SEARCH_TOKENS) || "[]");
+    if (Array.isArray(infinity)) {
+      for (const item of infinity) {
+        const query = String(item?.query || "").trim();
+        const id = String(item?.id || "").trim();
+        if (!query || !id) continue;
+        const createdAt = String(item?.createdAt || new Date().toISOString());
+        out.push({
+          id,
+          query,
+          title: query,
+          stage: "history",
+          kind: "research",
+          source: "infinity-phi",
+          sourceSystem: "INFINITY_PHI",
+          createdAt,
+          units: 1,
+          websiteUrl: `https://www-infinity4.github.io/C13b0/studio/build/?id=${encodeURIComponent(id)}&query=${encodeURIComponent(query)}&mode=preview`,
+          payload: {
+            title: query,
+            dek: "Imported Infinity Phi search history",
+            overview: `Infinity Phi search history for ${query}.`,
+            sources: [],
+          },
+        });
+      }
+    }
+  } catch {}
+  try {
     const omni = JSON.parse(localStorage.getItem(OMNI_HISTORY) || "[]");
     if (Array.isArray(omni)) {
       for (const item of omni) {
@@ -143,6 +173,8 @@ export async function bridgeInfinityState() {
         query: paper.query,
         createdAt: new Date(paper.created).toISOString(),
         units: 1,
+        source: "infinity-phi",
+        sourceSystem: "INFINITY_PHI",
       }));
     tokens = uniqueTokens([...migrated, ...tokens]);
     await secureSaveDurable(LEDGER, tokens);
