@@ -218,6 +218,7 @@ export async function bridgeInfinityState() {
     drafts,
     updatedAt: new Date().toISOString(),
   } satisfies UnifiedState);
+  (window as any).InfinityTokenCount?.reconcile?.(tokens.length);
   window.dispatchEvent(new Event("infinity-state-bridged"));
   window.dispatchEvent(new Event("infinity-history-updated"));
 }
