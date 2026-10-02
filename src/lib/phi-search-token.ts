@@ -1,7 +1,11 @@
 "use client";
 
+import { appPath } from "@/lib/base-path";
+import { secureLoad, secureSave, secureSaveDurable } from "@/lib/secure-storage";
+
 const TOKENS = "infinityPhi:searchTokens:v1",
-  ACTIVE = "infinityPhi:activeSearchToken:v1";
+  ACTIVE = "infinityPhi:activeSearchToken:v1",
+  LEDGER = "c13b0_infinity_token_ledger_v3";
 export type PhiSearchToken = {
   id: string;
   label: string;
@@ -97,6 +101,128 @@ function creditInfinitySearch(token: PhiSearchToken) {
     window.dispatchEvent(new CustomEvent("controlphi:wallet-change", { detail: { infinityTokens: wallet.infinityTokens, source: "infinity-phi" } }));
   } catch {}
 }
+
+function canonicalWebsiteUrl(id: string, query: string) {
+  const params = new URLSearchParams({
+    id,
+    query,
+    mode: "preview",
+  });
+  return `${appPath("studio/build")}?${params.toString()}`;
+}
+function publishCanonicalToken(token: Record<string, any>) {
+  try {
+    const existing = secureLoad<Record<string, any>[]>(LEDGER, []);
+    const next = [
+      token,
+      ...existing.filter((item) => String(item?.id || "") !== String(token.id)),
+    ];
+    // Match the Quanta path: write the canonical local record immediately,
+    // then mirror it to IndexedDB without delaying navigation.
+    secureSave(LEDGER, next);
+    void secureSaveDurable(LEDGER, next);
+    window.dispatchEvent(new Event("infinity-history-updated"));
+    window.dispatchEvent(new Event("infinity-wallet-updated"));
+    window.dispatchEvent(
+      new CustomEvent("infinity:token-ledger-updated", {
+        detail: { count: next.length, tokenId: token.id },
+      }),
+    );
+    return token;
+  } catch {
+    return token;
+  }
+}
+function canonicalPhiToken(token: PhiSearchToken, payload?: Record<string, any>) {
+  const websiteUrl = canonicalWebsiteUrl(token.id, token.query);
+  return {
+    id: token.id,
+    researchId: token.id,
+    stage: payload ? "research" : "search",
+    kind: "research",
+    color: "yellow",
+    status: "finished",
+    value: 1,
+    units: 1,
+    title: token.query,
+    query: token.query,
+    resolved: token.query,
+    source: "infinity-phi",
+    sourceSystem: "INFINITY_PHI",
+    createdAt: token.createdAt,
+    updatedAt: token.updatedAt,
+    websiteUrl,
+    payload:
+      payload ||
+      {
+        title: token.query,
+        dek: "Infinity Phi search token",
+        overview: `Infinity Phi is building the research package for ${token.query}.`,
+        sources: [],
+      },
+  };
+}
+function prebuildCanonicalWebsite(id: string, query: string) {
+  if (typeof document === "undefined" || !document.body) return;
+  const frame = document.createElement("iframe");
+  frame.src = canonicalWebsiteUrl(id, query);
+  frame.tabIndex = -1;
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText =
+    "position:fixed;width:1px;height:1px;right:-8px;bottom:-8px;opacity:0;pointer-events:none;border:0";
+  document.body.appendChild(frame);
+  window.setTimeout(() => frame.remove(), 18000);
+}
+export function syncPhiSearchTokenResearch(
+  tokenId: string,
+  query: string,
+  research: {
+    title?: string;
+    resolved?: string;
+    overview?: string;
+    sources?: Array<{
+      title?: string;
+      url?: string;
+      excerpt?: string;
+      provider?: string;
+    }>;
+  },
+) {
+  const tokens = read(),
+    found = tokens.find((value) => value.id === tokenId),
+    now = new Date().toISOString(),
+    token: PhiSearchToken =
+      found ||
+      {
+        id: tokenId,
+        label: tokenLabel(query),
+        query,
+        createdAt: now,
+        updatedAt: now,
+        items: [],
+      },
+    payload = {
+      title: clean(research.title || query, 500),
+      dek: clean(research.resolved || query, 1000),
+      overview: clean(research.overview, 6000),
+      findings: (research.sources || [])
+        .map((source) => clean(source.excerpt, 1800))
+        .filter(Boolean)
+        .slice(0, 24),
+      sources: (research.sources || []).slice(0, 40).map((source) => ({
+        title: clean(source.title, 500),
+        url: clean(source.url, 1800),
+        excerpt: clean(source.excerpt, 2400),
+        provider: clean(source.provider, 200),
+      })),
+    };
+  publishCanonicalToken({
+    ...canonicalPhiToken({ ...token, updatedAt: now }, payload),
+    sourceCount: payload.sources.length,
+  });
+  prebuildCanonicalWebsite(token.id, token.query);
+}
+
 const tokenLabel = (query: string) =>
   `Infinity token · ${clean(query, 72) || "Untitled search"}`;
 const itemKey = (item: any) => {
@@ -134,7 +260,7 @@ function read(): PhiSearchToken[] {
 }
 function write(tokens: PhiSearchToken[]) {
   try {
-    localStorage.setItem(TOKENS, JSON.stringify(tokens.slice(0, 60)));
+    localStorage.setItem(TOKENS, JSON.stringify(tokens.slice(0, 5000)));
   } catch {}
 }
 function activate(token: PhiSearchToken) {
@@ -159,6 +285,8 @@ export function beginPhiSearchToken(query: string) {
       items: [],
     };
   write([token, ...tokens]);
+  publishCanonicalToken(canonicalPhiToken(token));
+  prebuildCanonicalWebsite(token.id, token.query);
   creditInfinitySearch(token);
   void creditAuthoritativeInfinitySearch(token);
   return activate(token);
