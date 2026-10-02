@@ -55,7 +55,7 @@
   function loadControlPhi() {
     if (window.ControlPhi || document.querySelector('script[data-infinity-phi-control]')) return;
     const script = document.createElement('script');
-    script.src = 'https://www-infinity4.github.io/Control-Phi/control-phi.js?v=20260916-walletmenu4';
+    script.src = 'https://www-infinity4.github.io/Control-Phi/control-phi.js?v=20261002-tokenhistory2';
     script.dataset.infinityPhiControl = '1';
     script.addEventListener('load', () => { try { window.ControlPhi?.refreshWallet?.(); } catch {} render(); });
     document.body.appendChild(script);
