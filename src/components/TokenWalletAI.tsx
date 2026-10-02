@@ -157,7 +157,7 @@ export default function TokenWalletAI() {
           <a href={appPath("phi")} className="rounded-full border border-white/15 px-4 py-2 text-sm font-bold">Infinity Phi</a>
           <a href="https://www-infinity4.github.io/Omni-Phi/" className="rounded-full border border-white/15 px-4 py-2 text-sm font-bold">Omni Phi</a>
           <a href="https://www-infinity4.github.io/News-Phi/" className="rounded-full border border-white/15 px-4 py-2 text-sm font-bold">News Phi</a>
-          <a href={appPath("wallet")} className="flex items-center gap-2 rounded-full border border-[#f0bd55]/35 px-4 py-2 text-sm font-bold text-[#f0bd55]">Infinity + Star Coin wallets <ExternalLink size={14} /></a>
+          <a href="#token-wallet" className="flex items-center gap-2 rounded-full border border-[#f0bd55]/35 px-4 py-2 text-sm font-bold text-[#f0bd55]">Open token history <ExternalLink size={14} /></a>
         </nav>
       </div>
     </section>
