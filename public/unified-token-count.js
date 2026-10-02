@@ -36,7 +36,10 @@ function addId(set,id,exclude){
   set.add(id);
 }
 function synthetic(prefix,item){
-  return prefix+'-'+hash(JSON.stringify([item?.query||item?.title||'',item?.createdAt||item?.created_at||item?.at||'']));
+  const query=item?.query||item?.title||'',created=item?.createdAt||item?.created_at||item?.at||'';
+  if(prefix==='omni')return 'omni-history-'+hash(JSON.stringify(['omni',query,created]));
+  if(prefix==='quant')return 'quant-history-'+hash(JSON.stringify(['quanta',query,created]));
+  return prefix+'-'+hash(JSON.stringify([query,created]));
 }
 function knownIds(exclude=''){
   const ids=new Set();
@@ -46,7 +49,7 @@ function knownIds(exclude=''){
   const quanta=json(QUANTA_KEY,[]); if(Array.isArray(quanta)) for(const item of quanta) addId(ids,item?.token_id||item?.tokenId||item?.id||synthetic('quant',item),exclude);
   const unified=json(UNIFIED_KEY,{});
   const searches=Array.isArray(unified?.searches)?unified.searches:[];
-  for(const item of searches) addId(ids,item?.tokenId||item?.id||synthetic('unified-search',item),exclude);
+  for(const item of searches) addId(ids,item?.tokenId||item?.id,exclude);
   if(unified?.tokens&&typeof unified.tokens==='object'){
     for(const [key,value] of Object.entries(unified.tokens)){
       const type=String(value?.token_type||value?.type||value?.kind||'').toLowerCase();
@@ -60,7 +63,7 @@ function knownIds(exclude=''){
   for(const wallet of [signed,guest]){
     if(!wallet)continue;
     for(const item of Array.isArray(wallet.infinityLedger)?wallet.infinityLedger:[]) addId(ids,item?.tokenId||item?.id,exclude);
-    for(const item of Array.isArray(wallet.infinitySearches)?wallet.infinitySearches:[]) addId(ids,item?.tokenId||item?.id||synthetic('wallet-search',item),exclude);
+    for(const item of Array.isArray(wallet.infinitySearches)?wallet.infinitySearches:[]) addId(ids,item?.tokenId||item?.id,exclude);
   }
   return ids;
 }
