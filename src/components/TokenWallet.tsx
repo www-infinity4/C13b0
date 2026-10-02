@@ -445,7 +445,7 @@ export default function TokenWallet() {
   },[tokens,tokenCount]);
 
   return (
-    <main className="min-h-screen bg-[#061a30] px-4 py-5 text-white sm:px-7">
+    <main id="token-wallet" className="min-h-screen bg-[#061a30] px-4 py-5 text-white sm:px-7">
       <div className="mx-auto max-w-7xl">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-5">
           <a href={appPath("phi")} className="flex items-center gap-2 text-white/65">
