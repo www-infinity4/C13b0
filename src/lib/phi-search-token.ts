@@ -19,6 +19,40 @@ const readJson = (key: string, fallback: any) => {
   try { return JSON.parse(localStorage.getItem(key) || "null") || fallback; }
   catch { return fallback; }
 };
+let authoritativeWalletPromise: Promise<any> | null = null;
+function authoritativeWallet() {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  const existing = (window as any).InfinityUnifiedWallet;
+  if (existing) return Promise.resolve(new existing({ appName: "Infinity Phi" }));
+  if (authoritativeWalletPromise) return authoritativeWalletPromise;
+  authoritativeWalletPromise = new Promise((resolve) => {
+    const script = document.createElement("script");
+    script.src = "https://unified-wallet.marvaseater.workers.dev/unified-wallet.js";
+    script.async = true;
+    script.onload = () => {
+      const Wallet = (window as any).InfinityUnifiedWallet;
+      resolve(Wallet ? new Wallet({ appName: "Infinity Phi" }) : null);
+    };
+    script.onerror = () => resolve(null);
+    document.head.appendChild(script);
+  });
+  return authoritativeWalletPromise;
+}
+async function creditAuthoritativeInfinitySearch(token: PhiSearchToken) {
+  try {
+    const wallet = await authoritativeWallet();
+    if (!wallet) return;
+    await wallet.mintToken("INFINITY_SEARCH", {
+      query: token.query,
+      search_id: token.id,
+      legacy_token_id: token.id,
+      source: "INFINITY_PHI",
+      created_at: token.createdAt,
+    }, "infinity-search:" + token.id);
+  } catch (error) {
+    console.warn("Authoritative Infinity search credit deferred", error);
+  }
+}
 function creditInfinitySearch(token: PhiSearchToken) {
   try {
     const session = readJson("starquest_session", null),
@@ -126,6 +160,7 @@ export function beginPhiSearchToken(query: string) {
     };
   write([token, ...tokens]);
   creditInfinitySearch(token);
+  void creditAuthoritativeInfinitySearch(token);
   return activate(token);
 }
 export function resolvePhiSearchToken(query: string, requestedId = "") {
