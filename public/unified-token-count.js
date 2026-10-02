@@ -1,6 +1,6 @@
 (function(global){
 'use strict';
-const STATE_KEY='infinity_unified_token_count_v2';
+const STATE_KEY='infinity_unified_token_count_v3';
 const LEDGER_KEY='c13b0_infinity_token_ledger_v3';
 const PHI_KEY='infinityPhi:searchTokens:v1';
 const OMNI_KEY='omniPhi:history:v1';
@@ -84,7 +84,7 @@ function numericFloor(){
 function readState(){
   const state=json(STATE_KEY,{});
   return{
-    version:2,
+    version:3,
     value:Math.max(0,Number(state?.value)||0),
     countedTokenIds:Array.isArray(state?.countedTokenIds)?state.countedTokenIds.map(String):[],
     updatedAt:String(state?.updatedAt||'')
@@ -95,7 +95,7 @@ function writeState(state){
   const previous=readState();
   const same=previous.value===Math.max(0,Math.trunc(Number(state.value)||0))&&previous.countedTokenIds.length===ids.length&&previous.countedTokenIds.every((id,index)=>id===ids[index]);
   if(same)return previous;
-  const out={version:2,value:Math.max(0,Math.trunc(Number(state.value)||0)),countedTokenIds:ids,updatedAt:new Date().toISOString()};
+  const out={version:3,value:Math.max(0,Math.trunc(Number(state.value)||0)),countedTokenIds:ids,updatedAt:new Date().toISOString()};
   try{localStorage.setItem(STATE_KEY,JSON.stringify(out))}catch{}
   global.dispatchEvent(new CustomEvent('infinity:token-count-updated',{detail:out}));
   return out;
