@@ -119,5 +119,6 @@ function register(tokenId){
 }
 function value(){return reconcile().value}
 global.InfinityTokenCount={KEY:STATE_KEY,reconcile,register,value,state:readState,knownIds:()=>[...knownIds()]};
-try{reconcile()}catch{}
+const boot=()=>{try{reconcile()}catch{}};
+try{if(typeof global.requestIdleCallback==='function')global.requestIdleCallback(boot,{timeout:1200});else global.setTimeout(boot,32)}catch{global.setTimeout(boot,32)}
 })(window);
