@@ -461,6 +461,21 @@ async function persistAfterRender(paper: Paper, nextHistory: HistoryItem[]) {
       createdAt: new Date(paper.created).toISOString(),
     };
     await secureSaveDurable(LEDGER, [token, ...existing.filter((item: any) => item.id !== paper.id)]);
+    try {
+      const CloudWallet = (window as any).InfinityCloudWallet || (window as any).InfinityUnifiedWallet;
+      if (typeof CloudWallet === "function") {
+        const cloudWallet = new CloudWallet({ appName: "Infinity Phi" });
+        const result = await cloudWallet.mintToken(
+          "INFINITY_SEARCH",
+          { query: paper.query, search_id: paper.id, source: "INFINITY_PHI", created_at: new Date(paper.created).toISOString() },
+          "infinity-phi-search:" + paper.id,
+        );
+        (window as any).InfinityTokenCount?.reconcile?.(Number(result?.balance) || 0);
+        window.dispatchEvent(new CustomEvent("infinity:wallet-state", { detail: await cloudWallet.refresh() }));
+      }
+    } catch (error) {
+      console.warn("Infinity Phi authoritative wallet credit deferred", error);
+    }
     window.dispatchEvent(new Event("infinity-history-updated"));
     window.dispatchEvent(new Event("infinity-wallet-updated"));
     const frame = document.createElement("iframe");
