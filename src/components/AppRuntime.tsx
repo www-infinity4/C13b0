@@ -177,12 +177,10 @@ export async function bridgeInfinityState() {
         sourceSystem: "INFINITY_PHI",
       }));
     tokens = uniqueTokens([...migrated, ...tokens]);
-    await secureSaveDurable(LEDGER, tokens);
   }
   const importedLegacy = legacySearchTokens();
   if (importedLegacy.length) {
     tokens = uniqueTokens([...tokens, ...importedLegacy]);
-    await secureSaveDurable(LEDGER, tokens);
   }
   if (handoff?.token?.id) {
     const token = handoff.token,
@@ -204,9 +202,17 @@ export async function bridgeInfinityState() {
         status: "DRAFT",
         updatedAt: new Date().toISOString(),
       };
-    drafts = [draft, ...drafts.filter((item) => item?.id !== draft.id)];
-    await secureSaveDurable(DRAFTS, drafts);
+    const previousDraft = drafts.find((item) => item?.id === draft.id);
+    if (!previousDraft || previousDraft.researchFingerprint !== fp ||
+        previousDraft.title !== title || previousDraft.stage !== draft.stage) {
+      drafts = [draft, ...drafts.filter((item) => item?.id !== draft.id)];
+      await secureSaveDurable(DRAFTS, drafts);
+    }
     tokens = uniqueTokens([...(handoff.chain || []), token, ...tokens]);
+  }
+  // Storage events reach every other tab on this origin. Rewriting an
+  // unchanged ledger makes two open Infinity pages repeatedly wake each other.
+  if (JSON.stringify(tokens) !== JSON.stringify(savedTokens)) {
     await secureSaveDurable(LEDGER, tokens);
   }
   // Keep one active identity across C13b0, StarQuest and Mint. This also
@@ -224,16 +230,33 @@ export async function bridgeInfinityState() {
 }
 export default function AppRuntime() {
   useEffect(() => {
-    void bridgeInfinityState();
+    let running = false;
+    let queued = false;
+    let disposed = false;
+    const direct = async () => {
+      if (disposed) return;
+      if (running) { queued = true; return; }
+      running = true;
+      try {
+        do {
+          queued = false;
+          await bridgeInfinityState();
+        } while (queued && !disposed);
+      } catch (error) {
+        console.warn("Infinity history sync deferred", error);
+      } finally {
+        running = false;
+      }
+    };
+    void direct();
     const sync = (event: StorageEvent) => {
       if (
         [HANDOFF, DRAFTS, LEDGER, WALLET, "infinity_unified_wallet_v1"].includes(
           event.key || "",
         )
       )
-        void bridgeInfinityState();
+        void direct();
     };
-    const direct = () => void bridgeInfinityState();
     window.addEventListener("storage", sync);
     window.addEventListener("infinity-handoff-ready", direct);
     const isNative =
@@ -247,6 +270,7 @@ export default function AppRuntime() {
       history.replaceState(history.state, "", currentUrl.href);
     }
     return () => {
+      disposed = true;
       window.removeEventListener("storage", sync);
       window.removeEventListener("infinity-handoff-ready", direct);
     };
