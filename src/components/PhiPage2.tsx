@@ -927,13 +927,22 @@ export default function PhiPage2() {
       const result = await searchAllSources(q);
       if (id !== requestRef.current) return;
       const nextRecord = buildRecord(q, result.resolved, result.sources);
-      if (selected.length)
-        nextRecord.overview = await writeCollectedOverviewWithGpt(
-          q,
-          selected,
-          productOverview(q, nextRecord.overview, selected),
-        );
+      // Render evidence while synthesis runs, including searches with no collects.
       setRecord(nextRecord);
+      const overviewEvidence = selected.length ? selected : nextRecord.sources.slice(0, 12).map(source => ({
+        title: source.title,
+        extract: source.excerpt,
+        url: source.url,
+        provider: source.provider,
+        kind: "source-card",
+      }));
+      nextRecord.overview = await writeCollectedOverviewWithGpt(
+        q,
+        overviewEvidence,
+        productOverview(q, nextRecord.overview, selected),
+      );
+      if (id !== requestRef.current) return;
+      setRecord({ ...nextRecord });
       setBusy(false);
       if (!nextRecord.sources.length)
         setNotice(
