@@ -246,36 +246,6 @@ export default function AppRuntime() {
       currentUrl.searchParams.delete("cache-repair");
       history.replaceState(history.state, "", currentUrl.href);
     }
-    if (!isNative) {
-      // The web build is no longer an installable/offline PWA. Remove any
-      // previously installed C13b0 worker and every old Infinity shell cache.
-      if ("serviceWorker" in navigator) {
-        void navigator.serviceWorker
-          .getRegistrations()
-          .then((registrations) =>
-            Promise.all(
-              registrations
-                .filter((registration) =>
-                  new URL(registration.scope).pathname.startsWith("/C13b0/"),
-                )
-                .map((registration) => registration.unregister()),
-            ),
-          )
-          .catch(() => undefined);
-      }
-      if ("caches" in window) {
-        void caches
-          .keys()
-          .then((keys) =>
-            Promise.all(
-              keys
-                .filter((key) => key.startsWith("infinity-shell-"))
-                .map((key) => caches.delete(key)),
-            ),
-          )
-          .catch(() => undefined);
-      }
-    }
     return () => {
       window.removeEventListener("storage", sync);
       window.removeEventListener("infinity-handoff-ready", direct);

@@ -1,12 +1,2 @@
-"use client";
-
-import { useEffect } from "react";
-import { appPath } from "@/lib/base-path";
-
-export default function SparkRedirect() {
-  useEffect(() => {
-    location.replace(`${appPath("")}${location.search}`);
-  }, []);
-
-  return <main className="phi-build-loading">Opening Infinity Phi…</main>;
-}
+// Old app bookmarks render the live search directly, without a splash or second load.
+export { default } from "@/components/InfinityImageRouteGuard";
