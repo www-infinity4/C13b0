@@ -30,3 +30,7 @@
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",check,{once:true});
   else check();
 })(window);
+
+(function(){if(document.querySelector("script[data-phi-quant-sync]"))return;const s=document.createElement("script");s.src="https://www-infinity4.github.io/C13b0/phi-quant-sync.js?v=20261003-pair1";s.dataset.phiQuantSync="1";document.head.appendChild(s)})();
+
+(function(){const s=document.createElement("script");s.src="https://www-infinity4.github.io/C13b0/cloud-wallet-client.js?v=20261003-pair1";s.onload=()=>{const w=document.createElement("script");w.src="https://www-infinity4.github.io/C13b0/wallet-runtime.js?v=20261003-pair1";w.dataset.controlPhiWalletOnly="true";document.head.appendChild(w)};document.head.appendChild(s)})();

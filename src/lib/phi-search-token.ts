@@ -290,6 +290,7 @@ export function beginPhiSearchToken(query: string) {
   publishCanonicalToken(canonicalPhiToken(token));
   prebuildCanonicalWebsite(token.id, token.query);
   creditInfinitySearch(token);
+  window.dispatchEvent(new CustomEvent("phi:quant-counterpart", { detail: { token_id: token.id, query: token.query, source: "INFINITY_PHI" } }));
   void creditAuthoritativeInfinitySearch(token);
   return activate(token);
 }
