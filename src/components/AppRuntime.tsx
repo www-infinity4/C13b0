@@ -62,6 +62,7 @@ type PhiPaper = {
 declare global {
   interface Window {
     Capacitor?: { isNativePlatform?: () => boolean };
+    InfinityTokenCount?: { reconcile?: (extraFloor?: number) => unknown };
   }
 }
 function uniqueTokens(tokens: Token[]) {
@@ -227,15 +228,26 @@ export async function bridgeInfinityState() {
   if (JSON.stringify(priorComparable) !== JSON.stringify(nextComparable)) {
     await secureSaveDurable(STATE, nextState);
   }
-  (window as any).InfinityTokenCount?.reconcile?.(tokens.length);
+  window.InfinityTokenCount?.reconcile?.(tokens.length);
   window.dispatchEvent(new Event("infinity-state-bridged"));
   window.dispatchEvent(new Event("infinity-history-updated"));
 }
 export default function AppRuntime() {
   useEffect(() => {
+    type IdleWindow = Window & {
+      requestIdleCallback?: (
+        callback: () => void,
+        options?: { timeout: number },
+      ) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
     let running = false;
     let queued = false;
     let disposed = false;
+    let scheduled = false;
+    let timer = 0;
+    let idleId = 0;
+    let schedule = () => {};
     const direct = async () => {
       if (disposed) return;
       if (running) { queued = true; return; }
@@ -249,19 +261,38 @@ export default function AppRuntime() {
         console.warn("Infinity history sync deferred", error);
       } finally {
         running = false;
+        if (queued) { queued = false; schedule(); }
       }
     };
-    void direct();
+    schedule = () => {
+      if (disposed) return;
+      if (running) { queued = true; return; }
+      if (scheduled) return;
+      scheduled = true;
+      const run = () => {
+        scheduled = false;
+        timer = 0;
+        idleId = 0;
+        void direct();
+      };
+      const idleWindow = window as IdleWindow;
+      if (idleWindow.requestIdleCallback) {
+        idleId = idleWindow.requestIdleCallback(run, { timeout: 1200 });
+      } else {
+        timer = window.setTimeout(run, 250);
+      }
+    };
+    schedule();
     const sync = (event: StorageEvent) => {
       if (
         [HANDOFF, DRAFTS, LEDGER, WALLET].includes(
           event.key || "",
         )
       )
-        void direct();
+        schedule();
     };
     window.addEventListener("storage", sync);
-    window.addEventListener("infinity-handoff-ready", direct);
+    window.addEventListener("infinity-handoff-ready", schedule);
     const isNative =
       typeof window.Capacitor?.isNativePlatform === "function"
         ? window.Capacitor.isNativePlatform()
@@ -274,8 +305,10 @@ export default function AppRuntime() {
     }
     return () => {
       disposed = true;
+      if (timer) window.clearTimeout(timer);
+      if (idleId) (window as IdleWindow).cancelIdleCallback?.(idleId);
       window.removeEventListener("storage", sync);
-      window.removeEventListener("infinity-handoff-ready", direct);
+      window.removeEventListener("infinity-handoff-ready", schedule);
     };
   }, []);
   return null;
