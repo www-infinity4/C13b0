@@ -1090,7 +1090,6 @@ export default function PhiPage2() {
             type="search"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onPointerDown={(e) => { if (document.activeElement !== e.currentTarget) e.currentTarget.focus({ preventScroll: true }); }}
             inputMode="search"
             enterKeyHint="search"
             autoComplete="off"
