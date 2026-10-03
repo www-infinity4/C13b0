@@ -89,6 +89,7 @@ async function gateway(
   verifiedContext: Record<string, unknown>,
 ) {
   const response = await fetch(ENDPOINT, {
+    signal: AbortSignal.timeout(12000),
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
