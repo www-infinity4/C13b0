@@ -233,6 +233,13 @@ export async function bridgeInfinityState() {
 }
 export default function AppRuntime() {
   useEffect(() => {
+    type IdleWindow = Window & {
+      requestIdleCallback?: (
+        callback: () => void,
+        options?: { timeout: number },
+      ) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
     let running = false;
     let queued = false;
     let disposed = false;
@@ -267,9 +274,9 @@ export default function AppRuntime() {
         idleId = 0;
         void direct();
       };
-      const requestIdle = (window as any).requestIdleCallback;
-      if (typeof requestIdle === "function") {
-        idleId = requestIdle(run, { timeout: 1200 });
+      const idleWindow = window as IdleWindow;
+      if (idleWindow.requestIdleCallback) {
+        idleId = idleWindow.requestIdleCallback(run, { timeout: 1200 });
       } else {
         timer = window.setTimeout(run, 250);
       }
@@ -298,7 +305,7 @@ export default function AppRuntime() {
     return () => {
       disposed = true;
       if (timer) window.clearTimeout(timer);
-      if (idleId) (window as any).cancelIdleCallback?.(idleId);
+      if (idleId) (window as IdleWindow).cancelIdleCallback?.(idleId);
       window.removeEventListener("storage", sync);
       window.removeEventListener("infinity-handoff-ready", schedule);
     };
