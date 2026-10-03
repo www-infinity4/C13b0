@@ -62,6 +62,7 @@ type PhiPaper = {
 declare global {
   interface Window {
     Capacitor?: { isNativePlatform?: () => boolean };
+    InfinityTokenCount?: { reconcile?: (extraFloor?: number) => unknown };
   }
 }
 function uniqueTokens(tokens: Token[]) {
@@ -227,7 +228,7 @@ export async function bridgeInfinityState() {
   if (JSON.stringify(priorComparable) !== JSON.stringify(nextComparable)) {
     await secureSaveDurable(STATE, nextState);
   }
-  (window as any).InfinityTokenCount?.reconcile?.(tokens.length);
+  window.InfinityTokenCount?.reconcile?.(tokens.length);
   window.dispatchEvent(new Event("infinity-state-bridged"));
   window.dispatchEvent(new Event("infinity-history-updated"));
 }
