@@ -218,12 +218,15 @@ export async function bridgeInfinityState() {
   // Keep one active identity across C13b0, StarQuest and Mint. This also
   // promotes older C13b0-only wallets into the shared wallet store.
   wallet = connectOrCreateWallet();
-  await secureSaveDurable(STATE, {
-    wallet,
-    tokens,
-    drafts,
-    updatedAt: new Date().toISOString(),
-  } satisfies UnifiedState);
+  // STATE is a derived snapshot. Do not rewrite it on every startup: a changing
+  // updatedAt caused normal-profile storage churn even when nothing changed.
+  const nextState = { wallet, tokens, drafts, updatedAt: new Date().toISOString() } satisfies UnifiedState;
+  const priorState = await secureLoadDurable<UnifiedState | null>(STATE, null);
+  const priorComparable = priorState ? { wallet: priorState.wallet, tokens: priorState.tokens, drafts: priorState.drafts } : null;
+  const nextComparable = { wallet: nextState.wallet, tokens: nextState.tokens, drafts: nextState.drafts };
+  if (JSON.stringify(priorComparable) !== JSON.stringify(nextComparable)) {
+    await secureSaveDurable(STATE, nextState);
+  }
   (window as any).InfinityTokenCount?.reconcile?.(tokens.length);
   window.dispatchEvent(new Event("infinity-state-bridged"));
   window.dispatchEvent(new Event("infinity-history-updated"));
@@ -251,7 +254,7 @@ export default function AppRuntime() {
     void direct();
     const sync = (event: StorageEvent) => {
       if (
-        [HANDOFF, DRAFTS, LEDGER, WALLET, "infinity_unified_wallet_v1"].includes(
+        [HANDOFF, DRAFTS, LEDGER, WALLET].includes(
           event.key || "",
         )
       )
