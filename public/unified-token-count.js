@@ -54,6 +54,7 @@ function knownIds(exclude=''){
     for(const [key,value] of Object.entries(unified.tokens)){
       const type=String(value?.token_type||value?.type||value?.kind||'').toLowerCase();
       const source=String(value?.sourceSystem||value?.source||'').toLowerCase();
+      if(/music|listening|alien|quant_data/.test(type)||source.includes('radio'))continue;
       if(type.includes('search')||source.includes('quanta')||source.includes('omni')||source.includes('infinity')){
         addId(ids,value?.tokenId||value?.id||key,exclude);
       }
@@ -74,7 +75,7 @@ function numericFloor(){
   if(Array.isArray(omni))values.push(omni.length);
   if(Array.isArray(quanta))values.push(quanta.length);
   const unified=json(UNIFIED_KEY,{});
-  values.push(Number(unified?.infinityTokens)||0,Number(unified?.balance)||0);
+  values.push(Number(unified?.infinityTokens)||0);
   const wid=unified?.currentWalletId||unified?.walletId,active=wid&&unified?.wallets?.[wid];
   values.push(Number(active?.balances?.INFINITY)||0,Number(active?.balances?.infinityTokens)||0);
   const session=json(SESSION_KEY,null),users=json(USERS_KEY,{}),signed=session?.key&&users?.[session.key],guest=json(GUEST_KEY,{});

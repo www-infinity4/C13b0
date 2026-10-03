@@ -53,6 +53,7 @@ async function creditAuthoritativeInfinitySearch(token: PhiSearchToken) {
       source: "INFINITY_PHI",
       created_at: token.createdAt,
     }, "infinity-search:" + token.id);
+    (window as any).PhiAssetBalances?.confirm("INFINITY",token.id,result?.balance);
     (window as any).InfinityTokenCount?.reconcile?.(Number(result?.balance) || 0);
   } catch (error) {
     console.warn("Authoritative Infinity search credit deferred", error);
@@ -285,6 +286,8 @@ export function beginPhiSearchToken(query: string) {
       updatedAt: now,
       items: [],
     };
+  (window as any).PhiAssetBalances?.seed("INFINITY",(window as any).InfinityTokenCount?.value?.()||0);
+  (window as any).PhiAssetBalances?.mint("INFINITY",token.id);
   (window as any).InfinityTokenCount?.register?.(token.id);
   write([token, ...tokens]);
   publishCanonicalToken(canonicalPhiToken(token));

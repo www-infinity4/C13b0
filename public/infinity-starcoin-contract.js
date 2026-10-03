@@ -33,4 +33,4 @@
 
 (function(){if(document.querySelector("script[data-phi-quant-sync]"))return;const s=document.createElement("script");s.src="https://www-infinity4.github.io/C13b0/phi-quant-sync.js?v=20261003-pair1";s.dataset.phiQuantSync="1";document.head.appendChild(s)})();
 
-(function(){const s=document.createElement("script");s.src="https://www-infinity4.github.io/C13b0/cloud-wallet-client.js?v=20261003-pair1";s.onload=()=>{const w=document.createElement("script");w.src="https://www-infinity4.github.io/C13b0/wallet-runtime.js?v=20261003-pair1";w.dataset.controlPhiWalletOnly="true";document.head.appendChild(w)};document.head.appendChild(s)})();
+(function(){const files=['asset-balances.js','cloud-wallet-client.js','music-quant-store.js','music-quant-cloud.js','wallet-runtime.js'];function load(i){if(i>=files.length)return;const s=document.createElement('script');s.src='https://www-infinity4.github.io/C13b0/'+files[i]+'?v=20261003-assets1';if(files[i]==='wallet-runtime.js')s.dataset.controlPhiWalletOnly='true';s.onload=()=>load(i+1);s.onerror=()=>load(i+1);document.head.appendChild(s)}load(0)})();

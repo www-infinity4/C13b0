@@ -331,7 +331,7 @@ function sourceKind(token: TokenRecord) {
 }
 function sourceLabel(token: TokenRecord) {
   const source = sourceKind(token);
-  if (source === "quanta") return "QuantaPhi · Quant";
+  if (source === "quanta") return "Infinity token · from QuantaPhi";
   if (source === "omni") return "Omni Phi";
   if (source === "infinity") return "Infinity Phi";
   return "Legacy token";
@@ -541,7 +541,7 @@ export default function TokenWallet() {
             <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-[#168b4c]"><Wallet /></div>
             <div>
               <h1 className="font-serif text-4xl font-black tracking-tight">Token wallet</h1>
-              <p className="mt-2 max-w-3xl leading-7 text-white/60">Every token remains tied to its original ID and source. Your changes are saved as amendments, so editing never erases the token’s history.</p><div className="mt-4 flex flex-wrap gap-2 text-xs font-black"><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.total} total</span><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.infinity} Infinity</span><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.omni} Omni</span><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.quanta} Quants</span>{sourceCounts.legacy > 0 && <span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.legacy} legacy / metadata pending</span>}</div>
+              <p className="mt-2 max-w-3xl leading-7 text-white/60">Every token remains tied to its original ID and source. Your changes are saved as amendments, so editing never erases the token’s history.</p><div className="mt-4 flex flex-wrap gap-2 text-xs font-black"><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.total} Infinity website tokens</span><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.infinity} from Infinity Phi</span><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.omni} from Omni Phi</span><span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.quanta} from QuantaPhi</span>{sourceCounts.legacy > 0 && <span className="rounded-full bg-white/10 px-3 py-2">{sourceCounts.legacy} legacy / metadata pending</span>}</div>
             </div>
           </div>
         </section>
