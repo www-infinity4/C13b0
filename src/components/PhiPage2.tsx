@@ -1103,6 +1103,7 @@ export default function PhiPage2() {
             {busy ? <Sparkles size={18} /> : "φ"}
           </button>
         </form>
+{query && <nav className="phi-family-links" aria-label="Phi family"><a href="https://www-infinity4.github.io/News-Phi/">News Phi</a><a href="https://www-infinity4.github.io/Web-Phi/">Web Phi</a><a href="https://www-infinity4.github.io/Omni-Phi/">Omni Phi</a><a href="https://www-infinity4.github.io/Alien-Radio/">Infinity Radio</a></nav>}
         {notice && (
           <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-semibold">
             {notice}

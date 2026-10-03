@@ -26,7 +26,7 @@ const readJson = (key: string, fallback: any) => {
 let authoritativeWalletPromise: Promise<any> | null = null;
 function authoritativeWallet() {
   if (typeof window === "undefined") return Promise.resolve(null);
-  const existing = (window as any).InfinityUnifiedWallet;
+  const existing = (window as any).InfinityCloudWallet || (window as any).InfinityUnifiedWallet;
   if (existing) return Promise.resolve(new existing({ appName: "Infinity Phi" }));
   if (authoritativeWalletPromise) return authoritativeWalletPromise;
   authoritativeWalletPromise = new Promise((resolve) => {
@@ -44,6 +44,9 @@ function authoritativeWallet() {
 }
 async function creditAuthoritativeInfinitySearch(token: PhiSearchToken) {
   try {
+    const pendingKey="infinityPhi:pendingCloudTokens:v1";
+    const pending=readJson(pendingKey,[]);
+    if(!pending.some((x:PhiSearchToken)=>x.id===token.id))localStorage.setItem(pendingKey,JSON.stringify([...pending,token]));
     const wallet = await authoritativeWallet();
     if (!wallet) return;
     const result = await wallet.mintToken("INFINITY_SEARCH", {
@@ -53,6 +56,7 @@ async function creditAuthoritativeInfinitySearch(token: PhiSearchToken) {
       source: "INFINITY_PHI",
       created_at: token.createdAt,
     }, "infinity-search:" + token.id);
+    localStorage.setItem(pendingKey,JSON.stringify(readJson(pendingKey,[]).filter((x:PhiSearchToken)=>x.id!==token.id)));
     (window as any).PhiAssetBalances?.confirm("INFINITY",token.id,result?.balance);
     (window as any).InfinityTokenCount?.reconcile?.(Number(result?.balance) || 0);
   } catch (error) {
@@ -394,4 +398,11 @@ export function replacePhiTokenKindItems(
 }
 export function phiTokenItems(tokenId: string) {
   return read().find((value) => value.id === tokenId)?.items || [];
+}
+
+if(typeof window!=="undefined"){
+  let retrying=false;
+  const retry=async()=>{if(retrying)return;retrying=true;try{for(const token of readJson("infinityPhi:pendingCloudTokens:v1",[]))await creditAuthoritativeInfinitySearch(token)}finally{retrying=false}};
+  for(const event of ["load","online","focus"])window.addEventListener(event,()=>void retry());
+  document.addEventListener("starquest:ledger-connected",()=>void retry());
 }

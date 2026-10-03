@@ -352,15 +352,16 @@
     document.querySelectorAll('[data-control-phi-wallet-omni]').forEach(el=>{const value=String(snapshot.omni);if(el.textContent!==value)el.textContent=value});
     document.querySelectorAll('[data-control-phi-wallet-legacy]').forEach(el=>{const value=String(snapshot.legacy);if(el.textContent!==value)el.textContent=value});
     document.querySelectorAll('[data-control-phi-wallet-infinity]').forEach(el=>{const value=String(snapshot.infinity);if(el.textContent!==value)el.textContent=value});
-    document.querySelectorAll('[data-control-phi-wallet-quanta-websites]').forEach(el=>el.textContent=String(snapshot.quantaWebsites));
-    document.querySelectorAll('[data-control-phi-wallet-piano]').forEach(el=>el.textContent=String(snapshot.pianoQuants));
-    document.querySelectorAll('[data-control-phi-wallet-listening]').forEach(el=>el.textContent=String(snapshot.listeningQuants));
+    document.querySelectorAll('[data-control-phi-wallet-quanta-websites]').forEach(el=>{const value=String(snapshot.quantaWebsites);if(el.textContent!==value)el.textContent=value});
+    document.querySelectorAll('[data-control-phi-wallet-piano]').forEach(el=>{const value=String(snapshot.pianoQuants);if(el.textContent!==value)el.textContent=value});
+    document.querySelectorAll('[data-control-phi-wallet-listening]').forEach(el=>{const value=String(snapshot.listeningQuants);if(el.textContent!==value)el.textContent=value});
     document.querySelectorAll('[data-control-phi-wallet-music-quants]').forEach(el=>{const value=String(snapshot.musicQuants);if(el.textContent!==value)el.textContent=value});
     document.querySelectorAll('[data-control-phi-wallet-alien-coins]').forEach(el=>{const value=String(snapshot.alienCoins);if(el.textContent!==value)el.textContent=value});
     const button=document.getElementById('controlPhiWalletButton');
-    if(button)button.innerHTML=`<span class="cp-wallet-button-label">Wallet</span><span aria-hidden="true">⭐</span><strong>${snapshot.balance}</strong><small>${snapshot.progressToNextCoin}/10</small>`;
+    const buttonMarkup=`<span class="cp-wallet-button-label">Wallet</span><span aria-hidden="true">⭐</span><strong>${snapshot.balance}</strong><small>${snapshot.progressToNextCoin}/10</small>`;
+    if(button && button.innerHTML!==buttonMarkup)button.innerHTML=buttonMarkup;
     const name=document.querySelector('[data-control-phi-wallet-name]');
-    if(name)name.textContent=snapshot.username;
+    if(name&&name.textContent!==snapshot.username)name.textContent=snapshot.username;
     return snapshot;
   }
 
@@ -377,12 +378,36 @@
     });
   }
 
+  const REWARD_QUEUE='phi:pendingStarCoinReceipts:v1';
+  let rewardSyncing=false;
+  async function queueStarReceipt(id,reference,method){
+    const bytes=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(id));
+    id="phi-reward:"+Array.from(new Uint8Array(bytes),x=>x.toString(16).padStart(2,"0")).join("");
+    const items=read(REWARD_QUEUE,[]);
+    if(!items.some(x=>x.attemptId===id))write(REWARD_QUEUE,[...items,{attemptId:id,contentId:reference,method}]);
+    void flushStarReceipts();
+  }
+  async function flushStarReceipts(){
+    if(rewardSyncing)return;
+    const Wallet=window.InfinityCloudWallet||window.InfinityUnifiedWallet;
+    if(!Wallet)return;
+    let token;try{token=new Wallet({appName:document.title}).token()}catch{return}
+    rewardSyncing=true;
+    try{for(const receipt of read(REWARD_QUEUE,[])){
+      const response=await fetch('https://starquest-ledger.marvaseater.workers.dev/v1/shares',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify(receipt),signal:AbortSignal.timeout(8000)});
+      if(!response.ok)break;
+      write(REWARD_QUEUE,read(REWARD_QUEUE,[]).filter(x=>x.attemptId!==receipt.attemptId));
+    }}catch(error){console.warn('Star Coin receipt saved for retry',error)}finally{rewardSyncing=false}
+  }
+  for(const event of ['load','online','focus'])window.addEventListener(event,flushStarReceipts);
+  document.addEventListener('starquest:ledger-connected',flushStarReceipts);
+
   function ensureActionCredit(reference='',kind='collect'){
     const store=walletStore();
     const wallet=normalizeWallet(store.profile);
     const ref=clean(reference||location.href,700);
     const eventKey=`action:${clean(kind,40)}:${ref}`;
-    const already=wallet.ledger.some(entry=>entry?.referenceId===eventKey);
+    const already=wallet.ledger.some(entry=>entry?.referenceId===eventKey||(entry?.type===`${kind}_credit`&&entry?.referenceId===ref));
     if(already){refreshWalletUI();return {...walletSnapshot(),awarded:0,alreadyRecorded:true}}
     const now=Date.now();
     wallet.pendingShareCredits+=1;
@@ -391,6 +416,7 @@
     wallet.ledger.push({id:`tx-action-${now.toString(36)}-${Math.random().toString(36).slice(2,8)}`,type:`${clean(kind,40)}_credit`,amount:awarded,balance:wallet.tokens,pendingShareCredits:wallet.pendingShareCredits,reason:`${kind} reward credit`,referenceId:eventKey,createdAt:now,source:'control-phi'});
     wallet.ledger=wallet.ledger.slice(-500);
     store.save(wallet);
+    queueStarReceipt(eventKey,ref,kind);
     const detail={progressToNextCoin:wallet.pendingShareCredits,awarded,balance:wallet.tokens,source:'control-phi',kind};
     window.dispatchEvent(new CustomEvent('controlphi:wallet-change',{detail}));
     refreshWalletUI();
@@ -415,6 +441,7 @@
     wallet.shareEvents=wallet.shareEvents.slice(-250);
     wallet.ledger=wallet.ledger.slice(-500);
     store.save(wallet);
+    queueStarReceipt(attemptId,clean(reference||location.href,500),method);
     const detail={progressToNextCoin:wallet.pendingShareCredits,awarded,balance:wallet.tokens,shareCount:wallet.shareCount,source:'control-phi-fallback'};
     window.dispatchEvent(new CustomEvent('starquest:share-progress',{detail}));
     window.dispatchEvent(new CustomEvent('controlphi:wallet-change',{detail}));
@@ -440,12 +467,13 @@
     }
     if(item.parentElement!==nav)nav.prepend(item);
     let cart=document.getElementById('controlPhiShopCartMenuButton');if(!cart){cart=document.createElement('button');cart.id='controlPhiShopCartMenuButton';cart.type='button';cart.innerHTML='<span aria-hidden="true">🛒</span><span class="cp-wallet-menu-name"><strong>Shopping Cart</strong><small>Collected advertisements</small></span><span class="cp-wallet-menu-value"><strong data-control-phi-cart-count>0</strong><small>saved ads</small></span>';cart.addEventListener('click',()=>location.assign('https://www-infinity4.github.io/Shop-Phi/?view=cart'))}if(cart.parentElement!==nav)item.insertAdjacentElement('afterend',cart);document.querySelectorAll('[data-control-phi-cart-count]').forEach(el=>el.textContent=String(shopCart().length));
+    cart.hidden=true;
     refreshWalletUI();
   }
 
   function watchWalletMenu(){
     if(window.__controlPhiWalletMenuObserver||!document.body)return;
-    const observer=new MutationObserver(()=>{if(!document.getElementById('controlPhiWalletMenuButton'))injectWalletIntoMenu()});
+    const observer=new MutationObserver(()=>{if(document.querySelector('details.channel-menu nav,details[data-channel-menu] nav,.qmenu,#controlPhiPanel .control-phi-links')&&!document.getElementById('controlPhiWalletMenuButton'))injectWalletIntoMenu()});
     observer.observe(document.body,{childList:true,subtree:true});
     window.__controlPhiWalletMenuObserver=observer;
   }

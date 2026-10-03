@@ -55,6 +55,8 @@ export function awardPhiStarCredit(
   reference: string,
 ): PhiStarReward {
   try {
+    const control=(window as any).ControlPhi;
+    if(control){const result=action==="collect"?control.ensureActionCredit(reference,"collect"):control.ensureShareCredit(reference,"phi_share");return {awarded:result.awarded||0,progressToNextCoin:result.progressToNextCoin||0}}
     const session = read("starquest_session", null),
       users = read("starquest_users", {}),
       signed = session?.key && users[session.key],

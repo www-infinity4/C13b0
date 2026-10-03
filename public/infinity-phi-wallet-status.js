@@ -123,13 +123,14 @@
   function render() {
     const state = snapshot();
     const badge = ensureBadge();
-    if (badge) badge.innerHTML = `<span aria-hidden="true">⭐</span><strong>${state.effective.toFixed(1)}</strong><small>${state.progress}/10</small>`;
+    const markup = `<span aria-hidden="true">⭐</span><strong>${state.effective.toFixed(1)}</strong><small>${state.progress}/10</small>`;
+    if (badge && badge.innerHTML !== markup) badge.innerHTML = markup;
     const menu = ensureMenuWallet();
     if (menu) {
       const balance = menu.querySelector('[data-phi-star-balance]');
       const progress = menu.querySelector('[data-phi-star-progress]');
-      if (balance) balance.textContent = `${state.effective.toFixed(1)} ⭐`;
-      if (progress) progress.textContent = `${state.progress}/10`;
+      if (balance && balance.textContent !== `${state.effective.toFixed(1)} ⭐`) balance.textContent = `${state.effective.toFixed(1)} ⭐`;
+      if (progress && progress.textContent !== `${state.progress}/10`) progress.textContent = `${state.progress}/10`;
     }
     return state;
   }
@@ -206,7 +207,7 @@
       if ([GUEST_KEY, SESSION_KEY, USERS_KEY].includes(event.key || '')) render();
     });
     const observer = new MutationObserver(() => {
-      if (!document.getElementById('infinityPhiWalletStatus') || !document.getElementById('infinityPhiStarCoinMenuButton')) render();
+      if (!document.getElementById('infinityPhiWalletStatus') || (findHamburgerNav() && !document.getElementById('infinityPhiStarCoinMenuButton'))) render();
     });
     if (document.body) observer.observe(document.body, { childList: true, subtree: true });
     window.setInterval(watchForMissedReceipt, 900);

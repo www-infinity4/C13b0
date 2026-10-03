@@ -1249,3 +1249,5 @@ body {
     gap: 0.5rem;
   }
 }
+
+.phi-family-links{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:14px auto;width:100%}.phi-family-links a{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:9px 14px;border:1px solid #cab9e5;border-radius:999px;background:#ede5f6;color:#512d80;font:800 13px/1.2 system-ui;text-decoration:none}.phi-family-links a:hover{background:#e1d1f0}.phi-family-links a:focus-visible{outline:3px solid #784bb0;outline-offset:3px}
