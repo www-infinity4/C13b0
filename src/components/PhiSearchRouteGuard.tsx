@@ -172,6 +172,7 @@ export default function PhiSearchRouteGuard() {
         <a
           href="https://quantaphi.org/mckee-coins/"
           aria-label="Open McKee Coins"
+          data-mckee-coins-link="true"
           style={{
             display: "grid",
             placeItems: "center",
