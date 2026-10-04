@@ -16,14 +16,17 @@ function decodeEnvelope(raw){
   try{
     const parsed=JSON.parse(raw);
     if(parsed&&typeof parsed==='object'&&typeof parsed.data==='string'){
-      const bin=atob(parsed.data),bytes=Uint8Array.from(bin,ch=>ch.charCodeAt(0));
+      const bin=atob(parsed.data),bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
       return JSON.parse(new TextDecoder().decode(bytes));
     }
     return parsed;
   }catch{return null}
 }
+let cachedLedgerRaw,cachedLedger=[];
 function ledger(){
-  try{const value=decodeEnvelope(localStorage.getItem(LEDGER_KEY));return Array.isArray(value)?value:[]}catch{return[]}
+  let raw;try{raw=localStorage.getItem(LEDGER_KEY)}catch{return cachedLedger}
+  if(raw===cachedLedgerRaw)return cachedLedger;
+  try{const value=decodeEnvelope(raw);cachedLedger=Array.isArray(value)?value:[];cachedLedgerRaw=raw;return cachedLedger}catch{return[]}
 }
 function hash(value){
   const s=String(value||'');let h=2166136261;

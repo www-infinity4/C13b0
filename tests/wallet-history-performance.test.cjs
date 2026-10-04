@@ -1,0 +1,14 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const file=fs.readFileSync(require('node:path').join(__dirname,'../public/wallet-runtime.js'),'utf8');
+const values=new Map();let decodes=0;const read=(k,f)=>{try{return JSON.parse(values.get(k))??f}catch{return f}};
+const records=Array.from({length:230},(_,i)=>({id:'phi-'+i,query:'Research '+i,sourceSystem:'INFINITY_PHI',payload:{overview:'Sample context '.repeat(300)}}));
+const wrap=x=>JSON.stringify({v:1,data:Buffer.from(JSON.stringify(x),'utf8').toString('base64')});values.set('c13b0_infinity_token_ledger_v3',wrap(records));
+const ctx={localStorage:{getItem:k=>values.get(k)||null},read,clean:x=>String(x||''),WALLET_SESSION_KEY:'starquest_session',WALLET_USERS_KEY:'starquest_users',WALLET_GUEST_KEY:'starquest_guest_profile_v1',atob:x=>{decodes++;return atob(x)},TextDecoder,Uint8Array};vm.createContext(ctx);
+const a=file.indexOf('  let cachedLedgerRaw'),b=file.indexOf('  let cloudBalances');vm.runInContext(file.slice(a,b)+'\nglobalThis.counts=canonicalSearchCounts;',ctx);
+const first=ctx.counts();assert.equal(first.total,230);assert.equal(first.infinity,230);for(let i=0;i<30;i++)assert.equal(ctx.counts().total,230);assert.equal(decodes,1,'unchanged research ledger should decode once');
+values.set('infinity_unified_token_count_v3',JSON.stringify({value:231}));assert.equal(ctx.counts().total,231);assert.equal(decodes,1,'counter changes should reuse decoded research');
+values.set('quantaPhiBuildHistoryV1',JSON.stringify([{token_id:'quant-new',query:'new search'}]));assert.equal(ctx.counts().quants,1);assert.equal(decodes,1);
+values.set('c13b0_infinity_token_ledger_v3',wrap([...records,{id:'omni-new',sourceSystem:'OMNI_PHI'}]));assert.equal(ctx.counts().omni,1);assert.equal(decodes,2,'changed ledger must invalidate cache');
+values.set('starquest_session',JSON.stringify({key:'kris'}));values.set('starquest_users',JSON.stringify({kris:{infinitySearches:[{tokenId:'phi-extra',source:'infinity-phi'}]}}));assert.equal(ctx.counts().infinity,231);
+const counter=fs.readFileSync(require('node:path').join(__dirname,'../public/unified-token-count.js'),'utf8');const w={setTimeout:()=>{},dispatchEvent:()=>{},localStorage:ctx.localStorage};const counterContext={window:w,localStorage:ctx.localStorage,atob:ctx.atob,TextDecoder,Uint8Array,CustomEvent:class{}};vm.createContext(counterContext);vm.runInContext(counter,counterContext);const old=decodes;w.InfinityTokenCount.knownIds();w.InfinityTokenCount.knownIds();assert.equal(decodes-old,1,'count runtime should decode once across reads');
+console.log('PASS: 230-record cache, storage invalidation, source attribution, account switch, counter reuse');

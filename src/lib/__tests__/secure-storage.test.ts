@@ -102,3 +102,18 @@ describe("secure-storage", () => {
     expect(secureLoad(KEY, null, "local")).toBe(null);
   });
 });
+
+describe('large Unicode research packages', () => {
+  it('preserves the envelope and checksum across chunk boundaries', () => {
+    fakeStorage.clear(); fakeStorage.quotaLimit = null;
+    const value = { title: 'Ruthenium φ — 氢', overview: 'Evidence 🧪 café φ '.repeat(20000) };
+    expect(secureSave('large-unicode', value)).toBe(true);
+    const raw = JSON.parse(fakeStorage.getItem('large-unicode')!);
+    expect(raw.v).toBe(1);
+    expect(typeof raw.checksum).toBe('number');
+    expect(secureLoad('large-unicode', null)).toEqual(value);
+    raw.data = raw.data.slice(0, -8) + 'AAAAAAAA';
+    fakeStorage.setItem('large-unicode', JSON.stringify(raw));
+    expect(secureLoad('large-unicode', null)).toBeNull();
+  });
+});

@@ -37,13 +37,16 @@ function checksum(input: string): number {
 function encode(json: string): string {
   const bytes = new TextEncoder().encode(json);
   let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
+  for (let offset = 0; offset < bytes.length; offset += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+  }
   return btoa(binary);
 }
 
 function decode(base64: string): string {
   const binary = atob(base64);
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
   return new TextDecoder().decode(bytes);
 }
 
@@ -253,20 +256,23 @@ function writeRaw(
  * example a full storage quota), the oldest entries are pruned and the
  * write is retried so recent history is never silently lost.
  */
-export function secureSave<T>(
+function saveFastCopy<T>(
   key: string,
   value: T,
   area: StorageArea = "local",
+  mirror = true,
 ): boolean {
-  const durableEnvelope = wrap(JSON.stringify(value));
-  void writeDurable(key, durableEnvelope, area);
+  const fullJson = JSON.stringify(value);
+  const durableEnvelope = wrap(fullJson);
+  if (mirror) void writeDurable(key, durableEnvelope, area);
   const attempt = (payload: T): boolean => {
-    const envelope = wrap(JSON.stringify(payload));
+    const payloadJson = payload === value ? fullJson : JSON.stringify(payload);
+    const envelope = payload === value ? durableEnvelope : wrap(payloadJson);
     const ok = writeRaw(key, envelope, area);
     if (!ok) return false;
     // Verify the write is actually readable back before trusting it.
     const verify = unwrap(readRaw(key, area) ?? "");
-    return verify.status === "ok" && verify.json === JSON.stringify(payload);
+    return verify.status === "ok" && verify.json === payloadJson;
   };
 
   if (attempt(value)) return true;
@@ -281,8 +287,12 @@ export function secureSave<T>(
     }
   }
 
-  memoryFallback.set(memoryKey(area, key), wrap(JSON.stringify(value)));
+  memoryFallback.set(memoryKey(area, key), durableEnvelope);
   return false;
+}
+
+export function secureSave<T>(key: string, value: T, area: StorageArea = "local"): boolean {
+  return saveFastCopy(key, value, area);
 }
 
 /** Save to both the fast local store and IndexedDB before continuing. */
@@ -291,7 +301,7 @@ export async function secureSaveDurable<T>(
   value: T,
   area: StorageArea = "local",
 ): Promise<boolean> {
-  const localSaved = secureSave(key, value, area);
+  const localSaved = saveFastCopy(key, value, area, false);
   const durableSaved = await writeDurable(
     key,
     wrap(JSON.stringify(value)),

@@ -168,16 +168,42 @@ function canonicalPhiToken(token: PhiSearchToken, payload?: Record<string, any>)
       },
   };
 }
+let pendingWebsite: { id: string; query: string } | null = null;
+let websiteBuildTimer = 0;
+let lastWebsiteInteraction = 0;
+let websiteInteractionBound = false;
 function prebuildCanonicalWebsite(id: string, query: string) {
   if (typeof document === "undefined" || !document.body) return;
-  const frame = document.createElement("iframe");
-  frame.src = canonicalWebsiteUrl(id, query);
-  frame.tabIndex = -1;
-  frame.setAttribute("aria-hidden", "true");
-  frame.style.cssText =
-    "position:fixed;width:1px;height:1px;right:-8px;bottom:-8px;opacity:0;pointer-events:none;border:0";
-  document.body.appendChild(frame);
-  window.setTimeout(() => frame.remove(), 18000);
+  pendingWebsite = { id, query };
+  const removeFrames = () => document.querySelectorAll("iframe[data-infinity-website-build]").forEach(frame => frame.remove());
+  const schedule = () => {
+    window.clearTimeout(websiteBuildTimer);
+    websiteBuildTimer = window.setTimeout(() => {
+      websiteBuildTimer = 0;
+      if (!pendingWebsite) return;
+      const editing = document.activeElement?.matches("input,textarea,[contenteditable='true']");
+      if (editing || Date.now() - lastWebsiteInteraction < 4000) { schedule(); return; }
+      const next = pendingWebsite;
+      pendingWebsite = null;
+      removeFrames();
+      const frame = document.createElement("iframe");
+      frame.dataset.infinityWebsiteBuild = next.id;
+      frame.src = canonicalWebsiteUrl(next.id, next.query);
+      frame.tabIndex = -1;
+      frame.setAttribute("aria-hidden", "true");
+      frame.style.cssText = "position:fixed;width:1px;height:1px;right:-8px;bottom:-8px;opacity:0;pointer-events:none;border:0";
+      document.body.appendChild(frame);
+      window.setTimeout(() => frame.remove(), 18000);
+    }, 4500);
+  };
+  if (!websiteInteractionBound) {
+    websiteInteractionBound = true;
+    const pause = () => { lastWebsiteInteraction = Date.now(); removeFrames(); if (pendingWebsite) schedule(); };
+    document.addEventListener("pointerdown", pause, { capture: true, passive: true });
+    document.addEventListener("keydown", pause, { capture: true });
+    document.addEventListener("focusin", pause, { capture: true });
+  }
+  schedule();
 }
 export function syncPhiSearchTokenResearch(
   tokenId: string,

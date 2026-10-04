@@ -154,19 +154,31 @@
     return wallet;
   }
 
+  let cachedLedgerRaw,cachedLedgerValue;
   function decodeInfinityEnvelope(raw){
+    if(raw===cachedLedgerRaw)return cachedLedgerValue;
+    const value=decodeLedgerUncached(raw);cachedLedgerRaw=raw;cachedLedgerValue=value;return value;
+  }
+  function decodeLedgerUncached(raw){
     if(!raw)return null;
     try{
       const parsed=JSON.parse(raw);
       if(parsed&&typeof parsed==='object'&&typeof parsed.data==='string'){
-        const binary=atob(parsed.data),bytes=Uint8Array.from(binary,ch=>ch.charCodeAt(0));
+        const binary=atob(parsed.data),bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
         return JSON.parse(new TextDecoder().decode(bytes));
       }
       return parsed;
     }catch{return null}
   }
 
+  let cachedCountInputs,cachedCounts;
   function canonicalSearchCounts(){
+    const keys=["c13b0_infinity_token_ledger_v3","infinityPhi:searchTokens:v1","omniPhi:history:v1","omniPhi:pendingInfinitySearches:v1","omniPhi:lastSearchToken:v1","quantaPhiBuildHistoryV1","infinity_unified_wallet_v1","infinity_unified_token_count_v3",WALLET_SESSION_KEY,WALLET_USERS_KEY,WALLET_GUEST_KEY];
+    const inputs=keys.map(key=>{try{return localStorage.getItem(key)}catch{return null}});
+    if(cachedCountInputs&&inputs.every((raw,i)=>raw===cachedCountInputs[i]))return cachedCounts;
+    const result=readCanonicalSearchCounts();cachedCountInputs=inputs;cachedCounts=result;return result;
+  }
+  function readCanonicalSearchCounts(){
     const records=new Map(),eventAliases=new Map();
     const fp=value=>{const text=JSON.stringify(value||{});let h=2166136261;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619)}return(h>>>0).toString(36)};
     const put=(id,source,query='',item={})=>{
