@@ -47,8 +47,26 @@ function readUnifiedState(): UnifiedWalletState | null {
 function activeUnifiedWallet(): WalletRecord | null {
   const state = readUnifiedState();
   return state?.currentWalletId
-    ? state.wallets[state.currentWalletId] || null
+    ? normalizeWallet(state.wallets[state.currentWalletId], state.currentWalletId)
     : null;
+}
+
+// The cloud wallet uses `id`; the original C13b0 client uses `walletId`.
+// Read either schema while preserving the selected wallet and its contents.
+function normalizeWallet(value: unknown, selectedId?: string): WalletRecord | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const id = [record.walletId, record.id, selectedId].find(
+    (candidate) => typeof candidate === "string" && candidate.trim().length > 0,
+  );
+  if (typeof id !== "string") return null;
+  return {
+    ...record,
+    walletId: id,
+    displayName: typeof record.displayName === "string" && record.displayName.trim()
+      ? record.displayName
+      : "Infinity Wallet",
+  };
 }
 
 function activateUnifiedWallet(wallet: WalletRecord): void {
@@ -93,7 +111,7 @@ function loadWalletCookie(): WalletRecord | null {
       .split("; ")
       .find((item) => item.startsWith(`${WALLET_COOKIE}=`))
       ?.slice(WALLET_COOKIE.length + 1);
-    return raw ? (JSON.parse(decodeURIComponent(raw)) as WalletRecord) : null;
+    return raw ? normalizeWallet(JSON.parse(decodeURIComponent(raw))) : null;
   } catch {
     return null;
   }
@@ -102,7 +120,7 @@ function loadWalletCookie(): WalletRecord | null {
 export function loadLocalWallet(): WalletRecord | null {
   const unified = activeUnifiedWallet();
   const local =
-    secureLoad<WalletRecord | null>(LOCAL_WALLET, null) || loadWalletCookie();
+    normalizeWallet(secureLoad<unknown>(LOCAL_WALLET, null)) || loadWalletCookie();
   const wallet = unified || local;
   if (!wallet) return null;
 
@@ -136,7 +154,7 @@ export function connectOrCreateWallet(
       const api = new window.InfinityUnifiedWallet.UnifiedInfinityWallet();
       const state = api.snapshot();
       const active = state.currentWalletId
-        ? state.wallets[state.currentWalletId] || null
+        ? normalizeWallet(state.wallets[state.currentWalletId], state.currentWalletId)
         : null;
       wallet =
         active ||
@@ -164,5 +182,6 @@ export function connectOrCreateWallet(
 }
 
 export function formatWalletId(id: string): string {
+  if (typeof id !== "string") return "Wallet connecting";
   return id.length > 32 ? `${id.slice(0, 16)}…${id.slice(-10)}` : id;
 }

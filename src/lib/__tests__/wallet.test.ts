@@ -64,6 +64,21 @@ describe("wallet synchronization", () => {
     expect(loadLocalWallet()).toBeNull();
   });
 
+  it("reads cloud id records without replacing identity, balances or history", () => {
+    const cloud = { id: "cloud-existing", balances: { INFINITY: 229 }, tokenIds: ["saved-token"] };
+    const state = { ...unifiedState({ walletId: "cloud-existing", displayName: "Cloud" }), wallets: { "cloud-existing": cloud } };
+    localStorage.setItem(UNIFIED, JSON.stringify(state));
+    expect(loadLocalWallet()).toMatchObject({ ...cloud, walletId: "cloud-existing", displayName: "Infinity Wallet" });
+    expect(JSON.parse(localStorage.getItem(UNIFIED)!)).toEqual(state);
+  });
+
+  it("keeps the selected map identity for a legacy record without an id field", () => {
+    const state = { ...unifiedState({ walletId: "existing", displayName: "Existing" }), wallets: { existing: { balances: { QUANT: 17 } } } };
+    localStorage.setItem(UNIFIED, JSON.stringify(state));
+    expect(loadLocalWallet()).toMatchObject({ walletId: "existing", balances: { QUANT: 17 } });
+    expect(formatWalletId(undefined as unknown as string)).toBe("Wallet connecting");
+  });
+
   it("creates one active wallet in both C13b0 and the unified store", () => {
     const wallet = connectOrCreateWallet();
     expect(secureLoad(LOCAL, null)).toEqual(wallet);
