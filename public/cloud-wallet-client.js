@@ -1,5 +1,6 @@
 (function(global){
 'use strict';
+if(global.InfinityCloudWallet)return;
 const ENDPOINT='https://unified-wallet.marvaseater.workers.dev';
 const DEVICE_PREFIX='starquest_ledger_device_v1:';
 const read=(key,fallback=null)=>{try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}};
@@ -10,7 +11,7 @@ class InfinityUnifiedWallet{
  token(){const token=findDeviceToken();if(!/^sq_[A-Za-z0-9_-]{32,}$/.test(token))throw new Error('Connect the same StarQuest account before using the unified wallet.');return token}
  async request(path,options={}){const response=await fetch(this.endpoint+path,{signal:AbortSignal.timeout(8000),...options,headers:{'content-type':'application/json','authorization':'Bearer '+this.token(),...(options.headers||{})}});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'unified_wallet_request_failed');return result}
  async connect(){return this.refresh()}
- async refresh(){this.state=await this.request('/v1/wallet/state',{cache:'no-store'});this.listeners.forEach(fn=>fn(this.state));global.dispatchEvent(new CustomEvent('infinity:wallet-state',{detail:this.state}));return this.state}
+ refresh(){if(this.refreshPending)return this.refreshPending;this.refreshPending=this.request('/v1/wallet/state',{cache:'no-store'}).then(state=>{this.state=state;this.listeners.forEach(fn=>fn(state));global.dispatchEvent(new CustomEvent('infinity:wallet-state',{detail:state}));return state}).finally(()=>{this.refreshPending=null});return this.refreshPending}
  async importLegacy({importKey='browser-v1',balances={},tokens=[]}={}){const result=await this.request('/v1/wallet/import',{method:'POST',body:JSON.stringify({importKey,source:this.appName,balances,tokens})});await this.refresh();return result}
  async mintToken(type,data,idempotencyKey){const result=await this.request('/v1/tokens/mint',{method:'POST',body:JSON.stringify({type,data,idempotencyKey,source:this.appName})});await this.refresh();return result}
  async spendInfinity(amount,referenceId,idempotencyKey,metadata={}){const result=await this.request('/v1/wallet/spend',{method:'POST',body:JSON.stringify({asset:'INFINITY',amount,referenceId,idempotencyKey,metadata})});await this.refresh();return result}

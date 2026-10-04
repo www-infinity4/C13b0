@@ -2,10 +2,11 @@
 'use strict';
 const ENDPOINT='https://quanta-phi-ledger.marvaseater.workers.dev';
 const LOCAL='musicPhi:quants:v1',LISTENING='musicPhi:listeningQuants:v1',UNIFIED='infinity_unified_wallet_v1';
-const read=(k,f)=>{try{return JSON.parse(localStorage.getItem(k))??f}catch{return f}},write=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch{return false}};
+const read=(k,f)=>{try{return JSON.parse(localStorage.getItem(k))??f}catch{return f}},write=(k,v)=>{try{const next=JSON.stringify(v);if(localStorage.getItem(k)!==next)localStorage.setItem(k,next);return true}catch{return false}};
 let syncing=false;
 function mirror(state){
  const unified=read(UNIFIED,{}),walletId=state.wallet_id||unified.currentWalletId||'music-quant-cloud';
+ if(unified.currentWalletId===walletId&&Number(unified.musicQuants)===Number(state.balance||0)&&Number(unified.wallets?.[walletId]?.balances?.MUSIC_QUANT)===Number(state.balance||0))return;
  const wallets=unified.wallets&&typeof unified.wallets==='object'?unified.wallets:{},wallet=wallets[walletId]&&typeof wallets[walletId]==='object'?wallets[walletId]:{},balances=wallet.balances&&typeof wallet.balances==='object'?wallet.balances:{};
  wallets[walletId]={...wallet,balances:{...balances,MUSIC_QUANT:Number(state.balance||0)},updatedAt:Date.now()};
  write(UNIFIED,{...unified,currentWalletId:walletId,wallets,musicQuants:Number(state.balance||0),updatedAt:Date.now(),source:'music-quant-cloud'});

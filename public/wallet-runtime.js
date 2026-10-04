@@ -235,10 +235,16 @@
   }
 
   let cloudBalances={};
-  async function refreshCloudBalances(){
+  let cloudRefreshPending=null;
+  function refreshCloudBalances(){
+    if(cloudRefreshPending)return cloudRefreshPending;
+    cloudRefreshPending=readCloudBalances().finally(()=>{cloudRefreshPending=null});
+    return cloudRefreshPending;
+  }
+  async function readCloudBalances(){
     const assets=window.PhiAssetBalances,epochs=Object.fromEntries(['INFINITY','QUANT','MUSIC_QUANT'].map(code=>[code,assets?.beginRead(code)]));
     try{let state;const bridge=window.StarQuestCloudLedger;
-      if(bridge?.authenticatedFetch){const r=await bridge.authenticatedFetch('https://unified-wallet.marvaseater.workers.dev/v1/wallet/state');if(!r.ok)return;state=await r.json()}
+      if(bridge?.authenticatedFetch){const r=await bridge.authenticatedFetch('https://unified-wallet.marvaseater.workers.dev/v1/wallet/state',{signal:AbortSignal.timeout(8000)});if(!r.ok)return;state=await r.json()}
       else{const Wallet=window.InfinityCloudWallet||(typeof window.InfinityUnifiedWallet==='function'?window.InfinityUnifiedWallet:null);if(!Wallet)return;const wallet=new Wallet({appName:document.title});state=await wallet.request('/v1/wallet/state',{cache:'no-store'})}
       for(const [code,balance]of Object.entries(state.balances||{})){if(assets&&code in epochs){if(assets.accept(code,balance,epochs[code]))cloudBalances[code]=balance}else cloudBalances[code]=balance}refreshWalletUI()
     }catch(error){console.warn('Cloud wallet balance refresh deferred',error)}
@@ -288,11 +294,17 @@
     }catch{return 0}
   }
 
-  async function refreshAlienCoinCount(){
+  let alienRefreshPending=null;
+  function refreshAlienCoinCount(){
+    if(alienRefreshPending)return alienRefreshPending;
+    alienRefreshPending=readAlienCoinCount().finally(()=>{alienRefreshPending=null});
+    return alienRefreshPending;
+  }
+  async function readAlienCoinCount(){
     let session='';try{session=localStorage.getItem('alien-coin-wallet-session-v1')||''}catch{}
     if(!session){try{sessionStorage.setItem('controlPhi:alienCoinCount:v1','0')}catch{};refreshWalletUI();return 0}
     try{
-      const response=await fetch('https://alien-coin.marvaseater.workers.dev/api/tokens',{headers:{Authorization:'Bearer '+session},cache:'no-store'});
+      const response=await fetch('https://alien-coin.marvaseater.workers.dev/api/tokens',{headers:{Authorization:'Bearer '+session},cache:'no-store',signal:AbortSignal.timeout(8000)});
       const data=await response.json();
       const count=response.ok&&Array.isArray(data.tokens)?data.tokens.length:0;
       try{sessionStorage.setItem('controlPhi:alienCoinCount:v1',String(count))}catch{}
@@ -341,8 +353,18 @@
     return {...walletSnapshot(),...detail};
   }
 
+  // Burst events must not repeatedly decode every saved website on the tap thread.
+  let walletRenderTimer=0,lastRenderedWallet=null;
   function refreshWalletUI(){
+    if(!walletRenderTimer)walletRenderTimer=window.setTimeout(()=>{
+      walletRenderTimer=0;
+      renderWalletUI();
+    },80);
+    return lastRenderedWallet;
+  }
+  function renderWalletUI(){
     const snapshot=walletSnapshot();
+    lastRenderedWallet=snapshot;
     document.querySelectorAll('[data-control-phi-wallet-balance]').forEach(el=>{const value=String(snapshot.balance);if(el.textContent!==value)el.textContent=value});
     document.querySelectorAll('[data-control-phi-wallet-progress]').forEach(el=>{const value=`${snapshot.progressToNextCoin}/10`;if(el.textContent!==value)el.textContent=value});
     document.querySelectorAll('[data-control-phi-wallet-menu-balance]').forEach(el=>{const value=`${snapshot.balance} ⭐`;if(el.textContent!==value)el.textContent=value});
