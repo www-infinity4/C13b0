@@ -168,6 +168,32 @@ export default function PhiSearchRouteGuard() {
   return (
     <>
       <PhiUnifiedPage />
+      <footer style={{ display: "grid", placeItems: "center", padding: "32px 16px 112px" }}>
+        <a
+          href="https://quantaphi.org/mckee-coins/"
+          aria-label="Open McKee Coins"
+          style={{
+            display: "grid",
+            placeItems: "center",
+            width: "min(82vw, 290px)",
+            minHeight: "190px",
+            padding: "22px",
+            border: "5px double #6f4a08",
+            borderRadius: "50%",
+            background: "radial-gradient(circle at 34% 28%, #fff4a8 0, #f6c84b 22%, #bd7711 58%, #6b3905 100%)",
+            color: "#241300",
+            textAlign: "center",
+            textDecoration: "none",
+            fontFamily: "Georgia, serif",
+            fontWeight: 900,
+            boxShadow: "0 18px 42px rgba(70,38,0,.32), inset 0 0 0 7px rgba(255,238,151,.48), inset 0 -16px 28px rgba(79,40,0,.28)",
+          }}
+        >
+          <span style={{ fontSize: "1.7rem", letterSpacing: ".04em", lineHeight: 1.05 }}>McKee Coins</span>
+          <span style={{ fontSize: "1rem", letterSpacing: ".16em", textTransform: "uppercase" }}>Tap Here</span>
+          <span aria-hidden="true" style={{ fontSize: "2rem", lineHeight: 1 }}>★</span>
+        </a>
+      </footer>
     </>
   );
 }
