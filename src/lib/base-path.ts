@@ -5,6 +5,11 @@
  * is no browser pathname yet, so the build must also know the Pages base.
  */
 export function appBase(): string {
+  if (typeof location !== "undefined" && /^(?:www\.)?quantaphi\.org$/i.test(location.hostname)) {
+    return location.pathname === "/infinity-phi" || location.pathname.startsWith("/infinity-phi/")
+      ? "/infinity-phi"
+      : "";
+  }
   if (typeof process !== "undefined") {
     if (process.env?.NEXT_PUBLIC_APP_BASE) {
       return process.env.NEXT_PUBLIC_APP_BASE.replace(/\/+$/, "") || "";
