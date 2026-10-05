@@ -74,7 +74,18 @@ function importAccountProfile(values){
  const incoming=JSON.parse(values.starquest_users||'{}')?.[key];
  if(!key||!incoming||String(incoming.key||'').toLowerCase()!==key)return;
  const users=read('starquest_users',{});if(!users||Array.isArray(users)||typeof users!=='object')throw new Error('invalid_account_cache');
- if(!users[key])localStorage.setItem('starquest_users',JSON.stringify({...users,[key]:incoming}));
+ const current=users[key];
+ if(!current){localStorage.setItem('starquest_users',JSON.stringify({...users,[key]:incoming}));return}
+ const currentEffective=Math.max(0,Number(current.tokens)||0)+Math.max(0,Number(current.pendingShareCredits)||0)/10;
+ const incomingEffective=Math.max(0,Number(incoming.tokens)||0)+Math.max(0,Number(incoming.pendingShareCredits)||0)/10;
+ if(incomingEffective>currentEffective||Number(incoming.shareCount||0)>Number(current.shareCount||0)){
+  const merged={...current,
+   tokens:incomingEffective>currentEffective?Math.max(0,Number(incoming.tokens)||0):Math.max(0,Number(current.tokens)||0),
+   pendingShareCredits:incomingEffective>currentEffective?Math.max(0,Math.min(9,Number(incoming.pendingShareCredits)||0)):Math.max(0,Math.min(9,Number(current.pendingShareCredits)||0)),
+   shareCount:Math.max(Number(current.shareCount)||0,Number(incoming.shareCount)||0)
+  };
+  localStorage.setItem('starquest_users',JSON.stringify({...users,[key]:merged}));
+ }
 }
 function importTopLevelHandoff(){
  let encoded='';try{encoded=new URLSearchParams(location.hash.slice(1)).get('quantaWalletLink')||''}catch{}
@@ -106,7 +117,20 @@ const ready=PAID_ORIGINS.has(location.origin)?new Promise(resolve=>{
    try{const current=read('starquest_session',null),remote=JSON.parse(event.data.values?.starquest_session||'null');if(current&&(current.key||current.username)!==(remote?.key||remote?.username)){finish('account-mismatch');return}}catch(_){finish('account-mismatch');return}
    try{importAccountProfile(event.data.values||{})}catch(error){finish('account-cache-error');return}
    const allowed=new Set(['starquest_session','c13b0_infinity_token_ledger_v3','infinity_unified_token_count_v3','phi:assetBalances:v1','quantaPhiBuildHistoryV1','quantaPhiCollected','quantaPhiTokens','quantaPhi:pendingSearchCommits:v2','quantaPhi:pendingInfinityCredits:v1']);
-   try{for(const [key,value]of Object.entries(event.data.values||{})){if((allowed.has(key)||/^starquest_ledger_device_v1:[A-Za-z0-9_-]+$/.test(key))&&typeof value==='string'&&localStorage.getItem(key)===null)localStorage.setItem(key,value)}}catch(_){}
+   try{
+    for(const [key,value]of Object.entries(event.data.values||{})){
+     if(typeof value!=='string'||(!allowed.has(key)&&!/^starquest_ledger_device_v1:[A-Za-z0-9_-]+$/.test(key)))continue;
+     const current=localStorage.getItem(key);
+     if(current===null){localStorage.setItem(key,value);continue}
+     if(key==='quantaPhiTokens'){
+      const local=Math.max(0,Number(current)||0),remote=Math.max(0,Number(value)||0);
+      if(remote>local)localStorage.setItem(key,String(remote));
+     }else if(key==='quantaPhiBuildHistoryV1'){
+      let a=[],b=[];try{a=JSON.parse(current)||[]}catch{}try{b=JSON.parse(value)||[]}catch{}
+      if(Array.isArray(a)&&Array.isArray(b)){const byId=new Map();for(const item of [...b,...a]){const id=String(item?.id||item?.search_id||item?.token_id||'');if(id&&!byId.has(id))byId.set(id,item)};localStorage.setItem(key,JSON.stringify([...byId.values()]))}
+     }
+    }
+   }catch(_){}
    global.dispatchEvent(new StorageEvent('storage',{key:'phi:assetBalances:v1'}));finish('linked');
    const user=global.StarQuestAuth?.currentUser?.();
    if(user)document.dispatchEvent(new CustomEvent('starquest:auth-changed',{detail:{user,action:'wallet-recovery'}}));
