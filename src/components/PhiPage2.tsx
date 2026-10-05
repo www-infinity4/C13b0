@@ -998,7 +998,7 @@ export default function PhiPage2() {
       setQuery(q);setInput(q);
       if(runRequested||!cached){
         void run(q).finally(()=>{
-          try{const u=new URL(location.href);u.searchParams.delete("run");History.prototype.replaceState.call(history,history.state,"",u.toString())}catch{}
+          try{const u=new URL(location.href);u.searchParams.delete("run");History.prototype.replaceState.call(window.history,window.history.state,"",u.toString())}catch{}
         });
       }else{
         setRecord(cached);
