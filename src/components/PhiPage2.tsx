@@ -675,6 +675,25 @@ function readQuery() {
     ? ""
     : clean(new URLSearchParams(location.search).get("q") || "", 1000);
 }
+function cachedResultForQuery(q:string):ResultRecord|null{
+  try{
+    const saved=JSON.parse(localStorage.getItem(INFINITY_RESEARCH)||"null");
+    if(!saved||clean(saved.query).toLowerCase()!==clean(q).toLowerCase())return null;
+    const sources=(Array.isArray(saved.sources)?saved.sources:[]).flatMap((x:any,index:number)=>{
+      const source=normalizeSource({
+        id:x?.id||`cached-${index}`,
+        title:x?.title,
+        url:x?.url,
+        domain:x?.domain,
+        excerpt:x?.extract||x?.excerpt,
+        imageUrl:x?.image||x?.imageUrl,
+        provider:x?.provider,
+      },clean(x?.provider,100)||"Infinity Phi");
+      return source?[source]:[];
+    });
+    return {query:q,resolved:clean(saved.resolved||q,1000),title:q,overview:clean(saved.overview,5000),sources,created:Date.parse(saved.createdAt||"")||Date.now()};
+  }catch{return null}
+}
 function currentPhiTokenId(q: string) {
   if (typeof window === "undefined") return "";
   const params = new URLSearchParams(location.search),
@@ -975,7 +994,16 @@ export default function PhiPage2() {
     const q = readQuery();
     if (q) {
       setCollected(collectedForQuery(q));
-      void run(q);
+      const params=new URLSearchParams(location.search),runRequested=params.get("run")==="1",cached=cachedResultForQuery(q);
+      setQuery(q);setInput(q);
+      if(runRequested||!cached){
+        void run(q).finally(()=>{
+          try{const u=new URL(location.href);u.searchParams.delete("run");History.prototype.replaceState.call(history,history.state,"",u.toString())}catch{}
+        });
+      }else{
+        setRecord(cached);
+        setBusy(false);
+      }
     }
     const refresh = () => {
       const now = readQuery() || query;
