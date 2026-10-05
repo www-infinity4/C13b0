@@ -612,6 +612,46 @@ export default function PhiPage() {
     const id = params.get("id") || "";
     const localHistory = secureLoad<HistoryItem[]>(HISTORY, []);
     if (localHistory.length) setHistory(localHistory);
+    if (params.get("source") === "news-phi") {
+      try {
+        const handoff = JSON.parse(localStorage.getItem("phiShared:newsStoryHandoff:v1") || "null");
+        if (handoff && handoff.source === "news-phi") {
+          const title = clean(handoff.title || initial || "News Phi story");
+          const body = clean(handoff.body || "");
+          const storyId = `news-${hashText(String(handoff.storyKey || handoff.url || title))}`;
+          const source: Source = {
+            title,
+            url: clean(handoff.url || ""),
+            excerpt: body,
+            provider: clean(handoff.domain || "News Phi"),
+            imageUrl: clean(handoff.image || "") || undefined,
+          };
+          const sentences = splitSentences(body);
+          const seeded: Paper = {
+            id: storyId,
+            query: title,
+            resolved: title,
+            identity: { kind: "general", name: title },
+            title,
+            overview: body || `Researching the News Phi story: ${title}`,
+            findings: sentences.slice(0, 8),
+            sources: [source, ...(Array.isArray(handoff.sources) ? handoff.sources.map((item: any) => ({
+              title: clean(item?.title || title),
+              url: clean(item?.url || ""),
+              excerpt: clean(item?.excerpt || ""),
+              provider: clean(item?.provider || "News Phi source"),
+            })).filter((item: Source) => item.url || item.excerpt) : [])],
+            created: Date.now(),
+          };
+          setQuery(title);
+          setPaper(seeded);
+          setBaseConclusion(seeded.overview);
+          setResearchNotes(notesForStory(makeStoryBeats(seeded, makeHighlights(seeded), null)).slice(0, 8));
+          setResearchTrail("News Phi story loaded as the starting evidence. Build, refine, or add live sources from here.");
+          return;
+        }
+      } catch {}
+    }
     if (initial) {
       setQuery(initial);
       if (params.get("run") === "1") void runSearch(initial, localHistory);
