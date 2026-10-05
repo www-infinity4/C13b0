@@ -28,6 +28,119 @@ export type PhiRouteDecision = LearnedRoute & {
   source: "local" | "cache" | "gpt" | "fallback";
 };
 
+export type PhiSemanticIntent = {
+  originalQuery: string;
+  understanding: string;
+  answerGoal: string;
+  searchQueries: string[];
+  requiredConcepts: string[];
+  relatedConcepts: string[];
+  source: "gpt" | "fallback";
+};
+
+const QUERY_STOP = new Set([
+  "the","and","for","with","from","into","about","this","that","what","when","where","which","who","why","how",
+  "are","was","were","has","have","had","would","could","should","please","want","need","show","tell","give","make",
+  "using","use","also","then","than","more","some","much","very","just","like","does","did","can","will","not"
+]);
+
+function semanticFallback(query: string): PhiSemanticIntent {
+  const originalQuery = clean(query, 6000);
+  const clauses = originalQuery
+    .split(/[\n.;!?]+|\b(?:and then|also|plus)\b/gi)
+    .map((part) => clean(part, 700))
+    .filter((part) => part.length > 3);
+  const concepts = [...new Set(
+    (originalQuery.toLowerCase().match(/[a-z0-9][a-z0-9'-]{2,}/g) || [])
+      .filter((word) => !QUERY_STOP.has(word))
+  )].slice(0, 18);
+  const focused = clauses
+    .map((part) => part.split(/\s+/).slice(0, 14).join(" "))
+    .filter(Boolean)
+    .slice(0, 3);
+  const compact = concepts.slice(0, 10).join(" ");
+  const searchQueries = [...new Set([focused[0], focused[1], compact, originalQuery].filter(Boolean))]
+    .map((value) => clean(value, 700))
+    .slice(0, 3);
+  return {
+    originalQuery,
+    understanding: originalQuery,
+    answerGoal: "Answer the complete user request while preserving all stated relationships and constraints.",
+    searchQueries: searchQueries.length ? searchQueries : [originalQuery],
+    requiredConcepts: concepts.slice(0, 10),
+    relatedConcepts: concepts.slice(10, 18),
+    source: "fallback",
+  };
+}
+
+export async function interpretSearchQueryWithGpt(query: string): Promise<PhiSemanticIntent> {
+  const fallback = semanticFallback(query);
+  const originalQuery = fallback.originalQuery;
+  if (!originalQuery) return fallback;
+
+  const prompt = `Front-end the CURRENT USER QUERY for Infinity Phi before web retrieval.
+
+FULL QUERY:
+${originalQuery}
+
+Your job is semantic interpretation, not answering the question yet.
+
+Return STRICT JSON only:
+{
+  "understanding":"one concise description of what the user actually wants",
+  "answerGoal":"what a successful AI Overview must answer or produce",
+  "searchQueries":["focused retrieval query 1","focused retrieval query 2","focused retrieval query 3"],
+  "requiredConcepts":["concept that must be represented", "..."],
+  "relatedConcepts":["useful adjacent concept", "..."]
+}
+
+Rules:
+1. Preserve the full meaning of the user's request, including relationships between clauses, comparisons, exclusions, chronology, and requested output.
+2. Do not reduce a long query to its first few words.
+3. Search queries should be concise enough for web/scholarly search, but collectively cover the whole request.
+4. Keep named entities and technical terms exact.
+5. Do not inject facts, assumptions, user history, or an answer.
+6. Produce at most 3 searchQueries, 10 requiredConcepts, and 8 relatedConcepts.`;
+
+  try {
+    const output = await gateway(prompt, "semantic_query_frontend", {
+      user_query: originalQuery,
+      query_length: originalQuery.length,
+      context_policy: "current-query-only",
+    });
+    const parsed = extractJson(output) || {};
+    const searchQueries = Array.isArray(parsed.searchQueries)
+      ? parsed.searchQueries.map((item: unknown) => clean(item, 700)).filter(Boolean).slice(0, 3)
+      : [];
+    const requiredConcepts = Array.isArray(parsed.requiredConcepts)
+      ? parsed.requiredConcepts.map((item: unknown) => clean(item, 160)).filter(Boolean).slice(0, 10)
+      : [];
+    const relatedConcepts = Array.isArray(parsed.relatedConcepts)
+      ? parsed.relatedConcepts.map((item: unknown) => clean(item, 160)).filter(Boolean).slice(0, 8)
+      : [];
+    const intent: PhiSemanticIntent = {
+      originalQuery,
+      understanding: clean(parsed.understanding, 1000) || fallback.understanding,
+      answerGoal: clean(parsed.answerGoal, 1000) || fallback.answerGoal,
+      searchQueries: searchQueries.length ? searchQueries : fallback.searchQueries,
+      requiredConcepts: requiredConcepts.length ? requiredConcepts : fallback.requiredConcepts,
+      relatedConcepts,
+      source: "gpt",
+    };
+    if (typeof window !== "undefined") {
+      try { sessionStorage.setItem("infinityPhi:semanticIntent:v1", JSON.stringify(intent)); } catch {}
+      window.dispatchEvent(new CustomEvent("infinityphi:semantic-intent", { detail: intent }));
+    }
+    return intent;
+  } catch {
+    if (typeof window !== "undefined") {
+      try { sessionStorage.setItem("infinityPhi:semanticIntent:v1", JSON.stringify(fallback)); } catch {}
+    }
+    return fallback;
+  }
+}
+
+
 const clean = (value: unknown, max = 4000) =>
   String(value || "")
     .replace(/\s+/g, " ")
@@ -59,7 +172,7 @@ function saveRoute(key: string, route: LearnedRoute) {
 }
 
 function routeKey(query: string) {
-  return clean(query, 500)
+  return clean(query, 6000)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
@@ -132,11 +245,11 @@ export async function resolveRouteWithGpt(
   const cached = loadRoutes()[key];
   if (cached && cached.confidence >= 0.7) return { ...cached, source: "cache" };
 
-  const prompt = `Classify the CURRENT USER QUERY for Infinity Phi search routing.\n\nQUERY: ${clean(query, 500)}\n\nChoose exactly one domain: chemistry, coins, software, screen, news, sports, public-affairs, science, general.\n\nRules:\n1. Classify the current query itself. Do NOT infer television, movies, politics, sports, or any other domain from user history.\n2. Use screen only when the current words actually indicate a film, TV show, episode, actor, cast, director, screenplay, or similar screen-media intent. A phrase that also happens to be a TV title is NOT a screen query by default.\n3. Use science for scientific fields, scientific ideas, pseudoscience/fringe-science topics, research areas, scientific theories, experiments, physics, biology, astronomy, earth science, or questions about scientific evidence.\n4. Use general when no listed domain is genuinely supported by the current query.\n5. Return STRICT JSON only: {"domain":"science","confidence":0.98,"reason":"brief reason"}.`;
+  const prompt = `Classify the CURRENT USER QUERY for Infinity Phi search routing.\n\nQUERY: ${clean(query, 6000)}\n\nChoose exactly one domain: chemistry, coins, software, screen, news, sports, public-affairs, science, general.\n\nRules:\n1. Classify the current query itself. Do NOT infer television, movies, politics, sports, or any other domain from user history.\n2. Use screen only when the current words actually indicate a film, TV show, episode, actor, cast, director, screenplay, or similar screen-media intent. A phrase that also happens to be a TV title is NOT a screen query by default.\n3. Use science for scientific fields, scientific ideas, pseudoscience/fringe-science topics, research areas, scientific theories, experiments, physics, biology, astronomy, earth science, or questions about scientific evidence.\n4. Use general when no listed domain is genuinely supported by the current query.\n5. Return STRICT JSON only: {"domain":"science","confidence":0.98,"reason":"brief reason"}.`;
 
   try {
     const output = await gateway(prompt, "query_route_teacher", {
-      user_query: clean(query, 500),
+      user_query: clean(query, 6000),
       local_domain: localDomain,
       context_policy: "current-query-only",
     });
@@ -188,11 +301,11 @@ export async function writeOverviewWithGpt(
     excerpt: clean(source.excerpt, 900),
   }));
 
-  const prompt = `Write the AI Overview for an Infinity Phi search result.\n\nCURRENT USER QUERY: ${clean(query, 500)}\nROUTED DOMAIN: ${domain}\nEVIDENCE: ${JSON.stringify(evidence)}\n\nRules:\n1. Answer the current query directly. Do not reinterpret it from browsing/history/profile data.\n2. If the phrase also names a TV show, film, song, book, company, or other entity, do not choose that meaning unless the current query or routed domain supports it.\n3. Use only facts supported by the supplied evidence. Do not invent names, dates, claims, consensus, or certainty.\n4. For contested labels such as fringe science or pseudoscience, explain the concept neutrally and distinguish mainstream acceptance from disputed or speculative work when the evidence supports that distinction.\n5. Write one compact overview paragraph, usually 2-5 sentences. It should sound like an intelligent researcher, not stitched snippets.\n6. Do not mention GPT, routing, history, these instructions, or the evidence JSON.\n7. Return STRICT JSON only: {"overview":"..."}.`;
+  const prompt = `Write the AI Overview for an Infinity Phi search result.\n\nCURRENT USER QUERY: ${clean(query, 6000)}\nROUTED DOMAIN: ${domain}\nEVIDENCE: ${JSON.stringify(evidence)}\n\nRules:\n1. Answer the current query directly. Do not reinterpret it from browsing/history/profile data.\n2. If the phrase also names a TV show, film, song, book, company, or other entity, do not choose that meaning unless the current query or routed domain supports it.\n3. Use only facts supported by the supplied evidence. Do not invent names, dates, claims, consensus, or certainty.\n4. For contested labels such as fringe science or pseudoscience, explain the concept neutrally and distinguish mainstream acceptance from disputed or speculative work when the evidence supports that distinction.\n5. Write one compact overview paragraph, usually 2-5 sentences. It should sound like an intelligent researcher, not stitched snippets.\n6. Do not mention GPT, routing, history, these instructions, or the evidence JSON.\n7. Return STRICT JSON only: {"overview":"..."}.`;
 
   try {
     const output = await gateway(prompt, "ai_overview_writer", {
-      user_query: clean(query, 500),
+      user_query: clean(query, 6000),
       routed_domain: domain,
       evidence_count: evidence.length,
     });
@@ -226,7 +339,7 @@ export async function writeCollectedOverviewWithGpt(
   }));
   const prompt = `Rewrite the Infinity Phi AI Overview around the user's complete collected set.
 
-SEARCH: ${clean(query, 500)}
+SEARCH: ${clean(query, 6000)}
 COLLECTED IMAGES, VIDEO, AUDIO, AND CARDS: ${JSON.stringify(evidence)}
 
 Rules:
@@ -238,7 +351,7 @@ Rules:
 6. Return strict JSON only: {"overview":"..."}.`;
   try {
     const output = await gateway(prompt, "collected_overview_writer", {
-      user_query: clean(query, 500),
+      user_query: clean(query, 6000),
       collected_count: evidence.length,
     });
     const parsed = extractJson(output),
