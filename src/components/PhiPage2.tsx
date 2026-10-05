@@ -18,7 +18,7 @@ import {
   syncPhiSearchTokenResearch,
 } from "@/lib/phi-search-token";
 import { awardPhiStarCredit } from "@/lib/phi-star-rewards";
-import { writeCollectedOverviewWithGpt } from "@/lib/phi-gpt-router";
+import { interpretSearchQueryWithGpt, writeCollectedOverviewWithGpt, type PhiSemanticIntent } from "@/lib/phi-gpt-router";
 
 type HistoryItem = {
   query: string;
@@ -427,23 +427,30 @@ async function fetchDuckDuckGo(q: string) {
     });
   return out;
 }
-function relevance(s: Source, q: string) {
-  const w = tokens(q);
+function relevance(s: Source, q: string, semantic?: PhiSemanticIntent) {
+  const conceptText = semantic?.requiredConcepts?.length
+    ? semantic.requiredConcepts.join(" ")
+    : q;
+  const w = tokens(conceptText);
   if (!w.length) return 1;
   const t = tokens(s.title),
     titleText = s.title.toLowerCase(),
     body = s.excerpt.toLowerCase(),
     titleHits = w.filter((x) => t.includes(x) || titleText.includes(x)).length,
     bodyHits = w.filter((x) => body.slice(0, 1500).includes(x)).length;
-  if (titleHits === 0) return 0;
-  const titleCoverage = titleHits / w.length;
-  if (w.length > 1 && titleCoverage < 0.5) return 0;
-  let score = titleCoverage * 10 + (bodyHits / w.length) * 2;
-  if (titleText.includes(clean(q).toLowerCase())) score += 8;
+  const titleCoverage = titleHits / Math.max(1, w.length);
+  const bodyCoverage = bodyHits / Math.max(1, w.length);
+  // Long natural-language queries should not require half of every concept
+  // to appear in one source title. Evidence may cover different parts of the request.
+  if (titleHits === 0 && bodyHits === 0) return 0;
+  let score = titleCoverage * 8 + bodyCoverage * 7;
+  if (titleHits > 0) score += 2;
+  if (bodyHits >= Math.min(3, Math.max(1, Math.ceil(w.length / 4)))) score += 2;
+  if (titleText.includes(clean(q, 1000).toLowerCase())) score += 5;
   if (s.imageUrl) score += 0.4;
   return score;
 }
-function selectSources(sources: Source[], q: string) {
+function selectSources(sources: Source[], q: string, semantic?: PhiSemanticIntent) {
   const seen = new Set<string>(),
     dc = new Map<string, number>(),
     pc = new Map<string, number>(),
@@ -454,7 +461,7 @@ function selectSources(sources: Source[], q: string) {
         seen.add(k);
         return true;
       })
-      .map((s) => ({ ...s, score: relevance(s, q) }))
+      .map((s) => ({ ...s, score: relevance(s, q, semantic) }))
       .sort((a, b) => (b.score || 0) - (a.score || 0)),
     chosen: Source[] = [];
   ranked.forEach((s) => {
@@ -485,10 +492,15 @@ function selectSources(sources: Source[], q: string) {
     });
   return chosen;
 }
-async function searchAllSources(q: string) {
-  const resolved = resolvedQuery(q),
-    searches = [...new Set([q, resolved])].slice(0, 2),
-    tasks: Promise<Source[]>[] = [];
+async function searchAllSources(q: string, semantic?: PhiSemanticIntent) {
+  const resolved = resolvedQuery(q);
+  const semanticQueries = (semantic?.searchQueries || []).map((value) => clean(value, 700)).filter(Boolean);
+  const searches = [...new Set([
+    ...semanticQueries,
+    resolved !== q ? resolved : "",
+    q.length <= 260 ? q : "",
+  ].filter(Boolean))].slice(0, 3);
+  const tasks: Promise<Source[]>[] = [];
   searches.forEach((s) =>
     tasks.push(
       fetchWikipedia(s),
@@ -498,10 +510,10 @@ async function searchAllSources(q: string) {
       fetchInternetArchive(s),
     ),
   );
-  tasks.push(fetchDuckDuckGo(q));
+  tasks.push(fetchDuckDuckGo(searches[0] || q));
   const settled = await Promise.allSettled(tasks),
     merged = settled.flatMap((x) => (x.status === "fulfilled" ? x.value : []));
-  return { resolved, sources: selectSources(merged, resolved) };
+  return { resolved, searches, sources: selectSources(merged, q, semantic) };
 }
 function buildOverview(q: string, sources: Source[]) {
   const lines: string[] = [];
@@ -673,7 +685,7 @@ function similarCardsUrl(s: Source, q: string) {
 function readQuery() {
   return typeof window === "undefined"
     ? ""
-    : clean(new URLSearchParams(location.search).get("q") || "", 1000);
+    : clean(new URLSearchParams(location.search).get("q") || "", 6000);
 }
 function cachedResultForQuery(q:string):ResultRecord|null{
   try{
@@ -909,7 +921,7 @@ export default function PhiPage2() {
       [record?.created],
     );
   async function run(next: string, write = false) {
-    const q = clean(next, 1000);
+    const q = clean(next, 6000);
     if (!q) return;
     const id = ++requestRef.current,
       freshToken = write ? beginPhiSearchToken(q) : null,
@@ -943,7 +955,11 @@ export default function PhiPage2() {
       );
     }
     try {
-      const result = await searchAllSources(q);
+      setNotice(q.split(/\s+/).length > 8 ? "Understanding the full request before searching…" : "");
+      const semantic = await interpretSearchQueryWithGpt(q);
+      if (id !== requestRef.current) return;
+      setNotice(semantic.source === "gpt" ? "Full-query meaning understood. Searching the strongest source paths…" : "Searching the full request with local semantic fallback…");
+      const result = await searchAllSources(q, semantic);
       if (id !== requestRef.current) return;
       const nextRecord = buildRecord(q, result.resolved, result.sources);
       // Render evidence while synthesis runs, including searches with no collects.
@@ -955,14 +971,21 @@ export default function PhiPage2() {
         provider: source.provider,
         kind: "source-card",
       }));
+      const semanticContext = {
+        title: "Semantic interpretation",
+        extract: `${semantic.understanding} Answer goal: ${semantic.answerGoal}. Required concepts: ${semantic.requiredConcepts.join(", ")}.`,
+        provider: "Infinity Phi semantic front-end",
+        kind: "semantic-intent",
+      };
       nextRecord.overview = await writeCollectedOverviewWithGpt(
         q,
-        overviewEvidence,
+        [semanticContext, ...overviewEvidence],
         productOverview(q, nextRecord.overview, selected),
       );
       if (id !== requestRef.current) return;
       setRecord({ ...nextRecord });
       setBusy(false);
+      if (nextRecord.sources.length) setNotice("");
       if (!nextRecord.sources.length)
         setNotice(
           "The renderer stayed active, but no provider returned usable public evidence on this pass.",
@@ -1028,7 +1051,7 @@ export default function PhiPage2() {
     void run(input, true);
   }
   function openImages() {
-    const q = clean(input || query, 1000);
+    const q = clean(input || query, 6000);
     if (!q) return;
     const token = currentPhiTokenId(query || q);
     location.assign(
@@ -1114,14 +1137,21 @@ export default function PhiPage2() {
           className="flex items-center gap-2 rounded-2xl border-2 border-violet-300 bg-slate-50 p-2"
         >
           <Search size={20} className="text-violet-700" />
-          <input
-            type="search"
+          <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            rows={1}
             inputMode="search"
             enterKeyHint="search"
             autoComplete="off"
-            className="relative z-10 min-w-0 flex-1 touch-manipulation bg-transparent px-1 py-2 font-semibold text-black placeholder:text-slate-500 outline-none"
+            aria-label="Search with Infinity Phi"
+            className="relative z-10 min-h-11 min-w-0 flex-1 resize-none touch-manipulation bg-transparent px-1 py-2 font-semibold text-black placeholder:text-slate-500 outline-none"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                e.currentTarget.form?.requestSubmit();
+              }
+            }}
           />
           <button
             type="submit"
