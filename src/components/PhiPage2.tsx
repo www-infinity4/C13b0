@@ -1278,9 +1278,21 @@ export default function PhiPage2() {
                       {s.title}
                     </h3>
                     <p className="mt-3 font-medium leading-6 text-white">
-                      {s.excerpt.slice(0, 520)}
-                      {s.excerpt.length > 520 ? "…" : ""}
+                      {s.excerpt.slice(0, 260)}
+                      {s.excerpt.length > 260 ? "…" : ""}
                     </p>
+                    <details className="mt-4 rounded-2xl border border-orange-200/65 bg-black/25 p-3 text-white">
+                      <summary className="cursor-pointer rounded-full border border-orange-100 bg-orange-100 px-4 py-3 text-center text-sm font-black text-orange-950 focus-visible:outline focus-visible:outline-4 focus-visible:outline-violet-200">
+                        Read story details
+                      </summary>
+                      <div className="mt-4 space-y-3 px-2">
+                        <h4 className="text-lg font-black">{s.title}</h4>
+                        <p className="whitespace-pre-wrap text-sm leading-7">
+                          {s.excerpt || "An expanded account is not yet available from this source. Follow the credited article for the complete original."}
+                        </p>
+                        {s.url ? <a href={s.url} rel="noopener noreferrer" target="_blank" className="inline-flex rounded-full border border-orange-100 px-4 py-2 text-sm font-black underline">Continue at original source ↗</a> : <span className="text-sm">No external full-text source has been verified for this story.</span>}
+                      </div>
+                    </details>
                     <div className="phi-orange-actions mt-4 flex flex-wrap gap-2">
                       {s.url && (
                         <a
