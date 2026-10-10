@@ -397,7 +397,7 @@
 
     mergeImageIntoWebsiteData(record);
     syncCurrentSearchCollection(query);
-    window.dispatchEvent(new CustomEvent('controlphi:shared', { detail: { source: 'infinity-phi-image', storyKey: key } }));
+    window.dispatchEvent(new CustomEvent('controlphi:shared', { detail: { source: 'infinity-phi-image', storyKey: key, card: record } }));
     window.dispatchEvent(new CustomEvent('infinityphi:image-selected', { detail: record }));
     return record;
   }
