@@ -58,10 +58,43 @@
     window.dispatchEvent(new CustomEvent("controlphi:wallet-change",{detail}));
     return detail;
   }
+  // Capture an exact source/quant receipt, including image Collect, and replay safely.
+  const OUTBOX='infinityPhi:pendingStarEvidence:v1',pendingMemory=new Map();
+  const pending=()=>[...new Map([...(read(OUTBOX,[])||[]),...pendingMemory.values()].filter(x=>x?.key).map(x=>[x.key,x])).values()];
+  const persist=items=>{if(write(OUTBOX,items.slice(-800))){pendingMemory.clear();return true}return false};
+  let syncing=false;
+  function enqueue(detail){
+    const key=String(detail?.storyKey||'').trim();
+    if(!key)return;
+    const items=pending();
+    if(items.some(x=>x.key===key))return;
+    const record={key,card:detail.card||{storyKey:key,title:document.title,
+      searchQuery:new URLSearchParams(location.search).get('q')||'',tokenId:new URLSearchParams(location.search).get('token')||''}};
+    items.push(record);
+    if(!persist(items))pendingMemory.set(key,record);
+    void flush();
+  }
+  async function flush(){
+    if(syncing||!window.ControlPhi?.ensureActionCredit||!window.InfinityStarCatalog?.record)return;
+    syncing=true;
+    try{
+      for(const item of pending().slice(0,100)){
+        try{
+          const result=ensureCollect(item.key);
+          if(result?.pending)break;
+          const saved=await window.InfinityStarCatalog.record('collect',item.key,item.card);
+          if(!saved?.queued)break;
+          persist(pending().filter(x=>x.key!==item.key));
+        }catch(error){console.warn('Infinity StarCoin Collect retained for retry',error);break}
+      }
+    }finally{syncing=false}
+  }
   window.addEventListener("controlphi:shared",e=>{
     const d=e?.detail||{};
-    if(String(d.source||"").toLowerCase()!=="infinity-phi")return;
-    setTimeout(()=>ensureCollect(d.storyKey),50);
+    if(d.source!=="infinity-phi"&&d.source!=="infinity-phi-image")return;
+    enqueue(d);
   });
-  window.InfinityStarRepair={snapshot:()=>snapshot(),ensureCollect};
+  for(const event of ['load','focus','online','controlphi:wallet-change'])window.addEventListener(event,()=>{void flush()});
+  setTimeout(()=>{void flush()},1800);
+  window.InfinityStarRepair={snapshot:()=>snapshot(),ensureCollect,retry:flush,pending:()=>pending().length};
 })(window);
