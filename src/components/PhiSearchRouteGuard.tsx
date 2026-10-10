@@ -61,6 +61,25 @@ function mergeSearxIntoWikipedia(payload: any, sources: PhiRetrievedSource[]) {
  */
 export default function PhiSearchRouteGuard() {
   useLayoutEffect(() => {
+    // A card handoff must open a search for the card's title, not the
+    // sender's long index-word/description string. Normalize before the
+    // search shell's effects initialize so every incoming link behaves alike.
+    try {
+      const incoming = new URL(window.location.href);
+      const params = incoming.searchParams;
+      if (params.get("codeHandoff") !== "1") {
+        const cardTitle = (params.get("cardTitle") || params.get("sharedTitle") || params.get("storyTitle") || "").trim().slice(0, 240);
+        const currentQuery = (params.get("q") || "").trim();
+        const fallbackTitle = (!currentQuery && (params.get("title") || "").trim().slice(0, 240)) || "";
+        const nextQuery = cardTitle || currentQuery || fallbackTitle;
+        if (nextQuery && nextQuery !== currentQuery) {
+          params.set("q", nextQuery);
+          params.set("run", "1");
+          History.prototype.replaceState.call(window.history, window.history.state, "", incoming.toString());
+        }
+      }
+    } catch { /* Unmodified URLs still open the normal search. */ }
+
     const history = window.history as History & { pushState: History["pushState"]; replaceState: History["replaceState"] };
     const frameworkPushState = history.pushState.bind(history);
     const frameworkReplaceState = history.replaceState.bind(history);
