@@ -578,7 +578,9 @@
       const outgoing={...data,title:data.title||plan.payload.title,text:data.text||plan.payload.text,url:plan.payload.url};
       const result=await nativeShare(outgoing);
       recordShare({...plan.payload,id:plan.id,trackingUrl:plan.trackingUrl,shareConfirmed:true,shareMethod:'web_share_api',platform:'external'});
-      setTimeout(()=>ensureShareCredit(plan.payload.url,'web_share_api'),900);
+      // Quanta's authenticated StarQuest server is the only payout path on Phi pages
+      // using the unified server settlement contract. Avoid a second local credit.
+      if(!window.__quantaStarServerSettlement)setTimeout(()=>ensureShareCredit(plan.payload.url,'web_share_api'),900);
       return result;
     };
     wrapped.__controlPhi=true;
