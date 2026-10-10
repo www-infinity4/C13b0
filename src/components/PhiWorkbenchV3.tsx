@@ -21,6 +21,7 @@ type SelectionState = {
   noteImages?: Record<string, string[]>;
   notes: Note[];
   deepNotes?: string[];
+  websiteDirection?: string;
   updatedAt: string;
 };
 
@@ -188,6 +189,7 @@ export default function PhiWorkbenchV3() {
   const [images, setImages] = useState<CommonsImage[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedTerms, setSelectedTerms] = useState<string[]>([]);
+  const [websiteDirection, setWebsiteDirection] = useState("");
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [noteImages, setNoteImages] = useState<Record<string,string[]>>({});
   const [showAllCards, setShowAllCards] = useState(false);
@@ -197,6 +199,7 @@ export default function PhiWorkbenchV3() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search); const id = params.get("id") || ""; const parentId = id.split("-note-")[0]; const query = clean(params.get("q")); const resolved = clean(params.get("resolved")) || query;
+    const requestedDirection = clean(params.get("path")).slice(0, 80); setWebsiteDirection(requestedDirection);
     if (!id && !query) { setError("No research package was supplied."); setLoading(false); return; }
     void (async () => {
       let exact: Paper | null = null;
@@ -217,6 +220,7 @@ export default function PhiWorkbenchV3() {
         const ids = stored.branchIds?.length ? stored.branchIds : (stored.branchBodies || []).map(branchId);
         setSelectedIds(ids.length ? ids : (stored.branches || []).map((index) => baseBranches[index]?.id).filter(Boolean));
         setSelectedTerms(stored.terms || []); setSelectedImages(stored.imageUrls || []); setNoteImages(stored.noteImages || {});
+        setWebsiteDirection(requestedDirection || stored.websiteDirection || "");
       }
       setEnriching(false);
     })();
@@ -253,11 +257,11 @@ export default function PhiWorkbenchV3() {
 
   useEffect(() => {
     if (!paper) return;
-    const state: SelectionState = { branches: [], branchIds: selectedIds, branchBodies: selectedBranches.map((branch) => branch.body), terms: selectedTerms, imageUrls: selectedImages, noteImages, notes, updatedAt: new Date().toISOString() };
+    const state: SelectionState = { branches: [], branchIds: selectedIds, branchBodies: selectedBranches.map((branch) => branch.body), terms: selectedTerms, imageUrls: selectedImages, noteImages, notes, websiteDirection, updatedAt: new Date().toISOString() };
     secureSave(`${SELECTION_PREFIX}${paper.id}`, state);
     const timer = window.setTimeout(() => void secureSaveDurable(`${SELECTION_PREFIX}${paper.id}`, state).catch(() => undefined), 280);
     return () => window.clearTimeout(timer);
-  }, [paper,selectedIds,selectedBranches,selectedTerms,selectedImages,noteImages,notes]);
+  }, [paper,selectedIds,selectedBranches,selectedTerms,selectedImages,noteImages,notes,websiteDirection]);
 
   function toggleBranch(branch: Branch) { setSelectedIds((current) => current.includes(branch.id) ? current.filter((id) => id !== branch.id) : [...current,branch.id].slice(-12)); setShowAllCards(false); }
   function toggleTerm(term: string) { setSelectedTerms((current) => current.includes(term) ? current.filter((value) => value !== term) : [...current,term].slice(-28)); }
@@ -278,16 +282,16 @@ export default function PhiWorkbenchV3() {
   if (error || !paper) return <main className={styles.error}><a href={appPath("phi")}><ArrowLeft size={18}/> Back</a><h1>Research package unavailable</h1><p>{error}</p></main>;
 
   const hero = selectedImages[0] || images[0]?.url || sources.find((source) => source.imageUrl)?.imageUrl;
-  const magazineUrl = `${appPath("phi/magazine")}?id=${encodeURIComponent(paper.id)}`;
+  const magazineUrl = `${appPath("phi/magazine")}?${new URLSearchParams({ id: paper.id, ...(websiteDirection ? { path: websiteDirection } : {}) })}`;
   const latestSelectedImage = selectedImages[selectedImages.length-1] || "";
 
   return <main className={styles.page}>
-    <header className={styles.topbar}><a href={`${appPath("phi")}?id=${encodeURIComponent(paper.id)}`}><ArrowLeft size={20}/></a><div><b>Infinity Phi workbench</b><small>{enriching ? "Reshaping the story and finding the next useful branches…" : `${visibleBranches.length} live directions · ${notes.length} notes · ${images.length} distinct images`}</small></div><a className={styles.publishTop} href={appPath("phi/build/cards")}>Sale card template</a><a className={styles.publishTop} href={magazineUrl}><Printer size={17}/> Page 3</a></header>
+    <header className={styles.topbar}><a href={`${appPath("phi")}?id=${encodeURIComponent(paper.id)}`}><ArrowLeft size={20}/></a><div><b>Infinity Phi workbench</b><small>{enriching ? "Reshaping the story and finding the next useful branches…" : `${visibleBranches.length} live directions · ${notes.length} notes · ${images.length} distinct images`}</small></div><a className={styles.publishTop} href={magazineUrl}><Printer size={17}/> View finished website</a></header>
 
     <section className={styles.hero}>{hero && <img src={hero} alt=""/>}<div className={styles.heroShade}/><div className={styles.heroCopy}><small>PAGE TWO · WORKING RESEARCH</small><h1>{paper.title}</h1><p>{focus ? focusedStory.slice(0,2).join(" ") : paper.overview}</p></div></section>
 
     <div className={styles.layout}>
-      <aside className={styles.meta}><span>Research package</span><b>{paper.id}</b><span>Identity</span><b>{paper.resolved}</b><span>Build scope</span><b>{selectedIds.length ? `${selectedIds.length} connected directions` : "Complete subject"}</b><span>Builder status</span><b>{enriching ? "Reshaping" : "Ready"}</b><span>Images available</span><b>{images.length}</b><span>Images chosen</span><b>{selectedImages.length}</b></aside>
+      <aside className={styles.meta}><span>Research package</span><b>{paper.id}</b><span>Identity</span><b>{paper.resolved}</b><span>Build scope</span><b>{selectedIds.length ? `${selectedIds.length} connected directions` : "Complete subject"}</b><span>Website direction</span><b>{websiteDirection || "General research"}</b><span>Builder status</span><b>{enriching ? "Reshaping" : "Ready"}</b><span>Images available</span><b>{images.length}</b><span>Images chosen</span><b>{selectedImages.length}</b></aside>
 
       <div className={styles.work}>
         <section className={styles.storyboard}>
