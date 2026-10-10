@@ -675,8 +675,11 @@ function collectSource(s: Source, q: string, tokenId = currentPhiTokenId(q)) {
   return true;
 }
 function similarCardsUrl(s: Source, q: string) {
+  const title = clean(s.title, 240) || q;
   const p = new URLSearchParams({
-    q: clean(`${q} ${s.title}`, 1000),
+    q: title,
+    cardTitle: title,
+    sourceQuery: q,
     run: "1",
     similar: "1",
   });
@@ -1338,7 +1341,7 @@ export default function PhiPage2() {
                         {collectStatus[s.id] || "Collect"}
                       </button>
                       <a
-                        href={`${appPath("phi/build")}?${new URLSearchParams({ q: query, focus: s.title })}`}
+                        href={`${appPath("phi/build")}?${new URLSearchParams({ q: s.title, cardTitle: s.title, sourceQuery: query, focus: s.title, mode: "website" })}`}
                         className="rounded-full bg-yellow-300 px-3 py-2 text-xs font-black text-red-950"
                       >
                         Build this story
