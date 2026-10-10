@@ -396,7 +396,7 @@ export default function PhiMagazineV5() {
       const saved = secureLoad<SelectionState | null>(`${SELECTION_PREFIX}${exact.id}`, null) || await secureLoadDurable<SelectionState | null>(`${SELECTION_PREFIX}${exact.id}`, null).catch(() => null);
       const next = saved || { branches: [], branchIds: [], branchBodies: [], terms: [], imageUrls: [], noteImages: {}, notes: [], deepNotes: [], updatedAt: "" };
       const requestedDirection = clean(params.get("path")).slice(0, 80);
-      if (requestedDirection) next.websiteDirection = requestedDirection;
+      if (requestedDirection) (next as SelectionState).websiteDirection = requestedDirection;
       const cards = buildSemanticExpansionCards(exact.query, exact.overview, exact.sources, exact.findings, "", [], 15);
       const selected = findSelectedCard(cards, next);
       const lockedFocus = resolvePublicationFocus(exact.query, next, selected);
