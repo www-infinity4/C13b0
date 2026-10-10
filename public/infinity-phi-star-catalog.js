@@ -50,7 +50,7 @@
   const hash=await identifier(kind,ref);
   const reference_id='quantaphi:'+kind+':infinity:'+hash;
   const data=evidence(card,kind,ref);
-  const receipt={kind,reference_id,reference:ref.slice(0,700),created_at:new Date().toISOString(),data,
+  const receipt={kind,reference_id,reference:ref.slice(0,700),created_at:new Date().toISOString(),data,serverSettlement:true,
    card:kind==='collect'?{key:data.id,type:'omni-source',title:data.title,story:data.story,media:data.media,sourceUrl:data.sourceUrl}:undefined};
   const items=pending();
   if(!items.some(x=>x.reference_id===reference_id)){
@@ -59,6 +59,27 @@
   }
   void flush();
   return {queued:true,reference_id};
+ }
+ async function refreshConfirmedBalance(token,account){
+  try{
+   if(!account||!Number.isFinite(Number(account.starCoins))||!Number.isFinite(Number(account.pendingShareCredits)))return;
+   // Never write a Cloudflare account's balance into a different browser profile.
+   const session=JSON.parse(localStorage.getItem('starquest_session')||'null');
+   const key=String(session?.key||'').trim().toLowerCase();
+   const users=JSON.parse(localStorage.getItem('starquest_users')||'{}');
+   if(!key||!users[key])return;
+   const check=await fetch('https://starquest-ledger.marvaseater.workers.dev/v1/state',{headers:{authorization:'Bearer '+token},cache:'no-store',signal:AbortSignal.timeout(9000)});
+   const data=await check.json().catch(()=>({}));
+   if(!check.ok||!data?.state?.username||String(data.state.username).toLowerCase()!==key)return;
+   const profile=users[key];
+   profile.tokens=Math.max(0,Number(data.state.starCoins)||0);
+   profile.pendingShareCredits=Math.max(0,Math.min(9,Number(data.state.pendingShareCredits)||0));
+   profile.shareCount=Math.max(0,Number(data.state.shareCount)||0);
+   users[key]=profile;
+   localStorage.setItem('starquest_users',JSON.stringify(users));
+   root.dispatchEvent(new CustomEvent('controlphi:wallet-change',{detail:{source:'starquest-confirmed',balance:profile.tokens+profile.pendingShareCredits/10}}));
+   root.ControlPhi?.refreshWallet?.();
+  }catch(error){console.warn('StarQuest confirmed balance display deferred',error)}
  }
  async function flush(){
   if(syncing)return {pending:pending().length};
@@ -70,7 +91,8 @@
   syncing=true;
   try{
    for(let page=0;page<10;page++){
-    const items=pending().slice(0,100);if(!items.length)break;
+    const items=pending().slice(0,100);
+    if(!items.length)break;
     const response=await fetch(API,{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify({credits:items}),signal:AbortSignal.timeout(12000)});
     if(!response.ok)break;
     const result=await response.json().catch(()=>({}));
@@ -78,8 +100,14 @@
     if(!accepted.size)break;
     const rest=pending().filter(x=>!accepted.has(x.reference_id));
     if(!save(rest))for(const key of accepted)pendingMemory.delete(key);
+    if(result.wallet_state)await refreshConfirmedBalance(token,result.wallet_state);
    }
-  }catch(error){console.warn('Infinity StarCoin catalog sync deferred',error)}
+   // Previously accepted catalog actions sometimes had no spendable payout.
+   // The authenticated server verifies and recovers only missing receipts.
+   const check=await fetch(API+'/reconcile',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+token},body:'{}',signal:AbortSignal.timeout(12000)});
+   const outcome=await check.json().catch(()=>({}));
+   if(check.ok&&outcome.ok&&outcome.wallet_state)await refreshConfirmedBalance(token,outcome.wallet_state);
+  }catch(error){console.warn('Infinity StarCoin settlement remains queued for retry',error)}
   finally{syncing=false}
   return {pending:pending().length,connected:true};
  }
