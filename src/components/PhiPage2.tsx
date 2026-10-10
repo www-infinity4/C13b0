@@ -1200,6 +1200,25 @@ export default function PhiPage2() {
               )}
             </div>
           </section>
+          <section className="rounded-[26px] border border-violet-200 bg-violet-50 p-4 sm:p-5" aria-label="Website directions">
+            <h2 className="text-lg font-black text-violet-950">Choose a website direction</h2>
+            <p className="mt-1 text-sm font-medium text-violet-800">Keep Infinity Phi’s finished website design. Pick what the website should emphasize.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {["Education", "Advertising / Shop", "Historical Museum", "Collector / Value Guide", "Visual Archive"].map((path) => (
+                <a key={path}
+                  href={`${appPath("phi/build") }?${new URLSearchParams({ q: query, mode: "website", path })}`}
+                  onClick={() => {
+                    try {
+                      localStorage.setItem("infinityPhi:websiteDirection:v1", JSON.stringify({
+                        query, path, title: record.title, createdAt: new Date().toISOString(),
+                      }));
+                    } catch {}
+                  }}
+                  className="inline-flex min-h-11 items-center rounded-xl border border-violet-300 bg-white px-4 py-2 text-sm font-extrabold text-violet-900 no-underline shadow-sm hover:border-amber-500 hover:bg-amber-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700"
+                >{path} →</a>
+              ))}
+            </div>
+          </section>
           {collected.length > 0 && (
             <section className="rounded-[30px] border-2 border-cyan-300 bg-cyan-50 p-5">
               <h2 className="text-2xl font-black text-slate-950">
@@ -1389,15 +1408,6 @@ export default function PhiPage2() {
               className="inline-block rounded-2xl bg-emerald-600 px-8 py-4 text-lg font-black text-white shadow-lg"
             >
               Generate Website →
-            </a>
-            <a
-              href={`https://www-infinity4.github.io/Web-Phi/?${new URLSearchParams({
-                q: query,
-                token: activeTokenId,
-              })}`}
-              className="inline-block rounded-2xl bg-violet-700 px-8 py-4 text-lg font-black text-white shadow-lg"
-            >
-              Website directions in Web Phi →
             </a>
           </section>
         </article>
