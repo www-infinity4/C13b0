@@ -18,14 +18,11 @@
   }
 
   function cardUrl(data) {
-    const url = new URL(location.href);
-    url.pathname = url.pathname.replace(/\/phi(?:\/.*)?$/, '/phi/');
-    url.search = '';
-    url.hash = '';
-    url.searchParams.set('cardTitle', data.title);
-    url.searchParams.set('cardBody', data.body);
-    if (data.image) url.searchParams.set('image', data.image);
-    return url.toString();
+    // A search route is shorter and more useful than a URL containing the entire article.
+    const url = new URL('https://quantaphi.org/infinity-phi/');
+    const topic = clean(data.title || '', 100);
+    if (topic) url.searchParams.set('q', topic);
+    return url.href;
   }
 
   function roundedRect(ctx, x, y, width, height, radius) {
@@ -138,7 +135,7 @@
 
     ctx.fillStyle = '#e8f0f5';
     ctx.font = '500 27px Arial, sans-serif';
-    const bodyLines = wrapLines(ctx, data.body, textWidth, image ? 8 : 7);
+    const bodyLines = wrapLines(ctx, data.body.slice(0, 185), textWidth, image ? 8 : 7);
     y += 20;
     bodyLines.forEach((line) => { ctx.fillText(line, textLeft, y); y += 37; });
 
@@ -167,8 +164,10 @@
       if (!capture) return previous(data);
 
       const info = cardData(capture);
-      const landingUrl = typeof data.url === 'string' && data.url ? data.url : cardUrl(info);
-      const basePayload = { ...data, title: info.title, text: info.body, url: landingUrl };
+      const landingUrl = cardUrl(info);
+      const starter = info.body.slice(0, 145).replace(/\s+\S*$/, '') || info.body.slice(0, 145);
+      const teaser = starter + (info.body.length > 145 ? '… Read more in Infinity Phi.' : ' · Explore in Infinity Phi.');
+      const basePayload = { ...data, title: info.title, text: teaser, url: landingUrl };
 
       try {
         const blob = await renderCard(capture);
@@ -184,7 +183,7 @@
               // with the landing URL embedded in the post text before giving up on
               // the rendered orange-card image.
               try {
-                const attachmentText = clean(`${info.body}\n\n${landingUrl}`, 1800);
+                const attachmentText = clean(`${teaser}\n\n${landingUrl}`, 320);
                 return await previous({ title: info.title, text: attachmentText, files: [file] });
               } catch (fileError) {
                 if (fileError?.name === 'AbortError') throw fileError;
