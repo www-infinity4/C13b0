@@ -40,6 +40,9 @@
   }
   function ensureCollect(storyKey){
     storyKey=String(storyKey||"").trim();if(!storyKey)return snapshot();
+    // Control Phi is the sole payout path; never run the second local mint.
+    if(window.ControlPhi?.ensureActionCredit)return window.ControlPhi.ensureActionCredit(storyKey,'collect');
+    return {pending:true,reference:storyKey};
     const s=store(),w=normalize(s.wallet),now=Date.now(),recent=w.ledger.some(e=>e?.type==="collect_credit"&&(e?.referenceId===storyKey||e?.referenceId==="infinity-phi:"+storyKey)&&now-Number(e?.createdAt||0)<8000);
     if(recent)return snapshot(w);
     const ref="infinity-phi:"+storyKey;
