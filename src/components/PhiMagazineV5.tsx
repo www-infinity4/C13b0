@@ -34,6 +34,7 @@ type SelectionState = PublicationSelection & {
   noteImages?: Record<string, string[]>;
   notes: Note[];
   deepNotes?: string[];
+  websiteDirection?: string;
   updatedAt: string;
 };
 type CommonsImage = { url: string; title: string; pageUrl: string };
@@ -175,6 +176,28 @@ function buildMaterial(paper: Paper, selection: SelectionState, sources: Source[
   ].map(clean).filter(Boolean);
   const verified = candidates.filter((line) => verifyPublicationParagraph(line, focus));
   return dedupeSemantic(dedupeLines(verified, 44), [], 34);
+}
+
+// A chosen path changes editorial priority, never fabricates a product, price,
+// historical claim or image. The source-verified Infinity publication stays intact.
+function orderForWebsiteDirection(sections: StorySection[], direction: string): StorySection[] {
+  const path = clean(direction).toLowerCase();
+  const cues: Record<string, string[]> = {
+    "education": ["explain", "how", "learn", "science", "process", "example", "understand"],
+    "advertising / shop": ["application", "use", "market", "design", "maker", "product", "service"],
+    "historical museum": ["history", "historical", "origin", "discovery", "century", "early", "year"],
+    "collector / value guide": ["collector", "value", "grade", "mintage", "auction", "rare", "price"],
+    "visual archive": ["image", "photograph", "visual", "art", "picture", "gallery", "archive"],
+  };
+  const terms = cues[path];
+  if (!terms || sections.length < 2) return sections;
+  const score = (section: StorySection) => {
+    const content = `${section.title} ${section.paragraphs.join(" ")}`.toLowerCase();
+    return terms.reduce((total, word) => total + (content.includes(word) ? 1 : 0), 0)
+      + (path === "visual archive" ? section.images.length * 2 : 0);
+  };
+  if (!sections.some((section) => score(section) > 0)) return sections;
+  return [...sections].sort((a, b) => score(b) - score(a));
 }
 
 function seedImages(sources: Source[], focus: PublicationFocus, selected?: SemanticCard) {
@@ -358,7 +381,7 @@ export default function PhiMagazineV5() {
   const selectedCard = useMemo(() => findSelectedCard(rootCards, selection), [rootCards, selection]);
   const focus = useMemo(() => paper ? resolvePublicationFocus(paper.query, selection, selectedCard) : null, [paper, selection, selectedCard]);
   const material = useMemo(() => paper && focus ? buildMaterial(paper, selection, sources, focus, selectedCard) : [], [paper, selection, sources, focus, selectedCard]);
-  const sections = useMemo(() => paper && focus ? makeSections(material, sources, images, paper, focus) : [], [material, sources, images, paper, focus]);
+  const sections = useMemo(() => paper && focus ? orderForWebsiteDirection(makeSections(material, sources, images, paper, focus), selection.websiteDirection || "") : [], [material, sources, images, paper, focus, selection.websiteDirection]);
   const magazineCards = useMemo(() => paper && focus ? buildSemanticExpansionCards(focus.label, magazineDeck(focus, material), sources, material, "", [], 15) : [], [paper, focus, material, sources]);
 
   useEffect(() => {
@@ -372,6 +395,8 @@ export default function PhiMagazineV5() {
       if (!exact) { setLoading(false); return; }
       const saved = secureLoad<SelectionState | null>(`${SELECTION_PREFIX}${exact.id}`, null) || await secureLoadDurable<SelectionState | null>(`${SELECTION_PREFIX}${exact.id}`, null).catch(() => null);
       const next = saved || { branches: [], branchIds: [], branchBodies: [], terms: [], imageUrls: [], noteImages: {}, notes: [], deepNotes: [], updatedAt: "" };
+      const requestedDirection = clean(params.get("path")).slice(0, 80);
+      if (requestedDirection) next.websiteDirection = requestedDirection;
       const cards = buildSemanticExpansionCards(exact.query, exact.overview, exact.sources, exact.findings, "", [], 15);
       const selected = findSelectedCard(cards, next);
       const lockedFocus = resolvePublicationFocus(exact.query, next, selected);
@@ -434,7 +459,7 @@ export default function PhiMagazineV5() {
       {hero ? <img src={hero} alt={focus.label} fetchPriority="high" /> : <div className={styles.emptyMedia} />}
       <div className={base.heroShade} />
       <div className={base.heroCopy}>
-        <div className={styles.focusBadge}>{focus.label}</div>
+        <div className={styles.focusBadge}>{focus.label}{selection.websiteDirection ? ` · ${selection.websiteDirection}` : ""}</div>
         <h1>{headline}</h1>
         <p>{deck}</p>
       </div>
@@ -442,7 +467,7 @@ export default function PhiMagazineV5() {
 
     <article className={base.article}>
       <section id="story" className={base.story}>
-        <div className={base.eyebrow}>The story</div>
+        <div className={base.eyebrow}>{selection.websiteDirection || "The story"}</div>
         <h2>{focus.label} in detail</h2>
         <div className={base.sections}>
           {visibleSections.map((section, index) => <section key={section.id} className={base.storySection}>
