@@ -40,8 +40,8 @@
   }
   function ensureCollect(storyKey){
     storyKey=String(storyKey||"").trim();if(!storyKey)return snapshot();
-    // Control Phi is the sole payout path; never run the second local mint.
-    if(window.ControlPhi?.ensureActionCredit)return window.ControlPhi.ensureActionCredit(storyKey,'collect');
+    // Pay via the authenticated Quanta/StarQuest ledger, never a local-only mint.
+    enqueue({kind:'collect',storyKey,card:{storyKey,title:document.title,source:'infinity-phi'}});
     return {pending:true,reference:storyKey};
     const s=store(),w=normalize(s.wallet),now=Date.now(),recent=w.ledger.some(e=>e?.type==="collect_credit"&&(e?.referenceId===storyKey||e?.referenceId==="infinity-phi:"+storyKey)&&now-Number(e?.createdAt||0)<8000);
     if(recent)return snapshot(w);
@@ -81,12 +81,7 @@
     try{
       for(const item of pending().slice(0,100)){
         try{
-          const cp=window.ControlPhi;
-          if(!item.alreadyRouted){
-            if(!cp?.ensureActionCredit||!cp?.ensureShareCredit)break;
-            const result=item.kind==='share'?cp.ensureShareCredit(item.key,'web_share_api'):ensureCollect(item.key);
-            if(result?.pending)break;
-          }
+          // One catalog receipt is both evidence and the actual StarQuest payout.
           const saved=await window.InfinityStarCatalog.record(item.kind,item.key,item.card);
           if(!saved?.queued)break;
           persist(pending().filter(x=>x.key!==item.key||x.kind!==item.kind));
