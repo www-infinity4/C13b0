@@ -1,15 +1,13 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { resolvePhiSearchToken, syncPhiSearchTokenResearch } from "@/lib/phi-search-token";
 import { appPath } from "@/lib/base-path";
 
 type Source = { title: string; url: string; excerpt: string; provider?: string; selectionReason?: string; readScope?: string };
 type Result = { title: string; sources: Source[]; websiteUrl: string; tokenId: string };
 export default function BubblesResearch() {
- const started=useRef(false);
  const [result,setResult]=useState<Result|null>(null),[error,setError]=useState("");
  useEffect(()=>{
-  if(started.current)return;started.current=true;
   const id=new URL(location.href).searchParams.get("id")||"";
   try{
    if(!/^[a-f0-9-]{36}$/i.test(id))throw Error("Invalid research handoff");
@@ -22,6 +20,8 @@ export default function BubblesResearch() {
    const saved=localStorage.getItem("bubbles:research-token:"+id)||sessionStorage.getItem("bubbles:research-token:"+id)||id;
    const token=resolvePhiSearchToken(packet.query.slice(0,500),saved);
    localStorage.setItem("bubbles:research-token:"+id,token.id);
+   const savedTokens=JSON.parse(localStorage.getItem("infinityPhi:searchTokens:v1")||"[]");
+   if(!Array.isArray(savedTokens)||!savedTokens.some((saved:{id?:string})=>saved.id===token.id))throw Error("Search token persistence was not confirmed");
    syncPhiSearchTokenResearch(token.id,token.query,{title:packet.title,resolved:packet.query,overview:String(packet.overview||"").slice(0,6000),sources});
    const site=new URL(appPath("studio/build"),location.origin);site.searchParams.set("id",token.id);site.searchParams.set("query",token.query);site.searchParams.set("mode","preview");
    setResult({title:packet.query,sources,websiteUrl:site.href,tokenId:token.id});
