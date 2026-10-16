@@ -66,3 +66,8 @@ jobs:
       - name: Deploy Infinity Phi
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Checkout live verification script
+        uses: actions/checkout@v4
+      - name: Verify published research and builder assets
+        run: node scripts/verify-research-live-assets.mjs
