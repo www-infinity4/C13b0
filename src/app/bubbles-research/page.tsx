@@ -13,15 +13,15 @@ export default function BubblesResearch() {
   const id=new URL(location.href).searchParams.get("id")||"";
   try{
    if(!/^[a-f0-9-]{36}$/i.test(id))throw Error("Invalid research handoff");
-   const packet=JSON.parse(sessionStorage.getItem("bubbles:research:"+id)||"null");
+   const packet=JSON.parse(localStorage.getItem("bubbles:research:"+id)||sessionStorage.getItem("bubbles:research:"+id)||"null");
    if(!packet||packet.id!==id||typeof packet.query!=="string"||!packet.query.trim())throw Error("Research packet is missing in this browser session");
    const sources:Source[]=(Array.isArray(packet.sources)?packet.sources:[]).filter((source:Source)=>{
     try{const url=new URL(source.url);return url.protocol==="https:"&&!url.username&&!url.password;}catch{return false;}
    }).slice(0,8).map((source:Source)=>({...source,title:String(source.title||"").slice(0,300),excerpt:String(source.excerpt||"").slice(0,2400)}));
    if(!sources.length)throw Error("No verified research sources");
-   const saved=sessionStorage.getItem("bubbles:research-token:"+id)||id;
+   const saved=localStorage.getItem("bubbles:research-token:"+id)||sessionStorage.getItem("bubbles:research-token:"+id)||id;
    const token=resolvePhiSearchToken(packet.query.slice(0,500),saved);
-   sessionStorage.setItem("bubbles:research-token:"+id,token.id);
+   localStorage.setItem("bubbles:research-token:"+id,token.id);
    syncPhiSearchTokenResearch(token.id,token.query,{title:packet.title,resolved:packet.query,overview:String(packet.overview||"").slice(0,6000),sources});
    const site=new URL(appPath("studio/build"),location.origin);site.searchParams.set("id",token.id);site.searchParams.set("query",token.query);site.searchParams.set("mode","preview");
    setResult({title:packet.query,sources,websiteUrl:site.href,tokenId:token.id});
